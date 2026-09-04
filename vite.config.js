@@ -2594,11 +2594,32 @@ function sendOverpassResponse(res, payload, cacheStatus = 'MISS') {
  * @param {number} [maxResponseBytes] Endpoint-specific response cap.
  * @returns {Promise<{status:number,body:string,contentType:string,endpoint:string,rateLimited:boolean}>}
  */
+/**
+ * The mirror that answered last, tried first next time.
+ *
+ * Which mirrors will serve a given network is not knowable in advance and does
+ * not stay fixed - measured here, the first two in the list refused outright
+ * while the third answered in full. Walking the whole list every time made a
+ * category search take 21 seconds, most of it spent being turned away. One
+ * remembered endpoint collapses that to a single request for every search
+ * after the first, and costs nothing when the usual order is fine.
+ *
+ * Session-scoped on purpose: it is a hint about the network right now, not a
+ * fact worth persisting.
+ */
+let _overpassPreferredEndpoint = null;
+
 async function fetchOverpassPayload(body, maxResponseBytes = OVERPASS_MAX_RESPONSE_BYTES) {
   let lastError = null;
   let lastRateLimitPayload = null;
+  /** Last refusal, so a total outage still forwards a real status. */
+  let lastNonOkPayload = null;
 
-  for (const endpoint of OVERPASS_UPSTREAMS) {
+  const ordered = _overpassPreferredEndpoint
+    ? [_overpassPreferredEndpoint, ...OVERPASS_UPSTREAMS.filter((e) => e !== _overpassPreferredEndpoint)]
+    : OVERPASS_UPSTREAMS;
+
+  for (const endpoint of ordered) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), OVERPASS_TIMEOUT_MS);
 
@@ -2637,13 +2658,30 @@ async function fetchOverpassPayload(body, maxResponseBytes = OVERPASS_MAX_RESPON
         lastError = new Error(`Overpass runtime error (${endpoint})`);
         continue;
       }
-      if (status >= 500) {
+      /*
+       * ANY non-200 means try the next mirror, not just a 5xx.
+       *
+       * This used to fall through only on 500-and-above, so a 4xx was returned
+       * as if it had succeeded and the caller rejected it - ending the chain at
+       * the first mirror. Measured while the four buttons could find nothing at
+       * all: overpass-api.de answered 406 from this network and
+       * kumi.systems answered the identical query 200 with full results, and
+       * kumi was never reached because the 406 had already been returned.
+       *
+       * Mirrors disagree about who they will serve; that disagreement is the
+       * entire reason there is a list. The last non-200 is kept so that if
+       * every mirror refuses, the proxy can still forward a real status to the
+       * client instead of a bare failure.
+       */
+      if (status !== 200) {
+        lastNonOkPayload = payload;
         lastError = new Error(`Overpass upstream returned ${status} (${endpoint})`);
         continue;
       }
 
       // Success: decimate giant boundary geometry before it reaches the cache,
       // the disk, or the client (what makes the 32 MB read cap safe to hold).
+      _overpassPreferredEndpoint = endpoint;
       payload.body = simplifyOverpassPayloadBody(payload.body);
       return payload;
     } catch (error) {
@@ -2654,6 +2692,7 @@ async function fetchOverpassPayload(body, maxResponseBytes = OVERPASS_MAX_RESPON
   }
 
   if (lastRateLimitPayload) return lastRateLimitPayload;
+  if (lastNonOkPayload) return lastNonOkPayload;
   throw lastError || new Error('All Overpass upstreams failed');
 }
 
