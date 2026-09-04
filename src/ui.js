@@ -14,6 +14,7 @@ import {
 } from './bloom.js';
 import { LOCATIONS, CITY_POIS, GLOBE_VIEW, flyToGlobeView, flyToPresetLocation, flyToPOI, searchAndFlyTo } from './locations.js';
 import { locationMiniStatus } from './locationStatus.js';
+import { citiesForCountry } from './data/countryCities.js';
 // Same bias string the search box and annotation resolver send, so the route
 // suggestions rank against the map the user is actually looking at.
 import { viewportBias } from './annotations/annotationResolver.js';
@@ -9773,10 +9774,15 @@ export class StyleManager {
    * and geocoding search input.
    * @returns {void}
    */
-  _initLocationBar() {
-    const QWERTY_KEYS = ['Q', 'W', 'E', 'R', 'T'];
-
-    // Render city pills (no submenu wrappers — POI row is separate)
+  /**
+   * The built-in presets, which carry curated POI sets and stay the fallback
+   * whenever the country in view is unknown or not in the city table.
+   * @returns {void}
+   */
+  _renderDefaultCityPills() {
+    if (!this._locationPills) return;
+    this._locationPills.innerHTML = '';
+    this._locationPillsCountry = null;
     for (const [cityId, city] of Object.entries(CITY_POIS)) {
       const pill = document.createElement('button');
       pill.className = 'location-pill';
@@ -9785,6 +9791,99 @@ export class StyleManager {
       pill.addEventListener('click', () => this._onCityPillClick(cityId));
       this._locationPills.appendChild(pill);
     }
+  }
+
+  /**
+   * Offer cities from the country actually on screen.
+   *
+   * The bar shipped five fixed cities - Austin, San Francisco, New York, Tokyo,
+   * London - which are shortcuts to somewhere else for anyone looking at
+   * anywhere else. Flying over Java and being offered Austin is a menu for a
+   * different map.
+   *
+   * Country detection is one reverse-geocode of the view centre, debounced on
+   * camera settle and skipped when the answer would not change anything. The
+   * proxy caches by rounded coordinate, so panning around one country costs a
+   * single upstream call.
+   *
+   * These pills carry no POI set - only the built-in presets have curated
+   * landmarks - so clicking one flies to the city through the ordinary search
+   * path, which is also what resolves its coordinates. Nothing here hard-codes
+   * a position.
+   *
+   * @returns {void}
+   */
+  _initCountryCityPills() {
+    const viewer = this.viewer;
+    if (!viewer?.camera?.moveEnd || !this._locationPills) return;
+
+    let timer = null;
+    let inFlight = null;
+
+    const apply = (countryCode) => {
+      if (this._disposed) return;
+      const cities = citiesForCountry(countryCode);
+      // Same country as last time: leave the DOM alone rather than rebuild
+      // identical buttons under the user's pointer.
+      if ((this._locationPillsCountry || null) === (cities ? countryCode : null)) return;
+      if (!cities) { this._renderDefaultCityPills(); return; }
+
+      this._locationPills.innerHTML = '';
+      this._locationPillsCountry = countryCode;
+      for (const city of cities) {
+        const pill = document.createElement('button');
+        pill.className = 'location-pill';
+        pill.textContent = city.toUpperCase();
+        pill.title = `Terbang ke ${city}`;
+        pill.addEventListener('click', () => {
+          this._collapsePOIRow();
+          // Qualified with the country so a name shared across borders resolves
+          // to the one being offered.
+          const query = `${city}, ${countryCode}`;
+          this.runImmediateLocationNavigation(() => searchAndFlyTo(viewer, query, {
+            beforeFly: () => true,
+          }));
+        });
+        this._locationPills.appendChild(pill);
+      }
+    };
+
+    const detect = async () => {
+      const carto = viewer.camera?.positionCartographic;
+      if (!carto) return;
+      const lat = Cesium.Math.toDegrees(carto.latitude);
+      const lon = Cesium.Math.toDegrees(carto.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+      inFlight?.abort();
+      inFlight = new AbortController();
+      try {
+        const response = await fetch(
+          `/api/geocode?lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}`,
+          { signal: inFlight.signal },
+        );
+        if (!response.ok) return;
+        const data = await response.json();
+        apply(data?.countryCode || null);
+      } catch (error) {
+        // Offline, aborted, or over open ocean: keep whatever the bar shows.
+        // A failed lookup is not a reason to take the user's shortcuts away.
+        if (error?.name !== 'AbortError') console.warn('[locations] country lookup failed:', error);
+      }
+    };
+
+    this._countryPillsRemover = viewer.camera.moveEnd.addEventListener(() => {
+      clearTimeout(timer);
+      timer = setTimeout(() => { void detect(); }, 900);
+    });
+    // The opening view deserves the right pills too, not only the first pan.
+    timer = setTimeout(() => { void detect(); }, 2500);
+  }
+
+  _initLocationBar() {
+    const QWERTY_KEYS = ['Q', 'W', 'E', 'R', 'T'];
+
+    this._renderDefaultCityPills();
+    this._initCountryCityPills();
 
     // QWERTY keyboard navigation for POIs
     this._poiKeydownHandler = (e) => {
@@ -10640,6 +10739,9 @@ export class StyleManager {
     this._globalStatusNotice = null;
     if (this._globalLoadingStatus) this._globalLoadingStatus.hidden = true;
     this._disposed = true;
+    // Camera listener, so it outlives the panel unless removed here.
+    this._countryPillsRemover?.();
+    this._countryPillsRemover = null;
     // Revoke persistence/hash authority before teardown can emit manager changes.
     this._layerStateCoordinator?.destroy();
     this._layerStateCoordinator = null;

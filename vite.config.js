@@ -2661,6 +2661,7 @@ async function fetchOverpassPayload(body, maxResponseBytes = OVERPASS_MAX_RESPON
 // browser so we can send the identifying User-Agent Nominatim's usage policy asks
 // for (a browser can't set one) and so repeat lookups share one cache.
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
+const NOMINATIM_REVERSE_URL = 'https://nominatim.openstreetmap.org/reverse';
 const NOMINATIM_USER_AGENT = 'gods-eye-view/0.1 (self-hosted; keyless geocode fallback)';
 const NOMINATIM_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const NOMINATIM_CACHE_MAX_ENTRIES = 300;
@@ -3074,6 +3075,51 @@ function nominatimProxy() {
           res.end(JSON.stringify(obj));
         };
         try {
+          // Reverse lookup: which country is this point in? Answers the location
+          // bar's "what am I looking at" so it can offer cities from the right
+          // country. Shares the forward path's rate limit, cache and User-Agent,
+          // because it is the same service under the same usage policy.
+          const reverseParams = new URL(req.url, 'http://localhost').searchParams;
+          if (reverseParams.has('lat') && reverseParams.has('lon')) {
+            const lat = Number(reverseParams.get('lat'));
+            const lon = Number(reverseParams.get('lon'));
+            if (!Number.isFinite(lat) || !Number.isFinite(lon)
+              || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
+              return send(400, { error: 'invalid coordinate' });
+            }
+            // Country granularity only: zoom=3 keeps Nominatim from resolving a
+            // street, which would be a needlessly precise answer to cache and a
+            // heavier query to ask for.
+            const key = `reverse::${lat.toFixed(2)},${lon.toFixed(2)}`;
+            const cached = _nominatimCache.get(key);
+            if (cached && Date.now() - cached.at < NOMINATIM_CACHE_TTL_MS) {
+              return send(200, { source: 'CACHE', ...cached.country });
+            }
+            const wait = NOMINATIM_MIN_INTERVAL_MS - (Date.now() - _nominatimLastCallAt);
+            if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+            _nominatimLastCallAt = Date.now();
+            const upstream = await fetch(
+              `${NOMINATIM_REVERSE_URL}?format=jsonv2&zoom=3&lat=${lat}&lon=${lon}`,
+              {
+                headers: { 'User-Agent': NOMINATIM_USER_AGENT, Accept: 'application/json' },
+                signal: AbortSignal.timeout(NOMINATIM_TIMEOUT_MS),
+              },
+            );
+            if (!upstream.ok) return send(200, { countryCode: null, country: null });
+            const row = await upstream.json();
+            const country = {
+              // Upper-cased ISO 3166-1 alpha-2, or null over open ocean - which
+              // is a real answer, not a failure.
+              countryCode: String(row?.address?.country_code || '').toUpperCase() || null,
+              country: row?.address?.country || null,
+            };
+            _nominatimCache.set(key, { at: Date.now(), country });
+            if (_nominatimCache.size > NOMINATIM_CACHE_MAX_ENTRIES) {
+              _nominatimCache.delete(_nominatimCache.keys().next().value);
+            }
+            return send(200, { source: 'UPSTREAM', ...country });
+          }
+
           const query = String(
             new URL(req.url, 'http://localhost').searchParams.get('q') || '',
           ).trim();
