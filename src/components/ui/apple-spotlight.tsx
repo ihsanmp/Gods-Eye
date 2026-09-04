@@ -26,7 +26,19 @@ import React, { useEffect, useRef, useState } from 'react';
 interface Shortcut {
   label: string;
   icon: React.ReactNode;
-  link: string;
+  /** Where the demo's buttons go. Optional now that a shortcut can search. */
+  link?: string;
+  /**
+   * Search this instead of opening a link.
+   *
+   * A shortcut with a query types it into the field rather than doing anything
+   * of its own, so it goes down the exact path a typed search does - the same
+   * debounce, the same results list, the same Enter and the same reset. The
+   * field filling in is also the honest signal that a search is running, and
+   * it is what makes the results appear at all, since the list is shown only
+   * when the field has something in it.
+   */
+  query?: string;
 }
 
 interface SearchResult {
@@ -58,15 +70,31 @@ const SVGFilter = () => {
 
 interface ShortcutButtonProps {
   icon: React.ReactNode;
-  link: string;
+  link?: string;
+  label?: string;
+  onClick?: () => void;
 }
 
-const ShortcutButton = ({ icon, link }: ShortcutButtonProps) => {
+const ShortcutButton = ({ icon, link, label, onClick }: ShortcutButtonProps) => {
+  const body = (
+    <div className="rounded-full cursor-pointer hover:shadow-lg opacity-30 hover:opacity-100 transition-[opacity,shadow] duration-200">
+      <div className="size-16 aspect-square flex items-center justify-center">{icon}</div>
+    </div>
+  );
+
+  // A searching shortcut is a button, not a link: it stays on the page, and a
+  // screen reader should not be told it navigates somewhere.
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} title={label} aria-label={label}>
+        {body}
+      </button>
+    );
+  }
+
   return (
-    <a href={link} target="_blank">
-      <div className="rounded-full cursor-pointer hover:shadow-lg opacity-30 hover:opacity-100 transition-[opacity,shadow] duration-200">
-        <div className="size-16 aspect-square flex items-center justify-center">{icon}</div>
-      </div>
+    <a href={link} target="_blank" title={label} aria-label={label}>
+      {body}
     </a>
   );
 };
@@ -510,7 +538,16 @@ const AppleSpotlight = ({
                     }}
                     className="rounded-full cursor-pointer"
                   >
-                    <ShortcutButton icon={shortcut.icon} link={shortcut.link} />
+                    <ShortcutButton
+                      icon={shortcut.icon}
+                      link={shortcut.link}
+                      label={shortcut.label}
+                      onClick={
+                        shortcut.query
+                          ? () => handleSearchValueChange(shortcut.query as string)
+                          : undefined
+                      }
+                    />
                   </motion.div>
                 ))}
             </AnimatePresence>

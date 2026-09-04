@@ -3,11 +3,14 @@ import { StrictMode, useCallback, useEffect, useRef, useState } from 'react';
 import * as Cesium from 'cesium';
 import {
   Building2,
+  Coffee,
+  Fuel,
   Landmark,
   MapPin,
   Mountain,
   Plane,
   ShoppingBag,
+  ShoppingCart,
   Train,
   Trees,
   UtensilsCrossed
@@ -33,6 +36,26 @@ interface GeocodeRow {
   label: string;
   osmType?: string;
 }
+
+/**
+ * The four buttons under the bar: the things you look for while moving.
+ *
+ * Each is a word the geocoder already understands as a CATEGORY rather than a
+ * name - /api/geocode routes those to Overpass and ranks the answers by
+ * distance from the centre of the map on screen, because "kafe" is a question
+ * about what is around you, not a place called Kafe.
+ *
+ * "tempat makan" is deliberately the broad one: it resolves to restaurant,
+ * fast_food AND food_court, which is what covers everything from a warung to a
+ * proper restaurant. Asking for "restoran" alone would resolve to
+ * amenity=restaurant and quietly drop the simpler places.
+ */
+const CATEGORY_SHORTCUTS = [
+  { label: 'Tempat makan', query: 'tempat makan', icon: <UtensilsCrossed /> },
+  { label: 'SPBU', query: 'spbu', icon: <Fuel /> },
+  { label: 'Kafe', query: 'kafe', icon: <Coffee /> },
+  { label: 'Supermarket', query: 'supermarket', icon: <ShoppingCart /> }
+];
 
 /** Category icon from the OSM type, defaulting to a map pin. */
 function iconFor(osmType: string | undefined) {
@@ -184,6 +207,7 @@ function SpotlightHost() {
     <AppleSpotlight
       isOpen
       handleClose={() => {}}
+      shortcuts={CATEGORY_SHORTCUTS}
       results={results}
       onSearchChange={onSearchChange}
       onSelectResult={onSelectResult}

@@ -2877,6 +2877,21 @@ function geocodeDistanceM(aLat, aLon, bLat, bLon) {
 /** How many category hits to return, and how far out to look when the box is tiny. */
 const GEOCODE_CATEGORY_LIMIT = 12;
 const GEOCODE_CATEGORY_MIN_RADIUS_M = 3000;
+/**
+ * Ceiling for the same radius.
+ *
+ * The floor stops a street-level box finding nothing; this stops a zoomed-out
+ * one asking for everything. With the globe on screen the half-span is about
+ * 10,000 km, and `around:10000000` is not a question Overpass can answer - it
+ * times out, and a public instance should not have been asked. The shortcut
+ * buttons make this the ordinary case rather than a corner one: they search
+ * from whatever the camera happens to be showing, including the whole planet.
+ *
+ * 50 km keeps "what is around me" meaningful - a city and its outskirts - and
+ * a search from that far out still lands somewhere sensible near the centre of
+ * the view.
+ */
+const GEOCODE_CATEGORY_MAX_RADIUS_M = 50000;
 
 /**
  * Answer a category ask from Overpass, ranked by distance from the view centre.
@@ -2896,7 +2911,10 @@ async function overpassCategorySearch(selectors, box) {
   // A street-level box holds almost nothing; widen to a floor so "apotek" while
   // zoomed onto one junction still finds the pharmacies on the next street.
   const halfSpanM = geocodeDistanceM(centreLat, centreLon, north, centreLon);
-  const radiusM = Math.max(halfSpanM, GEOCODE_CATEGORY_MIN_RADIUS_M);
+  const radiusM = Math.min(
+    Math.max(halfSpanM, GEOCODE_CATEGORY_MIN_RADIUS_M),
+    GEOCODE_CATEGORY_MAX_RADIUS_M
+  );
 
   // `nwr` covers nodes, ways and relations - a mall is usually a way, an ATM a
   // node. `center` gives ways/relations a single point without their geometry.
