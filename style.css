@@ -9573,3 +9573,87 @@ body > #location-bar .location-search-wrap {
   color: #f4f4f5;
   font-weight: 600;
 }
+
+/* ------------------------------------------------------------------
+   CCTV panel, brought onto the same card grammar as the route report
+   ------------------------------------------------------------------ */
+
+/*
+ * What was actually out of step here was shape and scale, not colour - the
+ * panel skin had already neutralised the cyan and the monospace. The controls
+ * sat in flex rows without flexing, so each button was as wide as its own word
+ * and every row came out a different rhythm; the sub-blocks were 8-9px text
+ * inside their own bordered box, a card within a card.
+ *
+ * These rules put the rows on one rhythm and give the sub-blocks the same
+ * surface the destination report uses, so the two panels read as the same
+ * family. Colour stays where it already lives, in panel-skin.css.
+ */
+.cctv-controls {
+  margin-bottom: 6px;
+}
+
+/* One rhythm per row: every control in a row takes an equal share of it. */
+.cctv-controls > button,
+.cctv-controls > select {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* The quality chip reports, it does not act - so it does not take a button's
+   share of the row. */
+.cctv-controls > #cctv-quality-chip {
+  flex: 0 1 auto;
+}
+
+#cctv-source-badge {
+  align-self: stretch;
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+#cctv-meta {
+  padding: 0 2px;
+  font-size: 11.5px;
+  letter-spacing: 0;
+  line-height: 1.45;
+}
+
+.cctv-calibration-block {
+  padding: 9px 10px;
+  border-radius: 8px;
+}
+
+.cctv-cal-value {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  border-radius: 999px;
+  padding: 3px 8px;
+}
+
+/*
+ * The label and the body below it are two elements, so they are joined into
+ * one card here rather than by adding wrappers to the markup - index.html is
+ * read by several tests, and a purely visual change should not have to touch
+ * what they anchor on.
+ */
+.cctv-summary-label {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+
+#cctv-panel .cctv-summary-label:not(.cctv-calibration-header .cctv-summary-label) {
+  padding: 8px 10px 0;
+  border-radius: 8px 8px 0 0;
+}
+
+#cctv-summary {
+  min-height: 0;
+  padding: 3px 10px 9px;
+  border-radius: 0 0 8px 8px;
+  font-size: 11.5px;
+  letter-spacing: 0;
+  line-height: 1.45;
+}

@@ -450,3 +450,73 @@
 .panel-collapsible .scene-shot-row:hover {
   background: var(--gev-card-hover) !important;
 }
+
+/* ---- 10. CCTV sub-blocks, on the destination report's surface ------ */
+
+/*
+ * The blocks inside the CCTV panel get the same treatment as the route
+ * report's cards: one shade lighter than the panel, a hairline border, and a
+ * muted caps title over a legible body. Geometry for these lives in
+ * style.css; only their colour is decided here.
+ */
+#cctv-panel .cctv-calibration-block,
+#cctv-panel #cctv-source-badge,
+#cctv-panel #cctv-summary {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+#cctv-panel .cctv-summary-label:not(.cctv-calibration-header .cctv-summary-label) {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-bottom: 0 !important;
+}
+
+/* Joined into one card: no line between the title and the body under it. */
+#cctv-panel #cctv-summary {
+  border-top: 0 !important;
+}
+
+#cctv-panel .cctv-summary-label {
+  color: var(--gev-card-muted) !important;
+  font-weight: 600 !important;
+}
+
+#cctv-panel #cctv-summary,
+#cctv-panel #cctv-meta {
+  color: var(--gev-card-label) !important;
+}
+
+#cctv-panel #cctv-source-badge {
+  color: var(--gev-card-muted) !important;
+  font-weight: 600 !important;
+}
+
+/*
+ * Loading and error keep their own colour. They are the two states where the
+ * panel is telling the operator something has gone wrong with the feed, and
+ * flattening them into the same grey as everything else would lose that.
+ */
+#cctv-panel #cctv-source-badge[data-frame-state='loading'] {
+  color: #ffe59b !important;
+  border-color: rgba(255, 205, 92, 0.4) !important;
+  background: rgba(255, 205, 92, 0.08) !important;
+}
+
+#cctv-panel #cctv-source-badge[data-frame-state='error'] {
+  color: #ffb0b0 !important;
+  border-color: rgba(255, 102, 102, 0.45) !important;
+  background: rgba(255, 72, 72, 0.09) !important;
+}
+
+#cctv-panel .cctv-cal-value {
+  background: transparent !important;
+  border: 1px solid var(--gev-card-line) !important;
+  color: var(--gev-card-muted) !important;
+}
+
+#cctv-panel .cctv-cal-value:hover:not(:disabled) {
+  background: var(--gev-card-hover) !important;
+  border-color: rgba(255, 255, 255, 0.24) !important;
+  color: #ffffff !important;
+}
