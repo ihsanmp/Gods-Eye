@@ -44,15 +44,27 @@
   "dependencies": {
     "@mapbox/vector-tile": "^3.0.0",
     "cesium": "^1.124.0",
+    "clsx": "^2.1.1",
     "egm96-universal": "^1.1.1",
+    "framer-motion": "^13.2.0",
     "hls.js": "^1.7.1",
+    "lucide-react": "^1.41.0",
     "mgrs": "^2.1.0",
     "pbf": "^5.1.2",
-    "satellite.js": "^6.0.2"
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "satellite.js": "^6.0.2",
+    "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@vitejs/plugin-react": "^4.7.0",
     "puppeteer": "^24.37.5",
     "sharp": "^0.34.5",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
     "vite": "^6.0.0",
     "vite-plugin-cesium": "^1.2.23",
     "ws": "^8.21.0"

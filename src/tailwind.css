@@ -1,0 +1,69 @@
+/*
+ * Tailwind entry, deliberately WITHOUT preflight.
+ *
+ * `@import "tailwindcss"` would pull theme + preflight + utilities. Preflight is
+ * a global reset - it strips margins, unstyles headings, lists, buttons and form
+ * controls, and sets `border-style: solid` on every element. Dropped on top of
+ * this project's 9,000-line hand-written stylesheet it does not merely add
+ * classes, it re-styles the entire existing UI: the HUD, every panel, the dock,
+ * the cockpit.
+ *
+ * So the theme and utility layers are imported on their own. Tailwind classes
+ * work exactly as written inside the React components; nothing outside them
+ * changes. This is the one adjustment the supplied component needed to live in
+ * an app that already had a design.
+ */
+@layer theme, base, components, utilities;
+
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+/*
+ * Preflight, scoped to the React subtree.
+ *
+ * Skipping the global reset above has a cost, and this is it: components
+ * written against Tailwind assume preflight has already zeroed paragraph
+ * margins, made borders solid and normalised form controls. Without it the
+ * spotlight's result rows inherit the browser's 1em <p> margins and read as
+ * cramped and misaligned.
+ *
+ * So the parts of preflight the components actually depend on are reapplied
+ * inside #spotlight-root and nowhere else. The existing UI outside it keeps
+ * every one of its own rules.
+ */
+#spotlight-root,
+#spotlight-root *,
+#spotlight-root *::before,
+#spotlight-root *::after {
+  box-sizing: border-box;
+  border: 0 solid currentColor;
+}
+
+#spotlight-root :is(p, h1, h2, h3, h4, h5, h6, figure, blockquote, dl, dd) {
+  margin: 0;
+}
+
+#spotlight-root :is(button, input, optgroup, select, textarea) {
+  font: inherit;
+  color: inherit;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+}
+
+#spotlight-root a {
+  color: inherit;
+  text-decoration: none;
+}
+
+#spotlight-root :is(svg, img, video, canvas) {
+  display: block;
+  vertical-align: middle;
+}
+
+#spotlight-root ol,
+#spotlight-root ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

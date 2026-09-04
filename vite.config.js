@@ -44,6 +44,8 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { defineConfig, loadEnv } from 'vite';
 import cesium from 'vite-plugin-cesium';
+import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import { normalizeRadioCountryInput } from './src/data/radioCountry.js';
 import {
   normalizeRegionalArticles,
@@ -8179,6 +8181,11 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       cesium(),
+      // React and Tailwind serve the shadcn-style components under
+      // src/components/ui. Tailwind is imported without preflight (see
+      // src/tailwind.css) so it cannot restyle the existing hand-written UI.
+      react(),
+      tailwindcss(),
       openSkyProxy(),
       celestrakProxy(),
       tomtomProxy(),
@@ -8200,6 +8207,10 @@ export default defineConfig(({ mode }) => {
       openAiRealtimeProxy(),
       googlePlacesContextProxy(),
     ],
+    // The `@/` alias the shadcn components import through.
+    resolve: {
+      alias: { '@': path.resolve(__dirname, 'src') },
+    },
     server: {
       host: env.HOST || 'localhost',
       port: parseInt(env.PORT, 10) || 5173,

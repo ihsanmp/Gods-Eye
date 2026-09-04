@@ -42,6 +42,13 @@ const STARTUP_SCREEN_SPACE_ERROR = 6;
 
 initLogoGaze();
 
+// React spotlight overlay (Ctrl/Cmd-K, or clicking the search bar). Loaded
+// lazily so React, framer-motion and lucide stay off the startup critical path
+// of a session that never opens it.
+import('./spotlightMount.tsx')
+  .then(({ mountSpotlight }) => mountSpotlight())
+  .catch((error) => console.warn('[spotlight] unavailable:', error));
+
 /**
  * Extract a human-readable error message from any thrown value.
  * Handles Error objects, strings, and plain objects with message/error fields.
