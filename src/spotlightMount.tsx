@@ -1,47 +1,23 @@
 import { createRoot, type Root } from 'react-dom/client';
-import { StrictMode, useEffect, useState } from 'react';
+import { StrictMode } from 'react';
 import { AppleSpotlight } from '@/components/ui/apple-spotlight';
 import '@/tailwind.css';
 
 /**
  * Bridge between the vanilla app and the React spotlight.
  *
- * AppleSpotlight is a full-screen overlay, not an inline field, so it is opened
- * rather than embedded: Ctrl/Cmd-K, or clicking the existing top-centre search
- * bar. Escape and a click on the backdrop close it. Both entry points are
- * wired here so the rest of the app needs to know nothing about React.
+ * The spotlight IS the search bar now - it replaces the old LOCATION tray
+ * rather than opening over it, so it renders permanently. The component's own
+ * markup is a centred full-screen overlay; CSS in tailwind.css moves it to the
+ * top and makes its backdrop click-through, so the globe underneath stays
+ * draggable.
  */
 function SpotlightHost() {
-  const [isOpen, setIsOpen] = useState(false);
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault();
-        setIsOpen((open) => !open);
-        return;
-      }
-      if (event.key === 'Escape') setIsOpen(false);
-    };
-
-    // Clicking the existing search field opens the overlay instead. The vanilla
-    // bar stays in place as the affordance; the spotlight is what it opens.
-    const onSearchClick = (event: Event) => {
-      const target = event.target as HTMLElement | null;
-      if (!target?.closest?.('#location-search, .search-toggle-btn')) return;
-      event.preventDefault();
-      setIsOpen(true);
-    };
-
-    window.addEventListener('keydown', onKeyDown);
-    document.addEventListener('click', onSearchClick, true);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      document.removeEventListener('click', onSearchClick, true);
-    };
-  }, []);
-
-  return <AppleSpotlight isOpen={isOpen} handleClose={() => setIsOpen(false)} />;
+  // The spotlight REPLACES the old LOCATION bar rather than sitting behind a
+  // shortcut, so it is always present. `handleClose` is deliberately a no-op:
+  // the component calls it when its backdrop is clicked, and a permanent search
+  // bar has nothing to close.
+  return <AppleSpotlight isOpen handleClose={() => {}} />;
 }
 
 let root: Root | null = null;

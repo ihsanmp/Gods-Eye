@@ -67,3 +67,39 @@
   padding: 0;
   list-style: none;
 }
+
+/*
+ * The spotlight AS the search bar.
+ *
+ * AppleSpotlight ships as a modal: a fixed, full-screen, vertically centred
+ * backdrop that closes on click. Here it replaces the LOCATION tray instead, so
+ * three things change from the outside, without touching the component:
+ *
+ *   1. It sits at the top, not the middle of the screen.
+ *   2. Its backdrop must not eat pointer events - the whole globe is under it,
+ *      and a full-screen overlay would make the map undraggable. Events are
+ *      turned off on the backdrop and back on for the pill itself.
+ *   3. The pill keeps a comfortable width rather than spanning the viewport.
+ */
+#spotlight-root > div {
+  justify-content: flex-start;
+  padding-top: 22px;
+  pointer-events: none;
+}
+
+#spotlight-root > div > div {
+  pointer-events: auto;
+}
+
+/* Above the HUD panels (z 100-145) but below the toast and clean-view exit. */
+#spotlight-root > div {
+  z-index: 150;
+}
+
+/* The old LOCATION tray is replaced by the spotlight. Kept in the DOM, hidden,
+   because the rest of ui.js still reads its elements for the live location
+   readout, the POI row and the city pills - removing the markup would mean
+   unpicking all of that, and hiding it is reversible in one line. */
+#location-bar {
+  display: none !important;
+}
