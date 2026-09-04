@@ -19,6 +19,46 @@
 @import 'tailwindcss/utilities.css' layer(utilities);
 
 /*
+ * The spacing utilities, put back by hand.
+ *
+ * style.css opens with `* { margin: 0; padding: 0; box-sizing: border-box }`,
+ * and it is UNLAYERED. In the cascade an unlayered declaration beats a layered
+ * one outright - specificity is never consulted across that boundary - so that
+ * one reset silently defeats every padding and margin utility in the React
+ * components. `px-6` on the spotlight's row computed to 0, which is why the
+ * search icon sat flush against the pill's edge instead of inset from it. The
+ * utilities the reset does not mention - flex, gap, width, colour - kept
+ * working, which is what made this look like a styling quirk rather than a
+ * cascade problem.
+ *
+ * Importing the utilities unlayered does fix it, and it was tried: `px-6` came
+ * back, and `max-w-3xl` stopped applying, which threw the search bar off the
+ * top of the screen. Trading one silent cascade problem for a louder one is
+ * not a fix, so the utilities stay in their layer and the few spacing classes
+ * the components actually rely on are restated here, unlayered and scoped to
+ * the React roots. Nothing outside those roots can be reached by these rules.
+ */
+#spotlight-root .px-6 {
+  padding-inline: 1.5rem;
+}
+
+#spotlight-root .px-2 {
+  padding-inline: 0.5rem;
+}
+
+#spotlight-root .py-2 {
+  padding-block: 0.5rem;
+}
+
+#spotlight-root .py-4 {
+  padding-block: 1rem;
+}
+
+#fluid-menu-root .mt-\[5\%\] {
+  margin-top: 5%;
+}
+
+/*
  * Preflight, scoped to the React subtree.
  *
  * Skipping the global reset above has a cost, and this is it: components
