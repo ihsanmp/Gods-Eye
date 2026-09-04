@@ -86,15 +86,33 @@ async function init() {
       Cesium.Ion.defaultAccessToken = cesiumToken;
     }
 
-    // Set Google Maps API key for 3D Tiles
-    const googleApiKey = import.meta.env.GOOGLE_MAPS_API_KEY;
-    if (!googleApiKey) {
-      throw new Error('GOOGLE_MAPS_API_KEY not found. Set it as an environment variable.');
-    }
-    Cesium.GoogleMaps.defaultApiKey = googleApiKey;
+    /**
+     * Which basemap this install boots on. `osm` is the default because it is
+     * the only stack that costs nothing and needs no key at all — Cesium's
+     * OpenStreetMapImageryProvider straight off tile.openstreetmap.org.
+     *
+     * `photoreal` is the Google Photorealistic 3D Tiles globe, and it is billed
+     * per session: a page refresh starts a new one. It is therefore OPT-IN, so
+     * an install that does not want that bill never issues the request in the
+     * first place — rather than issuing it and falling back after it fails,
+     * which is what the catch block below is for.
+     */
+    const requestedMapStack = String(import.meta.env.GEV_MAP_STACK || 'osm').toLowerCase();
+    const wantsPhotoreal = requestedMapStack === 'photoreal';
 
-    // Expose API key globally for geocoding in locations.js
-    window.__GOOGLE_MAPS_API_KEY__ = googleApiKey;
+    // Google Maps key. Optional: it buys the photoreal globe and the Google
+    // geocoder, and the app is fully functional without either — searches fall
+    // through to the keyless Nominatim proxy.
+    const googleApiKey = import.meta.env.GOOGLE_MAPS_API_KEY;
+    if (googleApiKey) {
+      Cesium.GoogleMaps.defaultApiKey = googleApiKey;
+      // Read by locations.js for geocoding. That is a separate, per-request SKU
+      // from the 3D tiles, so it stays available even when photoreal is off.
+      window.__GOOGLE_MAPS_API_KEY__ = googleApiKey;
+    }
+    if (wantsPhotoreal && !googleApiKey) {
+      throw new Error('GEV_MAP_STACK=photoreal needs GOOGLE_MAPS_API_KEY. Set the key, or use GEV_MAP_STACK=osm.');
+    }
 
     // Create the Cesium viewer with minimal chrome
     const viewer = new Cesium.Viewer('cesiumContainer', {
@@ -199,22 +217,28 @@ async function init() {
     viewer.scene.skyAtmosphere.saturationShift = -0.12;
     viewer.scene.skyAtmosphere.brightnessShift = -0.08;
 
-    loaderStatus.textContent = 'Loading Google 3D Tiles...';
     let tileset = null;
-    try {
-      // Load Google Photorealistic 3D Tiles
-      tileset = await Cesium.createGooglePhotorealistic3DTileset({
-        onlyUsingWithGoogleGeocoder: true,
-      });
-      viewer.scene.primitives.add(tileset);
-      // NOTE: Cesium World Terrain intentionally disabled — conflicts with Google 3D Tiles at high zoom.
-      // Google Photorealistic 3D Tiles provide their own terrain/elevation.
-      viewer.scene.globe.show = false;
-    } catch (tileError) {
-      console.warn('[Init] Google 3D Tiles unavailable, falling back to Cesium globe:', tileError);
-      const tileErrorDetail = describeError(tileError);
-      loaderStatus.textContent = `Google 3D Tiles unavailable (${tileErrorDetail}). Continuing in fallback mode...`;
-      // Keep Cesium globe visible as fallback instead of aborting the app.
+    if (wantsPhotoreal) {
+      loaderStatus.textContent = 'Loading Google 3D Tiles...';
+      try {
+        // Load Google Photorealistic 3D Tiles
+        tileset = await Cesium.createGooglePhotorealistic3DTileset({
+          onlyUsingWithGoogleGeocoder: true,
+        });
+        viewer.scene.primitives.add(tileset);
+        // NOTE: Cesium World Terrain intentionally disabled — conflicts with Google 3D Tiles at high zoom.
+        // Google Photorealistic 3D Tiles provide their own terrain/elevation.
+        viewer.scene.globe.show = false;
+      } catch (tileError) {
+        console.warn('[Init] Google 3D Tiles unavailable, falling back to Cesium globe:', tileError);
+        const tileErrorDetail = describeError(tileError);
+        loaderStatus.textContent = `Google 3D Tiles unavailable (${tileErrorDetail}). Continuing in fallback mode...`;
+        // Keep Cesium globe visible as fallback instead of aborting the app.
+        viewer.scene.globe.show = true;
+      }
+    } else {
+      // No tileset means the ellipsoid globe carries the imagery, so it has to
+      // be visible — the photoreal path is the only one that hides it.
       viewer.scene.globe.show = true;
     }
 

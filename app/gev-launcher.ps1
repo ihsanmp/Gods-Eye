@@ -200,12 +200,14 @@ if (-not $node) {
 }
 Write-Log "node: $($node.Source)"
 
+# No key is required to start. The default basemap is OSM, which needs none, and
+# every optional provider reports its own state in the app's layer rows - so a
+# missing key is a reduced app, not a failed launch. Logged, never blocking.
 $envFile = Join-Path $Root '.env'
 if (-not (Test-Path $envFile)) {
-  Stop-WithMessage "Berkas .env tidak ada di $Root.`n`nSalin .env.example menjadi .env dan isi GOOGLE_MAPS_API_KEY."
-}
-if (-not (Select-String -Path $envFile -Pattern '^\s*GOOGLE_MAPS_API_KEY\s*=\s*\S' -Quiet)) {
-  Stop-WithMessage "GOOGLE_MAPS_API_KEY belum diisi di .env.`n`nGlobe 3D tidak bisa dimuat tanpa kunci itu."
+  Write-Log 'no .env - starting with keyless providers only'
+} elseif (-not (Select-String -Path $envFile -Pattern '^\s*GOOGLE_MAPS_API_KEY\s*=\s*\S' -Quiet)) {
+  Write-Log 'no GOOGLE_MAPS_API_KEY - OSM basemap and keyless geocoding'
 }
 
 $browser = Find-Browser

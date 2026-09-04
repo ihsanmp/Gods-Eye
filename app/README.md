@@ -66,10 +66,42 @@ satu-satunya mode di mana aplikasi ini utuh.
 Konsekuensinya: Node.js tetap harus terpasang, dan folder ini tidak bisa
 dipindahkan tanpa menjalankan ulang `install.ps1`.
 
+## Basemap
+
+Boot default-nya **OSM** — `Cesium.OpenStreetMapImageryProvider` langsung ke
+`tile.openstreetmap.org`. Tanpa kunci, tanpa biaya, tanpa kuota.
+
+Globe Google Photorealistic 3D bersifat opt-in karena ditagih per sesi (refresh
+halaman = sesi baru). Aktifkan lewat `.env`:
+
+```
+GEV_MAP_STACK=photoreal
+```
+
+Tanpa baris itu, permintaan ke Google 3D Tiles **tidak pernah dikirim** — bukan
+dikirim lalu gagal dan mundur ke OSM, tapi memang tidak diminta sama sekali.
+Chip **DISPLAY** di aplikasi tetap bisa berpindah stack secara manual saat sesi
+berjalan.
+
+Efek samping yang menguntungkan: dengan photoreal mati, globe ellipsoid kembali
+terlihat dan **Cesium World Terrain** ikut termuat — jadi peta OSM sekarang
+punya relief 3D sungguhan di bawahnya. Itu memakai kuota token Cesium ion Anda,
+bukan Google.
+
+Satu hal yang masih menyentuh Google bila kuncinya ada: pencarian tempat
+(`maps.googleapis.com/maps/api/geocode/json`) — SKU terpisah dan jauh lebih
+murah dari tiles, dipanggil hanya saat mencari. Kosongkan `GOOGLE_MAPS_API_KEY`
+untuk mematikannya sepenuhnya; pencarian otomatis jatuh ke proxy Nominatim yang
+keyless. (`fonts.googleapis.com` juga muncul — itu font ikon UI, gratis.)
+
 ## Catatan
 
 - **Port** default 4173. Untuk mengubahnya, sunting `-Port` di
   `gev-launcher.ps1`.
+- **Tidak ada kunci yang wajib.** Preflight launcher tidak lagi memblokir bila
+  `.env` atau `GOOGLE_MAPS_API_KEY` kosong — kunci yang hilang berarti aplikasi
+  yang lebih terbatas, bukan peluncuran yang gagal, dan tiap layer melaporkan
+  keadaannya sendiri di baris DISPLAY.
 - **Ikon** dibuat dari `public/logo.svg` oleh `node app/make-icon.mjs`
   (memakai `sharp`, sudah ada sebagai devDependency). `install.ps1`
   menjalankannya otomatis bila `.ico` belum ada.

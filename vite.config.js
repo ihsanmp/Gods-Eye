@@ -7699,6 +7699,10 @@ export default defineConfig(({ mode }) => {
       'import.meta.env.GOOGLE_MAPS_API_KEY': JSON.stringify(env.GOOGLE_MAPS_API_KEY),
       'import.meta.env.CESIUM_ION_TOKEN': JSON.stringify(env.CESIUM_ION_TOKEN),
       'import.meta.env.GEV_RENDER_QUALITY': JSON.stringify(env.GEV_RENDER_QUALITY),
+      // Basemap this install boots on: 'osm' (default, keyless and free) or
+      // 'photoreal' (Google 3D Tiles, billed per session). Not a secret — it
+      // only names a stack the client already knows about.
+      'import.meta.env.GEV_MAP_STACK': JSON.stringify(env.GEV_MAP_STACK),
     },
     build: {
       // The Cesium engine bundle is inherently large; raise the warning ceiling
