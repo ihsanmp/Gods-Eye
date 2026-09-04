@@ -50,6 +50,20 @@ const AWARENESS_MAX_EXAMPLES = 10;
 export const AWARENESS_QUERY_LIMIT = 20000;
 const AWARENESS_MAX_NAVIGATION_EXAMPLES = 10000;
 const CONTEXT_RIM_HEIGHT_M = 2500;
+/**
+ * Whether the selected Contacts subject gets its 250 km window drawn as a ring.
+ *
+ * OFF. The ring is only legible from a view wide enough to contain 250 km; at
+ * any working zoom below that it fills the screen and reads as a stray arc
+ * across the map rather than as a boundary. What it was there to say - the
+ * scope of the counts - is already said in words, by the Contacts panel and by
+ * every spoken answer ("42 in your window").
+ *
+ * This is PRESENTATION ONLY. AWARENESS_RADIUS_M still drives getNearby(), so
+ * the window itself is unchanged and every count still means the same thing.
+ * Set to true to draw it again.
+ */
+const SHOW_AWARENESS_RING = false;
 const VESSEL_FOCUS_RADIUS_M = 3000;
 const DIRECTION_SCRATCH = Array.from({ length: 3 }, () => new Cesium.Cartesian3());
 const SUBJECT_CARTOGRAPHIC_SCRATCH = new Cesium.Cartographic();
@@ -1184,6 +1198,7 @@ function clearVisual() {
 }
 
 function renderVisual(subject) {
+  if (!SHOW_AWARENESS_RING) return;
   if (!state.viewer || !subject?.position) return;
   const cartographic = Cesium.Cartographic.fromCartesian(subject.position);
   if (!cartographic) return;
