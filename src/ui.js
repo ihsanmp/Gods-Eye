@@ -65,7 +65,7 @@ import flightsLayer from './data/flights.js';
 import militaryFlightsLayer from './data/militaryFlights.js';
 import { isTr3b, toggleTr3b } from './data/tr3bRegistry.js';
 import satellitesLayer from './data/satellites.js';
-import cctvLayer from './data/cctv.js';
+import cctvLayer, { playCameraStream } from './data/cctv.js';
 import radioLayer, {
   buildRadioTunerTicks,
   radioTunerCommitSlot,
@@ -7478,7 +7478,11 @@ export class StyleManager {
       }
     }
 
-    if (this._cctvFrame) {
+    // A live camera plays; a still one is fetched. Every camera in the
+    // catalogue is HLS, so this is the path that actually shows a picture.
+    this._syncCctvPreviewStream(enabled ? activeCamera : null);
+
+    if (this._cctvFrame && !this._cctvStreamCameraId) {
       const nextSrc = enabled ? activeCamera?.frameUrl : null;
       const nextCameraId = enabled ? (activeCamera?.id || '') : '';
       const cameraChanged = this._cctvFrame.dataset.cameraId !== nextCameraId;
@@ -7497,6 +7501,95 @@ export class StyleManager {
 
     this._syncCctvSourceBadge(activeCamera, enabled);
     this._typeCctvSummary(state?.summary || 'Enable CCTV to start camera-linked intelligence summaries.');
+  }
+
+  /**
+   * Show the active camera's live stream in the panel, if it has one.
+   *
+   * The preview used to be a still from /api/cctv/frame. That endpoint tries
+   * an upstream snapshot, then Street View, then a synthetic card - and every
+   * one of the 544 catalogued cameras is `hls` with no snapshot URL and no
+   * Street View key behind it, so the preview could only ever land on the
+   * synthetic "UPSTREAM UNAVAILABLE" graphic. The playlist was reachable the
+   * whole time at /api/cctv/media.
+   *
+   * The video element is created here rather than in index.html: several tests
+   * read that file, and a camera without a stream should not leave a dead
+   * <video> in the panel.
+   *
+   * @param {object|null} camera Active camera descriptor, or null when off.
+   * @returns {void}
+   */
+  _syncCctvPreviewStream(camera) {
+    const mediaUrl = camera?.mediaUrl || null;
+    const cameraId = mediaUrl ? (camera.id || '') : '';
+    if (cameraId && cameraId === this._cctvStreamCameraId) return;
+
+    // Tear the old player down FIRST. hls.js keeps pulling segments until it is
+    // destroyed, so switching cameras without this leaves one stream running
+    // per camera the operator has looked at.
+    this._cctvStreamTeardown?.();
+    this._cctvStreamTeardown = null;
+    this._cctvStreamCameraId = '';
+
+    if (!this._cctvVideo) {
+      const video = document.createElement('video');
+      video.id = 'cctv-video';
+      video.muted = true;
+      video.autoplay = true;
+      video.playsInline = true;
+      video.preload = 'auto';
+      video.hidden = true;
+      this._cctvFrameWrap?.appendChild(video);
+      this._cctvVideo = video;
+    }
+
+    if (!mediaUrl) {
+      this._cctvVideo.hidden = true;
+      return;
+    }
+
+    this._clearCctvFrame();
+    this._cctvVideo.hidden = false;
+    this._cctvStreamCameraId = cameraId;
+    this._cctvStreamTeardown = playCameraStream(this._cctvVideo, mediaUrl);
+    // Autoplay can be refused before any data has arrived; the readiness events
+    // are the honest moment to ask again.
+    const retry = () => {
+      this._cctvVideo?.play?.().catch((error) => {
+        console.warn('[cctv] panel preview autoplay refused:', error?.message || error);
+      });
+    };
+    for (const event of ['loadeddata', 'canplay', 'canplaythrough']) {
+      this._cctvVideo.addEventListener(event, retry, { once: true });
+    }
+
+    /*
+     * While the layer is on, the picture stays on.
+     *
+     * A live feed is not a file that plays once: a segment drops, the tab is
+     * hidden and the browser pauses the element, a decode fails. Left alone,
+     * any of those leaves a frozen frame under a badge still reading LIVE, and
+     * nothing ever asks it to start again.
+     *
+     * A pause is answered by playing; an error is answered by rebuilding the
+     * player, because a decode fault does not recover by asking twice. The
+     * rebuild waits two seconds so a dead upstream cannot spin.
+     */
+    const stillWatching = () => this._cctvStreamCameraId === cameraId;
+    this._cctvVideo.onpause = () => { if (stillWatching()) retry(); };
+    this._cctvVideo.onended = () => { if (stillWatching()) retry(); };
+    this._cctvVideo.onerror = () => {
+      if (!stillWatching()) return;
+      window.setTimeout(() => {
+        if (!stillWatching()) return;
+        this._cctvStreamTeardown?.();
+        this._cctvStreamTeardown = playCameraStream(this._cctvVideo, mediaUrl);
+        retry();
+      }, 2000);
+    };
+
+    retry();
   }
 
   /**

@@ -9657,3 +9657,24 @@ body > #location-bar .location-search-wrap {
   letter-spacing: 0;
   line-height: 1.45;
 }
+
+/*
+ * The panel's live preview.
+ *
+ * Same box as the still it replaces: a fixed 16:9 with the picture CONTAINED,
+ * so a source that is not 16:9 is letterboxed rather than cropped - providers
+ * burn their timestamp into a corner, and cropping eats exactly that.
+ */
+#cctv-video {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  border-radius: 8px;
+  background: #05070b;
+}
+
+#cctv-video[hidden] {
+  display: none;
+}

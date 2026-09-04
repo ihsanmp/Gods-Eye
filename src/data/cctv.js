@@ -1483,6 +1483,39 @@ async function attachHlsPlayer(runtime, video, mediaUrl) {
 }
 
 /**
+ * Play a camera's live stream into a video element, outside the projection.
+ *
+ * The projection runtime owns the copy that is painted onto the monitor plane
+ * in the world. The panel needs its own, because the two are watched
+ * independently: the plane can be switched off while the operator is still
+ * reading the preview.
+ *
+ * Exists because the panel had no video path at all. It showed
+ * /api/cctv/frame, a STILL, and every camera in the catalogue is `hls` with no
+ * snapshot URL - so that endpoint could only ever fall through its chain to
+ * the synthetic "UPSTREAM UNAVAILABLE" card. The stream was there the whole
+ * time, one endpoint over.
+ *
+ * @param {HTMLVideoElement} video
+ * @param {string} mediaUrl - Playlist URL from the camera descriptor.
+ * @returns {() => void} Teardown. Must be called before attaching another
+ *   stream, or the previous player keeps pulling segments forever.
+ */
+export function playCameraStream(video, mediaUrl) {
+  const runtime = { destroyed: false, video, hls: null };
+  void attachHlsPlayer(runtime, video, mediaUrl);
+  return () => {
+    runtime.destroyed = true;
+    try { runtime.hls?.destroy(); } catch { /* already gone */ }
+    runtime.hls = null;
+    try {
+      video.removeAttribute('src');
+      video.load();
+    } catch { /* detached */ }
+  };
+}
+
+/**
  * Point the monitor plane at a surface (the placeholder canvas or the live video
  * element), but only when it changes.
  *
