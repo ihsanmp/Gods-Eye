@@ -1,0 +1,447 @@
+/*
+ * Panel skin - the seven HUD panels wearing the menu card's clothes.
+ *
+ * The fluid menu opens a card per panel, and that card set the house style:
+ * a solid near-black surface, a 12px radius, a hairline border, Inter, and
+ * rows that are a plain label with a pill on the right. Opening the full
+ * panel used to land you in a different design entirely - cyan, monospace,
+ * square corners, a glow behind the box. This makes the panel look like the
+ * card it came from.
+ *
+ * WHY !important, and where it stops.
+ *
+ * style.css is nine thousand lines and leans on ids for the panels, so a skin
+ * loaded after it still loses on specificity to selectors like
+ * `#left-panel-stack > #data-panel:not(.collapsed) .panel-header`. Rather than
+ * mirror every one of those selectors - which would make this file track the
+ * other one forever - the skin claims the last word on PAINT only: colour,
+ * background, border, radius, shadow, font. It sets no layout property, so
+ * the adaptive stack, cockpit mode, clean view and recording mode keep
+ * computing exactly the geometry they did before. Anything that moves a box
+ * is still style.css's decision alone.
+ */
+
+:root {
+  --gev-card-surface: #111318;
+  --gev-card-border: rgba(255, 255, 255, 0.12);
+  --gev-card-shadow: 0 18px 44px rgba(0, 0, 0, 0.62);
+  --gev-card-title: #f4f4f5;
+  --gev-card-label: #d4d4d8;
+  --gev-card-muted: #8b8b93;
+  --gev-card-hover: rgba(255, 255, 255, 0.06);
+  --gev-card-on: rgba(255, 255, 255, 0.09);
+  --gev-card-line: rgba(255, 255, 255, 0.14);
+  --gev-card-font: Inter, ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* ---- 0. the accent, redefined where the panels can see it ---------- */
+
+/*
+ * style.css drives its colour from custom properties - --accent for the cyan,
+ * --text-primary/secondary/dim for prose, --glass-* for panel chrome. Setting
+ * those to the card's values inside the panels recolours everything that asks
+ * for them, in one place, without this file naming a single one of the
+ * hundreds of elements involved.
+ *
+ * It is also the safer instrument. A blanket `color: grey` sweep over the
+ * panels would flatten the colours that carry meaning - a feed erroring, a
+ * destructive action - because those are written as literal values, not as
+ * the accent. Redefining the variable moves only what was always "the accent"
+ * and leaves every deliberate colour alone.
+ */
+#left-panel-stack .panel-collapsible,
+#right-context-rail .panel-collapsible,
+#command-dock #control-panel,
+#pp-toggles {
+  --accent: #e5e7eb;
+  --accent-dim: rgba(255, 255, 255, 0.09);
+  --accent-glow: rgba(255, 255, 255, 0.14);
+  --text-primary: #f4f4f5;
+  --text-secondary: #d4d4d8;
+  --text-dim: #8b8b93;
+  --glass-bg: #111318;
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-border-hover: rgba(255, 255, 255, 0.2);
+  --hud-color: #d4d4d8;
+  --hud-glow: transparent;
+  --hud-border: rgba(255, 255, 255, 0.14);
+}
+
+/* ---- 1. the surface ------------------------------------------------ */
+
+/*
+ * The panel element itself is transparent; what you see is painted on its
+ * inner box, which is named differently in almost every panel.
+ */
+.data-panel-inner,
+.route-panel-inner,
+.cctv-panel-inner,
+.scene-panel-inner,
+.global-context-panel-inner,
+#control-panel .panel-inner,
+#pp-toggles {
+  background: var(--gev-card-surface) !important;
+  border: 1px solid var(--gev-card-border) !important;
+  border-radius: 12px !important;
+  box-shadow: var(--gev-card-shadow) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* The cyan bloom behind a panel is HUD language, not card language. */
+.panel-collapsible .panel-glow {
+  display: none !important;
+}
+
+/* ---- 2. type ------------------------------------------------------- */
+
+#left-panel-stack .panel-collapsible,
+#left-panel-stack .panel-collapsible *,
+#right-context-rail .panel-collapsible,
+#right-context-rail .panel-collapsible *,
+#command-dock #control-panel,
+#command-dock #control-panel *,
+#pp-toggles,
+#pp-toggles * {
+  font-family: var(--gev-card-font) !important;
+  letter-spacing: 0 !important;
+  text-shadow: none !important;
+}
+
+/*
+ * Icons are ligature fonts - the glyph IS the font. Re-assert theirs after
+ * the sweep above, or every icon renders as its own name in prose.
+ */
+#left-panel-stack .material-symbols-outlined,
+#right-context-rail .material-symbols-outlined,
+#command-dock .material-symbols-outlined,
+#pp-toggles .material-symbols-outlined {
+  font-family: 'Material Symbols Outlined' !important;
+}
+
+#left-panel-stack .material-icons-round,
+#right-context-rail .material-icons-round,
+#command-dock .material-icons-round,
+#pp-toggles .material-icons-round {
+  font-family: 'Material Icons Round' !important;
+}
+
+/* ---- 3. the header ------------------------------------------------- */
+
+.panel-collapsible .panel-header,
+#pp-toggles .pp-header-row {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.panel-collapsible .panel-title {
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  color: var(--gev-card-title) !important;
+}
+
+/* The rule the card draws instead is whitespace. */
+.panel-collapsible .panel-divider {
+  display: none !important;
+}
+
+.panel-collapsible .panel-collapse-btn,
+.panel-collapsible .dock-pin-btn {
+  background: transparent !important;
+  border: 0 !important;
+  color: var(--gev-card-muted) !important;
+  box-shadow: none !important;
+}
+
+.panel-collapsible .panel-collapse-btn:hover,
+.panel-collapsible .dock-pin-btn:hover {
+  color: #ffffff !important;
+}
+
+/* ---- 4. data layer rows ------------------------------------------- */
+
+.data-toggle-row {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+}
+
+.data-toggle-row:hover {
+  background: var(--gev-card-hover) !important;
+}
+
+/* The card lists a name and a pill, nothing else in the gutter. */
+.data-icon {
+  display: none !important;
+}
+
+.data-name {
+  font-size: 12.5px !important;
+  font-weight: 400 !important;
+  color: var(--gev-card-label) !important;
+  text-transform: none !important;
+}
+
+.data-count,
+.data-toggle-meta {
+  font-size: 11px !important;
+  color: var(--gev-card-muted) !important;
+  text-transform: none !important;
+}
+
+.panel-collapsible .data-toggle-btn {
+  padding: 2px 9px !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  border-radius: 999px !important;
+  background: transparent !important;
+  color: var(--gev-card-muted) !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.08em !important;
+  box-shadow: none !important;
+}
+
+.panel-collapsible .data-toggle-btn.active {
+  background: #e5e7eb !important;
+  border-color: transparent !important;
+  color: #111318 !important;
+}
+
+/* ---- 5. every other control -------------------------------------- */
+
+.panel-collapsible .scene-btn,
+.panel-collapsible .style-btn,
+.panel-collapsible .scene-shot-btn,
+.panel-collapsible .context-mode-button,
+.panel-collapsible .panel-layer-toggle,
+#pp-toggles .pp-toggle-btn,
+#pp-toggles .pp-mode-btn {
+  background: transparent !important;
+  border: 1px solid var(--gev-card-line) !important;
+  border-radius: 8px !important;
+  color: var(--gev-card-label) !important;
+  box-shadow: none !important;
+}
+
+.panel-collapsible .scene-btn:hover,
+.panel-collapsible .style-btn:hover,
+.panel-collapsible .scene-shot-btn:hover,
+.panel-collapsible .context-mode-button:hover,
+.panel-collapsible .panel-layer-toggle:hover,
+#pp-toggles .pp-toggle-btn:hover,
+#pp-toggles .pp-mode-btn:hover {
+  background: var(--gev-card-hover) !important;
+  color: #ffffff !important;
+}
+
+.panel-collapsible .scene-btn.active,
+.panel-collapsible .style-btn.active,
+.panel-collapsible .context-mode-button[aria-selected='true'],
+.panel-collapsible .panel-layer-toggle.active,
+#pp-toggles .pp-toggle-btn.active,
+#pp-toggles .pp-mode-btn.active {
+  background: var(--gev-card-on) !important;
+  border-color: rgba(255, 255, 255, 0.24) !important;
+  color: #ffffff !important;
+}
+
+/* Deleting is the one action that keeps a colour of its own. */
+.panel-collapsible .scene-btn-danger,
+.panel-collapsible .scene-shot-danger {
+  color: #fca5a5 !important;
+  border-color: rgba(252, 165, 165, 0.35) !important;
+}
+
+/* ---- 6. fields ----------------------------------------------------- */
+
+.panel-collapsible input[type='text'],
+.panel-collapsible input[type='search'],
+.panel-collapsible select,
+#pp-toggles select {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid var(--gev-card-line) !important;
+  border-radius: 8px !important;
+  color: var(--gev-card-title) !important;
+  box-shadow: none !important;
+}
+
+.panel-collapsible input[type='text']:focus,
+.panel-collapsible input[type='search']:focus,
+.panel-collapsible select:focus,
+#pp-toggles select:focus {
+  outline: none !important;
+  border-color: rgba(255, 255, 255, 0.34) !important;
+}
+
+.panel-collapsible select option,
+#pp-toggles select option {
+  background: var(--gev-card-surface) !important;
+  color: var(--gev-card-title) !important;
+}
+
+.panel-collapsible input[type='range'],
+#pp-toggles input[type='range'] {
+  accent-color: #e5e7eb !important;
+}
+
+.panel-collapsible input[type='checkbox'],
+#pp-toggles input[type='checkbox'] {
+  accent-color: #e5e7eb !important;
+}
+
+/* ---- 7. incidental text ------------------------------------------- */
+
+.panel-collapsible label,
+.panel-collapsible .pp-label,
+.panel-collapsible .route-field-label,
+#pp-toggles label,
+#pp-toggles .pp-label {
+  color: var(--gev-card-label) !important;
+  text-transform: none !important;
+}
+
+.panel-collapsible .pp-slider-row,
+#pp-toggles .pp-slider-row,
+#pp-toggles .pp-value {
+  color: var(--gev-card-muted) !important;
+}
+
+/* ---- 8. what the sweep above did not name -------------------------- */
+
+/*
+ * A scan of the seven panels for surviving HUD cyan turned up three groups
+ * the class list missed: buttons carrying no class at all (the Context radio
+ * transport), the numeric readouts beside sliders, and the icon glyphs. They
+ * are caught here by shape rather than by name, so a future control of the
+ * same kind is skinned without this file having to learn about it.
+ *
+ * This rule is deliberately weaker than the named ones above - a bare
+ * element selector - so the pill chips and mode buttons keep their own
+ * treatment and only the leftovers land here.
+ */
+.panel-collapsible button,
+#pp-toggles button {
+  color: var(--gev-card-label) !important;
+  border-color: var(--gev-card-line) !important;
+  box-shadow: none !important;
+}
+
+.panel-collapsible button:hover,
+#pp-toggles button:hover {
+  color: #ffffff !important;
+}
+
+/* Icons inherit the row they sit in rather than glowing on their own. */
+.panel-collapsible .material-symbols-outlined,
+.panel-collapsible .material-icons-round,
+#pp-toggles .material-symbols-outlined,
+#pp-toggles .material-icons-round {
+  color: inherit !important;
+}
+
+/* Slider and calibration readouts: information, not an accent. */
+.panel-collapsible .pp-slider-value,
+.panel-collapsible .gev-slider-value,
+.panel-collapsible .cctv-cal-value,
+#pp-toggles .pp-slider-value,
+#pp-toggles .gev-slider-value {
+  color: var(--gev-card-muted) !important;
+  border-color: transparent !important;
+  background: transparent !important;
+  text-shadow: none !important;
+}
+
+/* The suggestion list is a small card of its own, so it is built like one. */
+.route-suggest,
+.place-suggest {
+  background: var(--gev-card-surface) !important;
+  border: 1px solid var(--gev-card-border) !important;
+  border-radius: 10px !important;
+  box-shadow: var(--gev-card-shadow) !important;
+}
+
+.route-suggest li:hover,
+.route-suggest li[aria-selected='true'],
+.place-suggest li:hover,
+.place-suggest li[aria-selected='true'] {
+  background: var(--gev-card-hover) !important;
+}
+
+.route-suggest-name {
+  color: var(--gev-card-title) !important;
+}
+
+.route-suggest-context {
+  color: var(--gev-card-muted) !important;
+}
+
+.panel-collapsible strong,
+#pp-toggles strong {
+  color: var(--gev-card-title) !important;
+  font-weight: 600 !important;
+}
+
+/* ---- 9. the cyan written as literals ------------------------------- */
+
+/*
+ * Some panel prose - CCTV's source and calibration strips, Context's radio
+ * heading and mission roster - is coloured with literal cyan rather than via
+ * --accent, so redefining the variable never reached it.
+ *
+ * This sweep is wrapped in :where(), which contributes NO specificity. That is
+ * the whole trick: it still beats style.css, because !important outranks a
+ * normal declaration whatever the specificity, while every named rule in this
+ * file outranks IT. So the leftovers go neutral and nothing I styled on
+ * purpose - the pills, the active states, the danger red - is disturbed.
+ *
+ * A scan of both panels first confirmed the only warm colour among them is
+ * the radio tuner needle, and that is a background, not text - so no colour
+ * that carries meaning is flattened by this.
+ */
+:where(#left-panel-stack .panel-collapsible) :where(*),
+:where(#right-context-rail .panel-collapsible) :where(*),
+:where(#command-dock #control-panel) :where(*),
+:where(#pp-toggles) :where(*) {
+  color: var(--gev-card-label) !important;
+}
+
+/* Accent-tinted button fills, named because there are only three. */
+.panel-collapsible .route-gps-btn,
+.panel-collapsible .context-radio-toggle,
+.panel-collapsible .tr3b-toggle {
+  background: transparent !important;
+  border: 1px solid var(--gev-card-line) !important;
+  border-radius: 8px !important;
+}
+
+.panel-collapsible .route-gps-btn:hover,
+.panel-collapsible .context-radio-toggle:hover,
+.panel-collapsible .tr3b-toggle:hover {
+  background: var(--gev-card-hover) !important;
+}
+
+/*
+ * Unclassed wrappers carrying an accent wash - the status strips. A div with
+ * no class of its own has no styling identity to protect, so clearing its
+ * fill is safe in a way that clearing a named component's would not be.
+ */
+:where(#cctv-panel, #global-context-panel) div:not([class]),
+:where(#cctv-panel, #global-context-panel) span:not([class]) {
+  background-color: transparent !important;
+}
+
+/* The active saved shot, marked the way the card marks an open panel. */
+.panel-collapsible .scene-shot-row {
+  border-radius: 8px !important;
+}
+
+.panel-collapsible .scene-shot-row.active {
+  background: var(--gev-card-on) !important;
+  border-color: rgba(255, 255, 255, 0.24) !important;
+}
+
+.panel-collapsible .scene-shot-row:hover {
+  background: var(--gev-card-hover) !important;
+}
