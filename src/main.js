@@ -49,6 +49,14 @@ import('./spotlightMount.tsx')
   .then(({ mountSpotlight }) => mountSpotlight())
   .catch((error) => console.warn('[spotlight] unavailable:', error));
 
+// One fluid menu in place of the seven scattered panel chips. Mounted after the
+// app so the panels it toggles already exist in the DOM.
+window.addEventListener('load', () => {
+  import('./fluidMenuMount.tsx')
+    .then(({ mountFluidMenu }) => mountFluidMenu())
+    .catch((error) => console.warn('[fluid-menu] unavailable:', error));
+});
+
 /**
  * Extract a human-readable error message from any thrown value.
  * Handles Error objects, strings, and plain objects with message/error fields.

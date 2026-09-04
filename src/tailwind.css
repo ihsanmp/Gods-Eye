@@ -103,3 +103,62 @@
 #location-bar {
   display: none !important;
 }
+
+/* ============================================================
+   FLUID MENU - one launcher for the seven panels
+   ============================================================ */
+
+#fluid-menu-root {
+  position: fixed;
+  top: 108px;
+  left: 24px;
+  z-index: 148;
+  /* Only the buttons take clicks; the column between them is map. */
+  pointer-events: none;
+}
+
+#fluid-menu-root > div {
+  pointer-events: auto;
+}
+
+/* The circular items, restyled from the demo's light grey to this console's
+   glass so the menu belongs to the app rather than sitting on top of it. */
+#fluid-menu-root .bg-gray-100,
+#fluid-menu-root .dark\:bg-gray-800 {
+  background: rgba(10, 20, 26, 0.82);
+  backdrop-filter: blur(18px) saturate(1.3);
+  -webkit-backdrop-filter: blur(18px) saturate(1.3);
+  border: 1px solid rgba(123, 189, 211, 0.22);
+  border-radius: 9999px;
+}
+
+#fluid-menu-root button {
+  color: rgba(220, 240, 247, 0.72);
+  transition: color 160ms ease;
+}
+
+#fluid-menu-root button:hover {
+  color: #7fe4ff;
+}
+
+/* A panel that is currently open reads as active on its menu item. */
+#fluid-menu-root button.bg-white\/10 {
+  color: #7fe4ff;
+  background: rgba(0, 212, 255, 0.16);
+  border-radius: 9999px;
+}
+
+/*
+ * The seven chips this menu replaces.
+ *
+ * Each panel is its own collapsed chip when shut, scattered along the left
+ * stack, the right rail and the bottom dock. Hiding them ONLY while collapsed
+ * is what consolidates the entry points without touching the panels: open one
+ * from the menu and it appears exactly where it always did.
+ */
+#left-panel-stack > [data-panel-id].collapsed,
+#right-context-rail > [data-panel-id].collapsed,
+#command-dock > [data-panel-id].collapsed,
+#pp-toggles.collapsed {
+  display: none !important;
+}
