@@ -114,7 +114,9 @@ export class ShareLinkManager {
     // question and deliberately stays at 5.
     this._detectionOutsideOpacityPct = 1;
     this._celestialRingEnabled = false;
-    this._scopeEnabled = true;
+    // Mirrors scopeMask.js's boot state, so a link generated before the first
+    // _syncShareState still describes the mask this session actually draws.
+    this._scopeEnabled = false;
     // Feather opens on a soft 11% scope-mask edge (final value 2026-08-24,
     // superseding the 08-22 hard-crop and 08-23 8% rulings) — mirrors
     // SCOPE_FEATHER_RATIO_DEFAULT in scopeMask.js and the slider's markup value.

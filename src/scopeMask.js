@@ -101,7 +101,12 @@ const SCOPE_TERMINUS_SAMPLE_MS = 120;
 let _canvas = null;
 let _container = null;
 let _viewer = null;
-let _enabled = true;
+// Boots OFF: the mask is an optional look, not the app's frame. A first run
+// should hand over the whole viewport, and the DISPLAY-rail SCOPE button (plus
+// the `sc` share-link key) puts the keyhole back on demand. The share-link PARSE
+// fallback in sharelink.js deliberately stays `true` — an absent `sc` means a
+// link authored before the key existed, when the mask was always drawn.
+let _enabled = false;
 let _featherRatio = SCOPE_FEATHER_RATIO_DEFAULT;
 let _resizeObserver = null;
 let _dprQuery = null;
