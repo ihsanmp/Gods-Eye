@@ -33,6 +33,13 @@ import {
 import { installScopeMask } from './scopeMask.js';
 import { initFirstRunExperience } from './firstRunExperience.js';
 
+/**
+ * Tile screen-space error used until the first tile queue drains. Coarser than
+ * every quality preset, so the globe reaches first paint on far fewer tiles and
+ * then sharpens to the configured target. See the progressive-LOD block below.
+ */
+const STARTUP_SCREEN_SPACE_ERROR = 6;
+
 initLogoGaze();
 
 /**
@@ -132,6 +139,45 @@ async function init() {
     // 2026-08-05 perf investigation as a strict halving of idle burn on
     // 120 Hz hardware; a no-op on 60 Hz displays. (perf item 2)
     viewer.targetFrameRate = 60;
+
+    // Render fidelity. Cesium defaults to "browser recommended" resolution, which
+    // rasterizes at CSS pixels and ignores devicePixelRatio — on a HiDPI panel the
+    // globe is upscaled from roughly a quarter of the pixels the display can show,
+    // which is the single biggest source of softness in the keyless stacks (there
+    // are no Google 3D Tiles to carry detail). maximumScreenSpaceError is the tile
+    // LOD knob: lower loads finer imagery/terrain at the same camera distance.
+    // Both cost GPU, so GEV_RENDER_QUALITY dials them back without a code edit.
+    const RENDER_QUALITY_PRESETS = {
+      high: { pixelRatioCap: 2, screenSpaceError: 1.5, tileCache: 300 },
+      balanced: { pixelRatioCap: 1.5, screenSpaceError: 2, tileCache: 200 },
+      performance: { pixelRatioCap: 1, screenSpaceError: 3, tileCache: 100 },
+    };
+    const qualityKey = String(import.meta.env.GEV_RENDER_QUALITY || 'high').toLowerCase();
+    const quality = RENDER_QUALITY_PRESETS[qualityKey] || RENDER_QUALITY_PRESETS.high;
+    // Turning this off makes Cesium adopt devicePixelRatio as its pixel ratio;
+    // resolutionScale then multiplies ON TOP of that, so the cap has to be
+    // expressed as a ratio or a 2x display renders 4x and burns 16x the pixels.
+    viewer.useBrowserRecommendedResolution = false;
+    const devicePixels = window.devicePixelRatio || 1;
+    viewer.resolutionScale = Math.min(devicePixels, quality.pixelRatioCap) / devicePixels;
+    viewer.scene.globe.tileCacheSize = quality.tileCache;
+
+    // Progressive LOD. The quality preset's screen-space error is a STEADY-STATE
+    // target: applying it from frame zero multiplies the tiles that must arrive
+    // before anything is on screen, so a sharper globe also means a slower one to
+    // first paint. Startup therefore runs coarse and tightens to the preset once
+    // the first tile queue drains. Sibling preloading — extra neighbour tiles that
+    // make panning smooth — waits for the same moment rather than competing with
+    // the tiles actually in view.
+    viewer.scene.globe.maximumScreenSpaceError = Math.max(STARTUP_SCREEN_SPACE_ERROR, quality.screenSpaceError);
+    viewer.scene.globe.preloadSiblings = false;
+    const applySteadyStateQuality = (queued) => {
+      if (queued > 0) return;
+      viewer.scene.globe.maximumScreenSpaceError = quality.screenSpaceError;
+      viewer.scene.globe.preloadSiblings = true;
+      viewer.scene.globe.tileLoadProgressEvent.removeEventListener(applySteadyStateQuality);
+    };
+    viewer.scene.globe.tileLoadProgressEvent.addEventListener(applySteadyStateQuality);
 
     // Register per-layer data attribution into the "Data attribution" popover.
     // Required by each source's license (ODbL, CC BY-NC-SA, NASA FIRMS, etc.);

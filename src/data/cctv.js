@@ -1444,6 +1444,62 @@ function paintNextProjectionBuffer(runtime) {
  *
  * @param {Object} record - Camera record with an initialized projection runtime.
  */
+/**
+ * Attach an hls.js player to a video element, importing the library on demand.
+ *
+ * Fire-and-forget: the caller builds the runtime synchronously, so this resolves
+ * afterwards and must re-check that the runtime is still alive — a camera switched
+ * away from during the import would otherwise leave an orphan player streaming
+ * segments forever.
+ *
+ * @param {Object} runtime - Projection runtime that will own the player.
+ * @param {HTMLVideoElement} video
+ * @param {string} mediaUrl - Playlist URL.
+ */
+async function attachHlsPlayer(runtime, video, mediaUrl) {
+  try {
+    const { default: Hls } = await import('hls.js');
+    if (runtime.destroyed || runtime.video !== video) return;
+    if (!Hls.isSupported()) {
+      video.src = mediaUrl;
+      return;
+    }
+    const hls = new Hls({ liveDurationInfinity: true, enableWorker: true });
+    hls.on(Hls.Events.ERROR, (_event, data) => {
+      // Live feeds drop segments routinely; only a fatal error needs handling,
+      // and hls.js can recover network/media faults in place.
+      if (!data?.fatal) return;
+      if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad();
+      else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
+      else hls.destroy();
+    });
+    hls.loadSource(mediaUrl);
+    hls.attachMedia(video);
+    runtime.hls = hls;
+  } catch (error) {
+    console.warn('[cctv] hls.js unavailable, falling back to native playback:', error);
+    if (!runtime.destroyed) video.src = mediaUrl;
+  }
+}
+
+/**
+ * Point the monitor plane at a surface (the placeholder canvas or the live video
+ * element), but only when it changes.
+ *
+ * Reassigning `planeMaterial.image` re-uploads the texture and is a documented
+ * flash opportunity on the live plane, so an unconditional assignment every tick
+ * would strobe the projection.
+ *
+ * @param {Object} runtime - Projection runtime.
+ * @param {HTMLCanvasElement|HTMLVideoElement} surface - Surface to display.
+ */
+function bindProjectionSurface(runtime, surface) {
+  if (!runtime?.planeMaterial || !surface) return;
+  if (runtime.boundSurface === surface) return;
+  runtime.boundSurface = surface;
+  runtime.planeMaterial.image = surface;
+}
+
 function refreshProjectionTextures(record) {
   const runtime = record?.projection;
   if (!runtime || runtime.mode === 'video') return;
@@ -1683,6 +1739,7 @@ function createProjectionRuntime(record) {
     ctx,
     image: null,
     video: null,
+    hls: null,
     planeEntity: null,
     cameraId: String(record.camera.id),
     labelPosition: new Cesium.Cartesian3(),
@@ -1714,15 +1771,37 @@ function createProjectionRuntime(record) {
   if (mode === 'video') {
     const video = document.createElement('video');
     video.muted = true;
-    video.loop = true;
+    // A live HLS feed has no end to loop back to; looping only matters for the
+    // finite mp4/webm pilot clips.
+    video.loop = feedType !== 'hls';
     video.autoplay = true;
     video.playsInline = true;
     video.crossOrigin = 'anonymous';
     video.preload = 'auto';
-    video.src = mediaUrlFor(record.camera);
     video.addEventListener('canplay', () => {
       video.play().catch(() => {});
     });
+
+    const mediaUrl = mediaUrlFor(record.camera);
+    // Only Safari and mobile WebViews play HLS from a plain `video.src`. Chrome,
+    // Edge and Firefox need Media Source Extensions driven by hls.js, so an
+    // unattached m3u8 there yields a permanently black plane. Native support
+    // still wins where it exists — it decodes in hardware.
+    const nativeHls = video.canPlayType('application/vnd.apple.mpegurl');
+    if (feedType === 'hls' && !nativeHls) {
+      // Loaded on demand: hls.js is ~1.2 MB and every browser with native HLS
+      // never touches it, so a static import would put it on the startup
+      // critical path of every session, CCTV enabled or not.
+      attachHlsPlayer(runtime, video, mediaUrl);
+    } else {
+      video.src = mediaUrl;
+    }
+    // Chrome throttles/skips decoding for a detached <video>, which leaves the
+    // projection plane black even while hls.js is happily pulling segments. An
+    // off-screen 1x1 host keeps it in the document (and so decoding) without
+    // showing a second copy of the feed.
+    video.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:-9999px;top:-9999px;';
+    document.body.appendChild(video);
     runtime.video = video;
   } else {
     const img = new Image();
@@ -1740,18 +1819,21 @@ function createProjectionRuntime(record) {
     runtime.image = img;
   }
 
-  // Monitor plane = the frustum's far cap: video feeds bind the video element
-  // directly (Cesium updates video-backed entity materials per frame); image
-  // feeds start on the placeholder canvas and switch to double-buffer swaps
-  // at <=1Hz.
+  // Monitor plane = the frustum's far cap. EVERY mode starts on the placeholder
+  // canvas — a <video> with no decoded frame yet renders as an opaque black quad
+  // hanging over the map, and a feed that never connects leaves it black forever.
+  // drawProjectionFrame promotes the plane to the video element once playback is
+  // genuinely producing frames, so the native per-frame video texture path is kept
+  // for the steady state without the black window on the way in.
   const geometry = record.frustumGeometry
     || computeFrustumGeometry(record.camera, groundAltFor(record), record.probeClampRangeM);
   const positions = record.frustumPositions || frustumCartesians(geometry);
   runtime.planeMaterial = new Cesium.ImageMaterialProperty({
-    image: (mode === 'video' && runtime.video) ? runtime.video : canvas,
+    image: canvas,
     transparent: true,
     color: Cesium.Color.WHITE.withAlpha(0.95),
   });
+  runtime.boundSurface = canvas;
   createProjectionPlane(record, runtime, geometry, positions);
 
   return runtime;
@@ -1780,10 +1862,20 @@ function ensureProjectionRuntime(record) {
  */
 function destroyProjectionRuntime(runtime) {
   if (!runtime) return;
+  // Marks the runtime dead for the async hls.js attach, which may still be
+  // mid-import and would otherwise wire a player to a discarded element.
+  runtime.destroyed = true;
+  // Detach hls.js before the element is torn down; it owns the MediaSource and
+  // its own loaders, which keep fetching segments if left running.
+  if (runtime.hls) {
+    runtime.hls.destroy();
+    runtime.hls = null;
+  }
   if (runtime.video) {
     runtime.video.pause();
     runtime.video.removeAttribute('src');
     runtime.video.load();
+    runtime.video.remove();
   }
   if (runtime.planeEntity && _viewer) {
     _viewer.entities.remove(runtime.planeEntity);
@@ -1867,9 +1959,26 @@ function drawProjectionFrame(record) {
       runtime.ctx.clearRect(0, 0, PROJECTION_CANVAS_WIDTH, PROJECTION_CANVAS_HEIGHT);
       runtime.ctx.drawImage(video, 0, 0, PROJECTION_CANVAS_WIDTH, PROJECTION_CANVAS_HEIGHT);
       runtime.canvasStamp = (runtime.canvasStamp || 0) + 1;
+      // Frames exist, so hand the plane back to the video element and let Cesium
+      // update that texture natively per frame (cheaper than re-uploading the
+      // canvas). See bindProjectionSurface for why it does not start there.
+      bindProjectionSurface(runtime, video);
       return;
     }
-    paintPlaceholderThrottled(record, runtime, health);
+    // No decodable frame: an unbound <video> paints the plane pure black, so the
+    // plane rides the placeholder canvas until playback actually starts. Coming
+    // BACK from video, repaint unthrottled first — video-mode planes are skipped
+    // by refreshProjectionTextures, so whatever the canvas holds at bind time is
+    // what stays on screen, and a throttled paint would freeze the last decoded
+    // frame there instead of the "no signal" card.
+    if (runtime.boundSurface === video) {
+      paintProjectionPlaceholder(runtime.ctx, record.camera, health);
+      runtime.canvasStamp = (runtime.canvasStamp || 0) + 1;
+      runtime.lastPlaceholderPaintAt = Date.now();
+    } else {
+      paintPlaceholderThrottled(record, runtime, health);
+    }
+    bindProjectionSurface(runtime, runtime.canvas);
     return;
   }
 

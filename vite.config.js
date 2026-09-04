@@ -2571,6 +2571,280 @@ async function fetchOverpassPayload(body, maxResponseBytes = OVERPASS_MAX_RESPON
   throw lastError || new Error('All Overpass upstreams failed');
 }
 
+// Keyless geocoding fallback. The primary search path is Google Geocoding, which
+// needs a billed GOOGLE_MAPS_API_KEY; without one every lookup comes back
+// REQUEST_DENIED and search is dead. Proxied rather than fetched straight from the
+// browser so we can send the identifying User-Agent Nominatim's usage policy asks
+// for (a browser can't set one) and so repeat lookups share one cache.
+const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
+const NOMINATIM_USER_AGENT = 'gods-eye-view/0.1 (self-hosted; keyless geocode fallback)';
+const NOMINATIM_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const NOMINATIM_CACHE_MAX_ENTRIES = 300;
+const NOMINATIM_MIN_INTERVAL_MS = 1100;
+const NOMINATIM_TIMEOUT_MS = 8000;
+const NOMINATIM_MAX_QUERY_CHARS = 200;
+const NOMINATIM_CANDIDATES = 8;
+/** Metro-sized floor (~44 km) for the viewport bias box. See parseGeocodeBias. */
+const GEOCODE_BIAS_MIN_SPAN_DEG = 0.4;
+const _nominatimCache = new Map();
+let _nominatimLastCallAt = 0;
+
+/**
+ * Parse the "swLat,swLng|neLat,neLng" viewport bias the client builds with
+ * viewportBias() into [south, west, north, east].
+ *
+ * @param {string} raw
+ * @returns {number[]|null} Null when absent or malformed — bias is optional.
+ */
+function parseGeocodeBias(raw) {
+  const parts = String(raw || '').split('|');
+  if (parts.length !== 2) return null;
+  const [south, west] = parts[0].split(',').map(Number);
+  const [north, east] = parts[1].split(',').map(Number);
+  const box = [south, west, north, east];
+  if (!box.every(Number.isFinite)) return null;
+  // A full-globe view carries no information; treating it as a preference would
+  // just add noise to the ranking.
+  if (north - south >= 170 || east - west >= 350) return null;
+
+  // Street-level views produce a box a few hundred metres across, which excludes
+  // every city POI the user actually means — searching "kantor pajak" while framed
+  // on one hospital otherwise resolved to Mataram, 900 km away. Widen to a
+  // metro-sized floor around the same centre so "near what I'm looking at" keeps
+  // meaning the surrounding city.
+  const latCentre = (north + south) / 2;
+  const lonCentre = (east + west) / 2;
+  const latSpan = Math.max(north - south, GEOCODE_BIAS_MIN_SPAN_DEG);
+  const lonSpan = Math.max(east - west, GEOCODE_BIAS_MIN_SPAN_DEG);
+  return [
+    Math.max(latCentre - latSpan / 2, -90),
+    Math.max(lonCentre - lonSpan / 2, -180),
+    Math.min(latCentre + latSpan / 2, 90),
+    Math.min(lonCentre + lonSpan / 2, 180),
+  ];
+}
+
+/**
+ * Whether a geocode hit falls inside the biased viewport.
+ *
+ * @param {{lat: number, lon: number}} hit
+ * @param {number[]|null} box - [south, west, north, east]
+ * @returns {number} 1 when inside (sorts ahead), 0 otherwise.
+ */
+function inGeocodeBox(hit, box) {
+  if (!box) return 0;
+  const [south, west, north, east] = box;
+  return (hit.lat >= south && hit.lat <= north && hit.lon >= west && hit.lon <= east) ? 1 : 0;
+}
+
+/**
+ * Indonesian place words spelled out in speech but abbreviated in OSM `name` tags.
+ * Searching the spoken form misses the feature entirely ("rumah sakit sardjito"
+ * returns nothing; "RS Sardjito" is an exact hit).
+ */
+const GEOCODE_PHRASE_ALIASES = [
+  [/\brumah sakit\b/gi, 'RS'],
+  [/\brumah sakit umum\b/gi, 'RSU'],
+  [/\bsekolah dasar\b/gi, 'SD'],
+  [/\bsekolah menengah pertama\b/gi, 'SMP'],
+  [/\bsekolah menengah atas\b/gi, 'SMA'],
+  [/\bbandar udara\b/gi, 'Bandara'],
+  [/\buniversitas\b/gi, 'Univ'],
+  [/\bprofesor\b/gi, 'Prof'],
+  [/\bdokter\b/gi, 'Dr'],
+];
+
+/**
+ * Generic container nouns that describe a place without naming it. Stripping the
+ * prefix turns "kampus UGM" into the "UGM" that actually resolves. Deliberately
+ * excludes words that carry the identity themselves — "kantor pajak" must keep
+ * "kantor", since the feature is named for it.
+ */
+const GEOCODE_GENERIC_PREFIX = /^(kampus|gedung|komplek|kompleks|area|kawasan|daerah|lokasi|tempat)\s+/i;
+
+/**
+ * Build the ordered query variants to try for one search term. The raw query
+ * always goes first so an exact OSM name is never second-guessed.
+ *
+ * @param {string} query
+ * @returns {string[]} Up to three distinct variants.
+ */
+function geocodeQueryVariants(query) {
+  const variants = [query];
+  for (const [pattern, replacement] of GEOCODE_PHRASE_ALIASES) {
+    pattern.lastIndex = 0;
+    if (pattern.test(query)) {
+      pattern.lastIndex = 0;
+      variants.push(query.replace(pattern, replacement).replace(/\s+/g, ' ').trim());
+    }
+  }
+  const stripped = query.replace(GEOCODE_GENERIC_PREFIX, '').trim();
+  if (stripped.length >= 3 && stripped !== query) {
+    // A leading container noun is pure description — the identity is what follows,
+    // so the stripped form is the BETTER query and goes first. Leaving it last let
+    // "kampus UGM" settle on a building site literally named that, because the
+    // search stops at the first on-screen hit.
+    variants.unshift(stripped);
+  }
+  return [...new Set(variants.filter(Boolean))].slice(0, 3);
+}
+
+/**
+ * Whether a hit's own name starts with the query — "Stasiun Tugu Yogyakarta" for
+ * "Stasiun Tugu". A cheap, high-precision signal that separates the feature the
+ * user named from one that merely shares a word ("Tugu Tegalharjo"), used only to
+ * break ties between candidates that are equally on-screen.
+ *
+ * @param {{label: string}} hit
+ * @param {string} query
+ * @returns {number} 1 on a prefix match, 0 otherwise.
+ */
+function geocodeNamePrefixMatch(hit, query) {
+  const primary = String(hit.label || '').split(',')[0].trim().toLowerCase();
+  return primary.startsWith(String(query || '').trim().toLowerCase()) ? 1 : 0;
+}
+
+/**
+ * One Nominatim search, normalized into the hit shape searchAndFlyTo consumes.
+ * Never throws — a failed variant must not sink the variants after it.
+ *
+ * @param {string} query
+ * @param {number[]|null} box - [south, west, north, east] viewport bias.
+ * @returns {Promise<object[]>}
+ */
+async function queryNominatim(query, box) {
+  // Ask for several candidates: with only one, a globally "important" same-named
+  // place always beats the one the user is looking at.
+  let url = `${NOMINATIM_URL}?q=${encodeURIComponent(query)}`
+    + `&format=jsonv2&limit=${NOMINATIM_CANDIDATES}&addressdetails=1`;
+  if (box) {
+    // Nominatim viewbox order is west,north,east,south. bounded=0 keeps it a
+    // preference, not a filter, so a genuinely distant target still resolves.
+    const [south, west, north, east] = box;
+    url += `&viewbox=${west},${north},${east},${south}&bounded=0`;
+  }
+  try {
+    const upstream = await fetch(url, {
+      headers: { 'User-Agent': NOMINATIM_USER_AGENT, Accept: 'application/json' },
+      signal: AbortSignal.timeout(NOMINATIM_TIMEOUT_MS),
+    });
+    if (!upstream.ok) return [];
+    const raw = await upstream.json();
+    return (Array.isArray(raw) ? raw : [])
+      .map((row) => {
+        // boundingbox arrives as [south, north, west, east], all strings.
+        const bbox = Array.isArray(row.boundingbox) ? row.boundingbox.map(Number) : null;
+        return {
+          lat: Number(row.lat),
+          lon: Number(row.lon),
+          label: row.display_name || query,
+          osmType: row.addresstype || row.type || row.class || '',
+          importance: Number(row.importance) || 0,
+          bounds: bbox && bbox.every(Number.isFinite)
+            ? {
+              southwest: { lat: bbox[0], lng: bbox[2] },
+              northeast: { lat: bbox[1], lng: bbox[3] },
+            }
+            : null,
+        };
+      })
+      .filter((row) => Number.isFinite(row.lat) && Number.isFinite(row.lon));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Drop hits that variants returned twice, keyed on rounded coordinates
+ * (~11 m) so the same feature found under two spellings collapses to one.
+ *
+ * @param {object[]} hits
+ * @returns {object[]}
+ */
+function dedupeGeocodeHits(hits) {
+  const seen = new Set();
+  return hits.filter((hit) => {
+    const key = `${hit.lat.toFixed(4)},${hit.lon.toFixed(4)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/**
+ * Vite plugin: keyless Nominatim (OpenStreetMap) geocoding proxy.
+ *
+ * Serves GET /api/geocode?q=... and normalizes each hit into the
+ * {lat, lon, label, osmType, bounds} shape `searchAndFlyTo` consumes.
+ *
+ * @returns {import('vite').Plugin}
+ */
+function nominatimProxy() {
+  return {
+    name: 'nominatim-proxy',
+    configureServer(server) {
+      server.middlewares.use('/api/geocode', async (req, res) => {
+        const send = (status, obj) => {
+          res.writeHead(status, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(obj));
+        };
+        try {
+          const query = String(
+            new URL(req.url, 'http://localhost').searchParams.get('q') || '',
+          ).trim();
+          if (!query || query.length > NOMINATIM_MAX_QUERY_CHARS) {
+            return send(400, { error: 'invalid query', results: [] });
+          }
+
+          // Viewport bias, in the same "swLat,swLng|neLat,neLng" shape the Google
+          // path already builds via viewportBias(). Without it "Malioboro" resolves
+          // to a street in Surabaya while the user is looking straight at Yogyakarta.
+          const rawBias = new URL(req.url, 'http://localhost').searchParams.get('bias') || '';
+          const box = parseGeocodeBias(rawBias);
+
+          const cacheKey = `${query.toLowerCase()}::${box ? box.join(',') : 'global'}`;
+          const hit = _nominatimCache.get(cacheKey);
+          if (hit && Date.now() - hit.at < NOMINATIM_CACHE_TTL_MS) {
+            return send(200, { source: 'CACHE', results: hit.results });
+          }
+
+          // Nominatim matches place NAMES literally, so a generic Indonesian noun the
+          // OSM name does not carry actively hurts: "kampus UGM" lands on a building
+          // site whose name contains that phrase while plain "UGM" resolves to the
+          // university, and "rumah sakit sardjito" returns nothing while "RS Sardjito"
+          // is exact. Each variant costs a rate-limited round trip, so later ones run
+          // only while no on-screen hit has been found.
+          let results = [];
+          for (const variant of geocodeQueryVariants(query)) {
+            const wait = NOMINATIM_MIN_INTERVAL_MS - (Date.now() - _nominatimLastCallAt);
+            if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+            _nominatimLastCallAt = Date.now();
+
+            const found = await queryNominatim(variant, box);
+            results = results.concat(found);
+            if (results.some((row) => inGeocodeBox(row, box))) break;
+          }
+
+          // On-screen candidates win outright; ties fall back to Nominatim's own
+          // importance ranking, which is what the single-result query used to give.
+          results = dedupeGeocodeHits(results)
+            .sort((a, b) => (inGeocodeBox(b, box) - inGeocodeBox(a, box))
+              || (geocodeNamePrefixMatch(b, query) - geocodeNamePrefixMatch(a, query))
+              || (b.importance - a.importance));
+
+          _nominatimCache.set(cacheKey, { at: Date.now(), results });
+          if (_nominatimCache.size > NOMINATIM_CACHE_MAX_ENTRIES) {
+            _nominatimCache.delete(_nominatimCache.keys().next().value);
+          }
+          return send(200, { source: 'UPSTREAM', results });
+        } catch (err) {
+          return send(500, { error: String(err?.message || err), results: [] });
+        }
+      });
+    },
+  };
+}
+
 /**
  * Vite plugin: Overpass API proxy with response caching and request coalescing.
  *
@@ -3407,6 +3681,41 @@ function normalizeFeedType(value) {
  */
 function isVideoFeedType(feedType) {
   return feedType === 'mp4' || feedType === 'webm' || feedType === 'hls';
+}
+
+/**
+ * Rewrite an HLS playlist's relative URIs to absolute upstream URLs.
+ *
+ * Master playlists reference their variants — and variants their segments —
+ * relatively ("chunklist_w1.m3u8", "media_w1_15468.ts"). Proxied verbatim through
+ * /api/cctv/media/<id>, a player resolves those against the proxy path, so the next
+ * hop arrives here as a camera id that matches no source and the stream dies one
+ * request in. Absolutizing keeps every hop pointed at the origin that issued it.
+ *
+ * @param {string} playlist - Raw m3u8 text.
+ * @param {string} baseUrl - Absolute URL the playlist was fetched from.
+ * @returns {string} Playlist with every URI absolute.
+ */
+function rewriteHlsPlaylist(playlist, baseUrl) {
+  const absolutize = (uri) => {
+    try {
+      return new URL(uri, baseUrl).href;
+    } catch {
+      return uri;
+    }
+  };
+  return String(playlist)
+    .split(/\r?\n/)
+    .map((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return line;
+      // Tags carry their target inside URI="..." (EXT-X-KEY, EXT-X-MAP, EXT-X-MEDIA).
+      if (trimmed.startsWith('#')) {
+        return line.replace(/URI="([^"]+)"/g, (_match, uri) => `URI="${absolutize(uri)}"`);
+      }
+      return absolutize(trimmed);
+    })
+    .join('\n');
 }
 
 // ---------------------------------------------------------------------------
@@ -4592,6 +4901,21 @@ function cctvProxy() {
                   label: source?.provider || 'Configured source',
                   message: isVideoFeedType(feedType) ? 'Live stream connected' : 'Snapshot feed connected',
                 });
+              }
+
+              // An m3u8 must be rewritten, not streamed byte-for-byte — see
+              // rewriteHlsPlaylist. Segments still flow straight from the upstream,
+              // which serves Access-Control-Allow-Origin: *.
+              if (contentType.includes('mpegurl')) {
+                const playlist = await upstream.text();
+                res.writeHead(200, {
+                  'Content-Type': contentType || 'application/vnd.apple.mpegurl',
+                  'Cache-Control': 'no-store',
+                  'Access-Control-Allow-Origin': '*',
+                  'X-Gev-Source': 'live-media',
+                });
+                res.end(rewriteHlsPlaylist(playlist, mediaUrl));
+                return;
               }
 
               await proxyMediaResponse(res, upstream, {
@@ -7348,6 +7672,7 @@ export default defineConfig(({ mode }) => {
       rocketLaunchesProxy(),
       terrainHeightsProxy(),
       adsbdbProxy(),
+      nominatimProxy(),
       overpassProxy(),
       militaryInstallationsProxy(),
       regionalBriefProxy(),
@@ -7373,6 +7698,7 @@ export default defineConfig(({ mode }) => {
     define: {
       'import.meta.env.GOOGLE_MAPS_API_KEY': JSON.stringify(env.GOOGLE_MAPS_API_KEY),
       'import.meta.env.CESIUM_ION_TOKEN': JSON.stringify(env.CESIUM_ION_TOKEN),
+      'import.meta.env.GEV_RENDER_QUALITY': JSON.stringify(env.GEV_RENDER_QUALITY),
     },
     build: {
       // The Cesium engine bundle is inherently large; raise the warning ceiling

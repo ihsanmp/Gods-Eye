@@ -342,13 +342,89 @@ export function findPoiByName(query) {
 export const CANCELLED_SEARCH = Object.freeze({ cancelled: true });
 
 /**
- * Geocode a place name using Google Geocoding API, then fly there at a scale
+ * Nominatim's `addresstype`/`type` vocabulary mapped onto the Google Geocoding
+ * `types` values `geocodeNavigationMode` already understands, so a keyless hit
+ * is framed at the same scale a keyed one would be. Anything unlisted falls
+ * through to `precise-place`, which is the right default for a named landmark.
+ */
+const OSM_TYPE_TO_GOOGLE_TYPES = {
+  country: ['country'],
+  state: ['administrative_area_level_1'],
+  province: ['administrative_area_level_1'],
+  region: ['administrative_area_level_1'],
+  county: ['administrative_area_level_2'],
+  state_district: ['administrative_area_level_2'],
+  city: ['locality'],
+  town: ['locality'],
+  municipality: ['locality'],
+  village: ['sublocality'],
+  hamlet: ['sublocality'],
+  suburb: ['sublocality_level_1'],
+  neighbourhood: ['neighborhood'],
+  quarter: ['neighborhood'],
+  city_district: ['neighborhood'],
+  borough: ['neighborhood'],
+  postcode: ['postal_code'],
+  road: ['route'],
+  residential: ['route'],
+  street: ['route'],
+  park: ['park'],
+  nature_reserve: ['park'],
+  forest: ['natural_feature'],
+  water: ['natural_feature'],
+  bay: ['natural_feature'],
+  peak: ['natural_feature'],
+  island: ['natural_feature'],
+  beach: ['natural_feature'],
+  river: ['natural_feature'],
+  aerodrome: ['airport'],
+  airport: ['airport'],
+  university: ['university'],
+  college: ['university'],
+  stadium: ['stadium'],
+};
+
+/**
+ * Keyless geocode via the /api/geocode Nominatim proxy. Used only when the
+ * Google path yields nothing — including the no-key case, where every lookup
+ * comes back REQUEST_DENIED. Never throws: a dead fallback must degrade to
+ * "not found", not break the search box.
+ *
+ * @returns {Promise<{lat:number,lng:number,label:string,types:string[],viewport:object|null}|null>}
+ */
+async function keylessGeocode(query, viewer) {
+  try {
+    // Same viewport bias the Google path sends as `bounds`: "Malioboro" typed
+    // while looking at Yogyakarta must not resolve to the street in Surabaya.
+    const bias = viewportBias(viewer);
+    const response = await fetch(
+      `/api/geocode?q=${encodeURIComponent(query)}${bias ? `&bias=${encodeURIComponent(bias)}` : ''}`,
+    );
+    if (!response.ok) return null;
+    const data = await response.json();
+    const hit = data?.results?.[0];
+    if (!hit || !Number.isFinite(hit.lat) || !Number.isFinite(hit.lon)) return null;
+    return {
+      lat: hit.lat,
+      lng: hit.lon,
+      label: hit.label || query,
+      types: OSM_TYPE_TO_GOOGLE_TYPES[hit.osmType] || [],
+      viewport: hit.bounds || null,
+    };
+  } catch (error) {
+    console.warn('[locations] keyless geocode unavailable:', error);
+    return null;
+  }
+}
+
+/**
+ * Geocode a place name using Google Geocoding API — falling back to the keyless
+ * Nominatim proxy when that returns nothing — then fly there at a scale
  * appropriate to the request. Countries and cities use their viewport by
  * default; precise landmarks/buildings use close landmark framing.
  */
 export async function searchAndFlyTo(viewer, query, options = {}) {
   const apiKey = window.__GOOGLE_MAPS_API_KEY__ || import.meta.env.GOOGLE_MAPS_API_KEY;
-  if (!apiKey) throw new Error('No Google Maps API key available for geocoding');
 
   const beforeFly = typeof options.beforeFly === 'function' ? options.beforeFly : null;
   const mayFly = () => beforeFly === null || beforeFly() !== false;
@@ -356,13 +432,20 @@ export async function searchAndFlyTo(viewer, query, options = {}) {
   // Viewport-biased geocode — the same bias annotationResolver's geocodePlace uses:
   // "Sixth Street" spoken over Austin must prefer the Sixth Street on screen, not a
   // same-named road in another city (or the wrong end of town — the W 6th vs E 6th bug).
-  let url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${apiKey}`;
-  const bias = viewportBias(viewer);
-  if (bias) url += `&bounds=${bias}`;
-  const response = await fetch(url);
-  const data = await response.json();
+  let data = null;
+  if (apiKey) {
+    let url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${apiKey}`;
+    const bias = viewportBias(viewer);
+    if (bias) url += `&bounds=${bias}`;
+    try {
+      const response = await fetch(url);
+      data = await response.json();
+    } catch (error) {
+      console.warn('[locations] Google geocode failed, trying keyless fallback:', error);
+    }
+  }
 
-  const result = (data.status === 'OK' && data.results?.length) ? data.results[0] : null;
+  const result = (data?.status === 'OK' && data.results?.length) ? data.results[0] : null;
   let lat = result?.geometry.location.lat;
   let lng = result?.geometry.location.lng;
   let label = result ? result.formatted_address : null;
@@ -380,7 +463,15 @@ export async function searchAndFlyTo(viewer, query, options = {}) {
     types = recovered.types || [];
     viewport = placesViewportToBounds(recovered.viewport) || viewport;
   } else if (!result) {
-    return null;
+    // Both Google paths came up empty — either genuinely unknown, or (far more
+    // often, keyless) REQUEST_DENIED. OSM answers the same question for free.
+    const keyless = await keylessGeocode(query, viewer);
+    if (!keyless) return null;
+    lat = keyless.lat;
+    lng = keyless.lng;
+    label = keyless.label;
+    types = keyless.types;
+    viewport = keyless.viewport;
   }
 
   const requestedRange = finitePositive(options.range);
