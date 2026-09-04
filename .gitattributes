@@ -1,0 +1,32 @@
+# Normalise line endings to LF everywhere, in the repository AND in the working
+# tree on every platform.
+#
+# This is not a style preference. The test suite pins source files by slicing
+# them between literal anchors and by sha256 of exact byte ranges - for example
+# the GEV_REALTIME_TOOLS schema pin, which asserts a 31104-byte block. On a
+# Windows checkout with autocrlf, every one of those anchors misses and the byte
+# lengths drift by one per line. Measured on this repo: 25 of 2587 tests fail
+# with CRLF, and 0 fail with LF. The failures look like real regressions and are
+# not, which is worse than a plain breakage.
+#
+# `eol=lf` (not just `text=auto`) is the load-bearing part: it forces LF into the
+# working tree, so the files the test runner actually reads are LF regardless of
+# core.autocrlf.
+* text=auto eol=lf
+
+# Windows-only launchers. Left CRLF because they are read by Windows tooling,
+# never by the test suite. The .ps1 files additionally carry a UTF-8 BOM, which
+# Windows PowerShell 5.1 needs to avoid decoding them as ANSI - see app/README.md.
+*.ps1 text eol=crlf
+*.vbs text eol=crlf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Binary assets: never touched, never diffed as text.
+*.glb binary
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.svg text eol=lf
+*.wav binary
