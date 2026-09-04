@@ -6332,7 +6332,11 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
   max-height: calc(100vh - 24px);
 }
 
+/* #left-panel-stack is pointer-events:none so the globe stays draggable through
+   the gaps between panels; each panel has to opt back IN here. A panel missing
+   from this list renders normally and is completely unclickable. */
 #left-panel-stack > #data-panel,
+#left-panel-stack > #route-panel,
 #left-panel-stack > #cctv-panel,
 #left-panel-stack > #global-context-panel,
 #left-panel-stack > #scene-panel {
@@ -6356,6 +6360,10 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
   order: 2;
 }
 
+#left-panel-stack > #route-panel {
+  order: 3;
+}
+
 #left-panel-stack > #scene-panel { order: 4; }
 
 /*
@@ -6368,6 +6376,7 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
 }
 
 #left-panel-stack > #data-panel:not(.collapsed),
+#left-panel-stack > #route-panel:not(.collapsed),
 #left-panel-stack > #cctv-panel:not(.collapsed),
 #left-panel-stack > #scene-panel:not(.collapsed) {
   box-sizing: border-box;
@@ -6380,7 +6389,7 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
  * When an expanded panel and its collapsed siblings fit together, preserve
  * the canonical control order and center their combined stack at 50vh.
  */
-#left-panel-stack.layout-tail > :is(#data-panel, #cctv-panel, #scene-panel):not(.collapsed) {
+#left-panel-stack.layout-tail > :is(#data-panel, #route-panel, #cctv-panel, #scene-panel):not(.collapsed) {
   box-sizing: border-box;
   flex: 0 0 var(--left-panel-allocated-height);
   height: var(--left-panel-allocated-height);
@@ -6388,6 +6397,7 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
 }
 
 #left-panel-stack > #data-panel:not(.collapsed) .data-panel-inner,
+#left-panel-stack > #route-panel:not(.collapsed) .route-panel-inner,
 #left-panel-stack > #cctv-panel:not(.collapsed) .cctv-panel-inner,
 #left-panel-stack > #scene-panel:not(.collapsed) .scene-panel-inner {
   height: 100%;
