@@ -176,3 +176,217 @@
 #pp-toggles.collapsed {
   display: none !important;
 }
+
+/* ============================================================
+   MENU CARD - what an icon opens, in the shape of the reference
+   ============================================================ */
+
+/*
+ * Every rule here is prefixed with #fluid-menu-root deliberately. The button
+ * reset above is `#fluid-menu-root button`, an id-plus-type selector, and it
+ * would otherwise beat any plain class in this block and strip the card's own
+ * padding and borders back off again.
+ */
+#fluid-menu-root .gev-menu-popover,
+#fluid-menu-root .gev-menu-popover * {
+  box-sizing: border-box;
+}
+
+#fluid-menu-root .gev-menu-popover {
+  position: absolute;
+  /* Clear of the 64px circles that start at left: 24px. */
+  left: 76px;
+  width: 300px;
+  max-height: min(66vh, 560px);
+  display: flex;
+  flex-direction: column;
+  padding: 18px 18px 16px;
+  border-radius: 12px;
+  background: #111318;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.62);
+  pointer-events: auto;
+  /* The HUD is monospace throughout; the card is not part of the HUD. */
+  font-family: ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif;
+}
+
+#fluid-menu-root .gev-menu-popover-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #f4f4f5;
+  letter-spacing: 0;
+}
+
+#fluid-menu-root .gev-menu-popover-desc {
+  margin-top: 3px;
+  margin-bottom: 14px;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: #9ca3af;
+}
+
+#fluid-menu-root .gev-menu-popover-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  /* Negative margin so a row's hover fill reaches the card's padding edge. */
+  margin: 0 -4px;
+  padding: 0 4px;
+}
+
+#fluid-menu-root .gev-menu-popover-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+#fluid-menu-root .gev-menu-popover-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+}
+
+#fluid-menu-root .gev-menu-popover-footer {
+  margin-top: 14px;
+}
+
+#fluid-menu-root .gev-menu-popover-primary {
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 0;
+  background: #fafafa;
+  color: #111318;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+#fluid-menu-root .gev-menu-popover-primary:hover {
+  background: #ffffff;
+  color: #111318;
+}
+
+/* ---- mirrored rows ---- */
+
+#fluid-menu-root .gev-mirror-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  margin: 1px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #d4d4d8;
+  font-family: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+#fluid-menu-root .gev-mirror-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+}
+
+#fluid-menu-root .gev-mirror-row[data-on='true'] {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+}
+
+#fluid-menu-root .gev-mirror-row:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+#fluid-menu-root .gev-mirror-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#fluid-menu-root .gev-mirror-chip {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #8b8b93;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+#fluid-menu-root .gev-mirror-chip[data-on='true'] {
+  background: #e5e7eb;
+  border-color: transparent;
+  color: #111318;
+}
+
+#fluid-menu-root .gev-mirror-check {
+  cursor: pointer;
+}
+
+#fluid-menu-root .gev-mirror-check input {
+  flex: 0 0 auto;
+  accent-color: #e5e7eb;
+  cursor: pointer;
+}
+
+/* ---- fields: selects, text, sliders ---- */
+
+#fluid-menu-root .gev-mirror-field {
+  display: block;
+  margin: 10px 2px;
+}
+
+#fluid-menu-root .gev-mirror-field .gev-mirror-label {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #e4e4e7;
+  white-space: normal;
+}
+
+#fluid-menu-root .gev-mirror-field select,
+#fluid-menu-root .gev-mirror-field input[type='text'] {
+  width: 100%;
+  padding: 7px 9px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.03);
+  color: #f4f4f5;
+  font-family: inherit;
+  font-size: 12.5px;
+}
+
+#fluid-menu-root .gev-mirror-field select:focus,
+#fluid-menu-root .gev-mirror-field input[type='text']:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.34);
+}
+
+#fluid-menu-root .gev-mirror-field select option {
+  background: #111318;
+  color: #f4f4f5;
+}
+
+#fluid-menu-root .gev-mirror-field input[type='range'] {
+  width: 100%;
+  accent-color: #e5e7eb;
+}
+
+#fluid-menu-root .gev-mirror-note {
+  margin-top: 10px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: #8b8b93;
+}
+
+#fluid-menu-root .gev-mirror-empty {
+  padding: 6px 2px;
+  font-size: 12.5px;
+  color: #8b8b93;
+}
