@@ -89,9 +89,163 @@ function viewportBias(viewer: any): string | null {
   }
 }
 
+/** Read a route panel control, which is the one implementation of routing. */
+function panelEl<T extends HTMLElement>(id: string): T | null {
+  return document.getElementById(id) as T | null;
+}
+
+/**
+ * Put a value AND its picked coordinates onto one of the panel's fields.
+ *
+ * Deliberately silent - no `input` event. The panel listens for that to mean a
+ * person is typing, and its handler both DELETES the picked coordinates (the
+ * text no longer describes them) and opens its own suggestion dropdown. Firing
+ * it here would throw away the exact point this bar just resolved, quietly
+ * downgrading a precise destination back to a name lookup, and pop a stray
+ * list open in a panel nobody is looking at.
+ */
+function fillPanelField(id: string, text: string, point?: { lat: number; lon: number } | null) {
+  const input = panelEl<HTMLInputElement>(id);
+  if (!input) return;
+  input.value = text;
+  if (point) {
+    input.dataset.pickedLat = String(point.lat);
+    input.dataset.pickedLon = String(point.lon);
+  } else {
+    delete input.dataset.pickedLat;
+    delete input.dataset.pickedLon;
+  }
+}
+
+interface RouteBarProps {
+  destination: GeocodeRow | null;
+  onClose: () => void;
+}
+
+/**
+ * Directions, inside the search bar.
+ *
+ * This does not route anything itself. Routing lives in the Route panel -
+ * origin precedence, the GPS fix and its expiry, cancellation by generation,
+ * the road-mix report, the destination cards - and a second copy of that would
+ * drift from the first within a week. So the bar fills the panel's own fields
+ * and presses its own button, exactly as an operator would.
+ *
+ * The panel's status line and result block are MOVED here while directions are
+ * open, rather than copied. A copy would leave the "BUKA KAMERA" button without
+ * its listener; moving a node keeps everything attached to it, and the nodes go
+ * home when this closes.
+ */
+function RouteBar({ destination, onClose }: RouteBarProps) {
+  const [origin, setOrigin] = useState('');
+  const [dest, setDest] = useState(destination ? destination.label.split(',')[0].trim() : '');
+  const [mode, setMode] = useState('car');
+  const originPointRef = useRef<{ lat: number; lon: number } | null>(null);
+  const destPointRef = useRef<{ lat: number; lon: number } | null>(
+    destination ? { lat: destination.lat, lon: destination.lon } : null
+  );
+  const hostRef = useRef<HTMLDivElement>(null);
+
+  /* Borrow the panel's live status and result nodes for as long as this is up. */
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const moved: Array<{ node: HTMLElement; parent: Node; next: Node | null }> = [];
+    for (const id of ['route-status', 'route-result']) {
+      const node = panelEl<HTMLElement>(id);
+      if (!node?.parentNode) continue;
+      moved.push({ node, parent: node.parentNode, next: node.nextSibling });
+      host.appendChild(node);
+    }
+    return () => {
+      for (const { node, parent, next } of moved) parent.insertBefore(node, next);
+    };
+  }, []);
+
+  const swap = () => {
+    const heldOrigin = originPointRef.current;
+    originPointRef.current = destPointRef.current;
+    destPointRef.current = heldOrigin;
+    setOrigin(dest);
+    setDest(origin);
+  };
+
+  const run = () => {
+    fillPanelField('route-origin', origin, originPointRef.current);
+    fillPanelField('route-dest', dest, destPointRef.current);
+    // The mode buttons are the panel's, so pressing one keeps its own state in
+    // step rather than passing a mode the panel does not know it is using.
+    panelEl<HTMLButtonElement>('route-panel')
+      ?.querySelector<HTMLButtonElement>(`[data-route-mode="${mode}"]`)
+      ?.click();
+    panelEl<HTMLButtonElement>('route-search-btn')?.click();
+  };
+
+  return (
+    <div className="gev-routebar">
+      <div className="gev-routebar-row">
+        <span className="gev-routebar-tag">DARI</span>
+        <input
+          value={origin}
+          placeholder="Titik awal, atau pakai GPS"
+          onChange={(event) => { originPointRef.current = null; setOrigin(event.target.value); }}
+          onKeyDown={(event) => { if (event.key === 'Enter') run(); }}
+        />
+        <button
+          type="button"
+          title="Pakai lokasi saya"
+          onClick={() => {
+            panelEl<HTMLButtonElement>('route-gps-btn')?.click();
+            // The panel writes its own label into its field once the fix lands.
+            window.setTimeout(() => {
+              const value = panelEl<HTMLInputElement>('route-origin')?.value || '';
+              if (value) { originPointRef.current = null; setOrigin(value); }
+            }, 1200);
+          }}
+        >
+          GPS
+        </button>
+        <button type="button" title="Tukar asal dan tujuan" onClick={swap}>&#8645;</button>
+      </div>
+
+      <div className="gev-routebar-row">
+        <span className="gev-routebar-tag">KE</span>
+        <input
+          value={dest}
+          placeholder="Tujuan"
+          onChange={(event) => { destPointRef.current = null; setDest(event.target.value); }}
+          onKeyDown={(event) => { if (event.key === 'Enter') run(); }}
+        />
+      </div>
+
+      <div className="gev-routebar-row gev-routebar-actions">
+        {[['car', 'MOBIL'], ['bike', 'SEPEDA'], ['foot', 'JALAN']].map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            data-on={mode === id ? 'true' : undefined}
+            onClick={() => setMode(id)}
+          >
+            {label}
+          </button>
+        ))}
+        <button type="button" className="gev-routebar-go" onClick={run}>CARI RUTE</button>
+        <button type="button" onClick={onClose}>TUTUP</button>
+      </div>
+
+      <div className="gev-routebar-output" ref={hostRef} />
+    </div>
+  );
+}
+
 function SpotlightHost() {
   const [results, setResults] = useState<any[] | undefined>(undefined);
   const [emptyMessage, setEmptyMessage] = useState<string | null>(null);
+  /** The one search pin currently on the globe, so it can be taken back. */
+  const searchMarkRef = useRef<string | null>(null);
+  /** The place last chosen from the list - what "route to here" means. */
+  const [chosen, setChosen] = useState<GeocodeRow | null>(null);
+  const [routeOpen, setRouteOpen] = useState(false);
   const rowsRef = useRef<GeocodeRow[]>([]);
   const debounceRef = useRef<number | undefined>(undefined);
   /** The query the debounce is holding, so Enter can run it without waiting. */
@@ -164,6 +318,45 @@ function SpotlightHost() {
     [search]
   );
 
+  /**
+   * Drop a pin on the chosen place.
+   *
+   * Flying the camera alone leaves the operator to work out which of the
+   * things now on screen was the answer. The mark says which one, and it
+   * stays put while the camera is moved around it.
+   *
+   * Only ever ONE search pin: the previous is taken back first, so a run of
+   * searches does not litter the globe with every place that was passed
+   * through on the way to the one that mattered.
+   */
+  const markSearchResult = useCallback(async (row: GeocodeRow) => {
+    const api = (window as any).__godsEyeView?.annotations;
+    if (!api?.annotate) return;
+    const previous = searchMarkRef.current;
+    searchMarkRef.current = null;
+    if (previous && api.removeById) api.removeById(previous);
+    try {
+      const outcome = await api.annotate(
+        [{
+          type: 'pin',
+          label: String(row.label || '').split(',')[0].trim() || 'Hasil pencarian',
+          // Amber, because red is the route's colour in this console and a
+          // searched place is not a route.
+          color: 'amber',
+          // A point annotation takes its coordinates from the spec itself; the
+          // `points` array is for the shapes that have two ends or a path.
+          latitude: row.lat,
+          longitude: row.lon,
+          allowDistant: true
+        }],
+        { flyTo: false }
+      );
+      searchMarkRef.current = outcome?.results?.[0]?.id || null;
+    } catch {
+      // A mark that could not be drawn must not take the camera flight with it.
+    }
+  }, []);
+
   const flyToRow = useCallback((row: GeocodeRow | undefined) => {
     const viewer = (window as any).__godsEyeView?.viewer;
     if (!row || !viewer) return;
@@ -175,6 +368,18 @@ function SpotlightHost() {
       orientation: { heading: 0, pitch: Cesium.Math.toRadians(-60), roll: 0 },
       duration: 2.4
     });
+    void markSearchResult(row);
+    setChosen(row);
+  }, [markSearchResult]);
+
+  /** Take the pin back and forget the place, leaving the bar as it started. */
+  const clearChosen = useCallback(() => {
+    const api = (window as any).__godsEyeView?.annotations;
+    const id = searchMarkRef.current;
+    searchMarkRef.current = null;
+    if (id && api?.removeById) api.removeById(id);
+    setChosen(null);
+    setRouteOpen(false);
   }, []);
 
   const onSelectResult = useCallback(
@@ -213,6 +418,25 @@ function SpotlightHost() {
       onSelectResult={onSelectResult}
       onSubmit={() => { void onSubmit(); }}
       emptyMessage={emptyMessage}
+      panel={
+        routeOpen ? (
+          <RouteBar destination={chosen} onClose={() => setRouteOpen(false)} />
+        ) : chosen ? (
+          /*
+           * What the reference offers once a place is picked: the place, and
+           * the way to it. The description panel it also shows is the one part
+           * deliberately left out - this console answers different questions
+           * about a destination, and it answers them once a route exists.
+           */
+          <div className="gev-chosen">
+            <span className="gev-chosen-name">{chosen.label.split(',')[0].trim()}</span>
+            <button type="button" className="gev-chosen-go" onClick={() => setRouteOpen(true)}>
+              RUTE KE SINI
+            </button>
+            <button type="button" onClick={clearChosen}>HAPUS PENANDA</button>
+          </div>
+        ) : null
+      }
     />
   );
 }

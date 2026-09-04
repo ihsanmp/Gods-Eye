@@ -437,3 +437,145 @@
   font-size: 12.5px;
   color: #8b8b93;
 }
+
+/* ============================================================
+   DIRECTIONS INSIDE THE SEARCH BAR
+   ============================================================ */
+
+#spotlight-root .gev-chosen,
+#spotlight-root .gev-routebar {
+  width: 100%;
+  padding: 10px 18px 14px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  background: #f5f5f5;
+  color: #111318;
+  font-family: Inter, ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+}
+
+#spotlight-root .gev-chosen {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#spotlight-root .gev-chosen-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+#spotlight-root .gev-routebar-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+#spotlight-root .gev-routebar-tag {
+  flex: 0 0 34px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: #6b7280;
+}
+
+#spotlight-root .gev-routebar input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px 9px;
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  border-radius: 8px;
+  background: #ffffff;
+  color: #111318;
+  font: inherit;
+}
+
+#spotlight-root .gev-routebar input:focus {
+  outline: none;
+  border-color: rgba(0, 0, 0, 0.34);
+}
+
+#spotlight-root .gev-chosen button,
+#spotlight-root .gev-routebar button {
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  border-radius: 8px;
+  background: #ffffff;
+  color: #374151;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+#spotlight-root .gev-chosen button:hover,
+#spotlight-root .gev-routebar button:hover {
+  background: #111318;
+  border-color: #111318;
+  color: #ffffff;
+}
+
+#spotlight-root .gev-routebar button[data-on='true'] {
+  background: #111318;
+  border-color: #111318;
+  color: #ffffff;
+}
+
+#spotlight-root .gev-chosen-go,
+#spotlight-root .gev-routebar-go {
+  background: #111318;
+  border-color: #111318;
+  color: #ffffff;
+}
+
+#spotlight-root .gev-routebar-actions {
+  margin-top: 2px;
+  flex-wrap: wrap;
+}
+
+/*
+ * The panel's own status and result nodes are MOVED in here while directions
+ * are open. They were written for a dark panel, and this pill is light, so
+ * their colours are restated for the surface they are currently sitting on -
+ * the geometry is left exactly as the panel set it.
+ */
+#spotlight-root .gev-routebar-output {
+  margin-top: 4px;
+}
+
+#spotlight-root .gev-routebar-output #route-status,
+#spotlight-root .gev-routebar-output .route-note {
+  color: #6b7280;
+}
+
+#spotlight-root .gev-routebar-output .route-headline,
+#spotlight-root .gev-routebar-output .route-headline strong,
+#spotlight-root .gev-routebar-output .route-info-strong {
+  color: #111318;
+}
+
+#spotlight-root .gev-routebar-output .route-info-card {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+#spotlight-root .gev-routebar-output .route-info-title,
+#spotlight-root .gev-routebar-output .route-info-sub,
+#spotlight-root .gev-routebar-output .route-info-note {
+  color: #6b7280;
+}
+
+#spotlight-root .gev-routebar-output .route-info-body {
+  color: #374151;
+}
+
+#spotlight-root .gev-routebar-output .route-info-action {
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  background: #ffffff;
+  color: #374151;
+}

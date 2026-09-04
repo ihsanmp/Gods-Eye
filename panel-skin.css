@@ -450,33 +450,3 @@
 .panel-collapsible .scene-shot-row:hover {
   background: var(--gev-card-hover) !important;
 }
-
-/* ---- 10. the route's destination report ---------------------------- */
-
-/*
- * Three small cards inside the route panel, one shade lighter than its
- * surface so they read as items ON the card rather than as another card.
- */
-.panel-collapsible .route-info-card {
-  background: rgba(255, 255, 255, 0.04) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-}
-
-.panel-collapsible .route-info-title {
-  color: var(--gev-card-muted) !important;
-  font-weight: 600 !important;
-}
-
-.panel-collapsible .route-info-body {
-  color: var(--gev-card-label) !important;
-}
-
-.panel-collapsible .route-info-sub,
-.panel-collapsible .route-info-note {
-  color: var(--gev-card-muted) !important;
-}
-
-.panel-collapsible .route-info-strong {
-  color: var(--gev-card-title) !important;
-  font-weight: 600 !important;
-}

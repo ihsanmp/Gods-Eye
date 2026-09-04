@@ -284,6 +284,16 @@ interface AppleSpotlightProps {
   onSubmit?: () => void;
   /** Shown in place of the list while a search is in flight or found nothing. */
   emptyMessage?: string | null;
+  /**
+   * Content attached under the field, inside the same pill.
+   *
+   * The bar is the one search surface in this app, so directions belong in it
+   * rather than in a panel somewhere else. While a panel is mounted it takes
+   * the place of the results list - the operator has stopped choosing a place
+   * and started planning a journey, and showing both at once would offer two
+   * different next steps for the same Enter key.
+   */
+  panel?: React.ReactNode;
 }
 
 const AppleSpotlight = ({
@@ -315,7 +325,8 @@ const AppleSpotlight = ({
   onSearchChange,
   onSelectResult,
   onSubmit,
-  emptyMessage = null
+  emptyMessage = null,
+  panel = null
 }: AppleSpotlightProps) => {
   const [hovered, setHovered] = useState(false);
   const [hoveredSearchResult, setHoveredSearchResult] = useState<number | null>(null);
@@ -502,14 +513,16 @@ const AppleSpotlight = ({
                   onSubmit={handleSubmit}
                 />
 
-                {searchValue && searchResults.length > 0 && (
+                {panel}
+
+                {!panel && searchValue && searchResults.length > 0 && (
                   <SearchResultsContainer
                     searchResults={searchResults}
                     onHover={setHoveredSearchResult}
                     onSelect={onSelectResult ? handleSelect : undefined}
                   />
                 )}
-                {searchValue && searchResults.length === 0 && emptyMessage && (
+                {!panel && searchValue && searchResults.length === 0 && emptyMessage && (
                   <div className="px-6 py-4 w-full border-t bg-neutral-100 text-sm text-gray-500">
                     {emptyMessage}
                   </div>

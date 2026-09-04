@@ -9541,3 +9541,35 @@ body > #location-bar .location-search-wrap {
   border-radius: 8px;
   cursor: pointer;
 }
+
+/*
+ * Colours for the destination report.
+ *
+ * Written unscoped rather than under .panel-collapsible because this element
+ * moves: while directions are open in the search bar the real #route-result
+ * node is relocated there, listeners and all, and rules keyed to the panel it
+ * used to live in would stop applying halfway through a journey.
+ */
+.route-info-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.route-info-title {
+  color: #8b8b93;
+  font-weight: 600;
+}
+
+.route-info-body {
+  color: #d4d4d8;
+}
+
+.route-info-sub,
+.route-info-note {
+  color: #8b8b93;
+}
+
+.route-info-strong {
+  color: #f4f4f5;
+  font-weight: 600;
+}
