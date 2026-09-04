@@ -10,3 +10,7 @@ output/
 .DS_Store
 .gstack/
 3d-models/
+
+# Desktop launcher runtime artefacts (app/ scripts themselves are tracked)
+app/browser-profile/
+app/GodsEyeView.ico
