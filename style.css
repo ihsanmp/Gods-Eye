@@ -9356,3 +9356,57 @@ body.scene-playback-mode #first-run-launcher {
   opacity: 0.5;
   cursor: default;
 }
+
+/* Place suggestions under the route fields. Absolutely positioned so opening the
+   list never reflows the panel below it - the buttons must not jump under the
+   pointer while someone is reaching for them. */
+.route-field { position: relative; }
+
+.route-suggest {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  margin: 3px 0 0;
+  padding: 3px;
+  list-style: none;
+  max-height: 188px;
+  overflow-y: auto;
+  background: rgba(4, 12, 16, 0.97);
+  border: 1px solid rgba(0, 212, 255, 0.32);
+  border-radius: 7px;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.55);
+}
+
+.route-suggest li {
+  padding: 6px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.route-suggest li:hover,
+.route-suggest li.active {
+  background: rgba(0, 212, 255, 0.14);
+}
+
+.route-suggest-name {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.4px;
+  color: var(--text-primary);
+}
+
+.route-suggest-context {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.3px;
+  color: var(--text-secondary);
+  /* One line only: a full OSM display_name can run to a paragraph. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

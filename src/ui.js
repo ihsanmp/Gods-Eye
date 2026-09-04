@@ -14,6 +14,9 @@ import {
 } from './bloom.js';
 import { LOCATIONS, CITY_POIS, GLOBE_VIEW, flyToGlobeView, flyToPresetLocation, flyToPOI, searchAndFlyTo } from './locations.js';
 import { locationMiniStatus } from './locationStatus.js';
+// Same bias string the search box and annotation resolver send, so the route
+// suggestions rank against the map the user is actually looking at.
+import { viewportBias } from './annotations/annotationResolver.js';
 import { interruptCameraMotion } from './cameraVerbs.js';
 import {
   aircraftTrackingTarget,
@@ -6263,6 +6266,162 @@ export class StyleManager {
       clearBtn.disabled = !this._routeSearching && !this._routeMarkId;
     };
 
+    /**
+     * Live place suggestions under a field, biased to the map on screen.
+     *
+     * Debounced and length-gated on purpose: /api/geocode is fronted by
+     * Nominatim, whose usage policy caps this to roughly one call a second, so a
+     * request per keystroke would queue up behind itself and answer long after
+     * the user stopped typing. 400 ms after the last keystroke, three characters
+     * minimum, and every older request is aborted the moment a newer one starts.
+     *
+     * Picking a suggestion stores its COORDINATES on the field, so the search
+     * routes to the exact place chosen rather than re-geocoding the text and
+     * possibly landing on a different match of the same name.
+     *
+     * @param {HTMLInputElement} input
+     * @param {HTMLElement} listEl
+     * @returns {void}
+     */
+    const attachSuggest = (input, listEl) => {
+      if (!input || !listEl) return;
+      let debounce = null;
+      let controller = null;
+      let items = [];
+      let activeIndex = -1;
+
+      const close = () => {
+        listEl.hidden = true;
+        listEl.innerHTML = '';
+        input.setAttribute('aria-expanded', 'false');
+        items = [];
+        activeIndex = -1;
+      };
+
+      const syncActive = () => {
+        [...listEl.children].forEach((child, index) => {
+          child.classList.toggle('active', index === activeIndex);
+          child.setAttribute('aria-selected', String(index === activeIndex));
+        });
+      };
+
+      const pick = (index) => {
+        const hit = items[index];
+        if (!hit) return;
+        input.value = hit.primary;
+        // The picked point is authoritative; a later keystroke clears it below.
+        input.dataset.pickedLat = String(hit.lat);
+        input.dataset.pickedLon = String(hit.lon);
+        // A picked place replaces a GPS origin outright.
+        if (input === originInput) {
+          delete input.dataset.gpsPlaceholder;
+          this._routeGpsFix = null;
+        }
+        close();
+      };
+
+      const render = (rows) => {
+        items = rows;
+        activeIndex = -1;
+        if (!rows.length) { close(); return; }
+        listEl.innerHTML = rows.map((row, index) => `
+          <li role="option" id="${listEl.id}-opt-${index}" aria-selected="false" data-index="${index}">
+            <span class="route-suggest-name"></span>
+            <span class="route-suggest-context"></span>
+          </li>`).join('');
+        // Text goes in via textContent, never innerHTML: these strings come from
+        // OpenStreetMap and are written by strangers.
+        [...listEl.children].forEach((child, index) => {
+          child.querySelector('.route-suggest-name').textContent = rows[index].primary;
+          child.querySelector('.route-suggest-context').textContent = rows[index].context;
+        });
+        listEl.hidden = false;
+        input.setAttribute('aria-expanded', 'true');
+      };
+
+      const query = async (text) => {
+        controller?.abort();
+        controller = new AbortController();
+        const bias = viewportBias(this.viewer);
+        const url = `/api/geocode?q=${encodeURIComponent(text)}${bias ? `&bias=${encodeURIComponent(bias)}` : ''}`;
+        try {
+          const response = await fetch(url, { signal: controller.signal });
+          if (!response.ok) { close(); return; }
+          const data = await response.json();
+          // Guard against an out-of-order answer: the field may have moved on.
+          if (input.value.trim() !== text) return;
+          render((data?.results || [])
+            .filter((row) => Number.isFinite(row.lat) && Number.isFinite(row.lon))
+            .slice(0, 6)
+            .map((row) => {
+              const parts = String(row.label || '').split(',').map((part) => part.trim());
+              return {
+                lat: row.lat,
+                lon: row.lon,
+                primary: parts[0] || text,
+                // Enough of the address to tell two same-named places apart,
+                // which is the whole reason the list exists.
+                context: parts.slice(1, 4).join(', '),
+              };
+            }));
+        } catch (error) {
+          if (error?.name !== 'AbortError') close();
+        }
+      };
+
+      input.addEventListener('input', () => {
+        // Typing invalidates a previously picked point - the text no longer
+        // describes it.
+        delete input.dataset.pickedLat;
+        delete input.dataset.pickedLon;
+        const text = input.value.trim();
+        clearTimeout(debounce);
+        if (text.length < 3 || text === GPS_LABEL) { close(); return; }
+        debounce = setTimeout(() => { void query(text); }, 400);
+      });
+
+      input.addEventListener('keydown', (event) => {
+        if (listEl.hidden) return;
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+          event.preventDefault();
+          const step = event.key === 'ArrowDown' ? 1 : -1;
+          activeIndex = (activeIndex + step + items.length) % items.length;
+          syncActive();
+        } else if (event.key === 'Enter' && activeIndex >= 0) {
+          // Only claims Enter while a suggestion is highlighted; otherwise Enter
+          // still runs the search, as it did before suggestions existed.
+          event.preventDefault();
+          event.stopPropagation();
+          pick(activeIndex);
+        } else if (event.key === 'Escape') {
+          event.preventDefault();
+          close();
+        }
+      });
+
+      // mousedown, not click: blur fires first on click and would close the list
+      // out from under the pointer.
+      listEl.addEventListener('mousedown', (event) => {
+        const option = event.target.closest('[data-index]');
+        if (!option) return;
+        event.preventDefault();
+        pick(Number(option.dataset.index));
+      });
+
+      input.addEventListener('blur', () => { setTimeout(close, 120); });
+    };
+
+    attachSuggest(originInput, document.getElementById('route-origin-suggest'));
+    attachSuggest(destInput, document.getElementById('route-dest-suggest'));
+
+    /** A field's picked coordinates, when the user chose from the suggestions. */
+    const pickedPoint = (input) => {
+      const lat = Number(input?.dataset.pickedLat);
+      const lon = Number(input?.dataset.pickedLon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+      return { latitude: lat, longitude: lon };
+    };
+
     const clearRoute = () => {
       const wasSearching = this._routeSearching;
       // Bumping the generation is what actually cancels: the in-flight search
@@ -6353,7 +6512,9 @@ export class StyleManager {
         originPoint = { latitude: fresh.latitude, longitude: fresh.longitude };
         originLabel = 'Lokasi saya';
       } else if (origin) {
-        originPoint = { target: origin };
+        // A picked suggestion beats the text: it is the exact place the user
+        // chose, not another match of the same name.
+        originPoint = pickedPoint(originInput) || { target: origin };
       } else {
         const fix = await requestGps();
         if (!current()) return;
@@ -6385,7 +6546,7 @@ export class StyleManager {
           // the CCTV markers a route often crosses.
           color: 'red',
           label: originLabel ? `${originLabel} - ${destination}` : destination,
-          points: [originPoint, { target: destination }],
+          points: [originPoint, pickedPoint(destInput) || { target: destination }],
           // Both endpoints are typed in full here, so a destination on another
           // continent is the request, not a geocoder mistake.
           allowDistant: true,

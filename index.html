@@ -600,15 +600,23 @@
         <label for="route-origin">DARI</label>
         <div class="route-origin-row">
           <input id="route-origin" type="text" autocomplete="off" spellcheck="false"
+                 role="combobox" aria-expanded="false" aria-autocomplete="list"
+                 aria-controls="route-origin-suggest"
                  placeholder="Ketik tempat, atau pakai GPS" />
           <button id="route-gps-btn" type="button" class="route-gps-btn"
                   title="Pakai lokasi saya (perlu izin lokasi)" aria-label="Pakai lokasi saya">GPS</button>
         </div>
+        <ul id="route-origin-suggest" class="route-suggest" role="listbox"
+            aria-label="Saran tempat untuk titik awal" hidden></ul>
       </div>
       <div class="route-field">
         <label for="route-dest">KE</label>
         <input id="route-dest" type="text" autocomplete="off" spellcheck="false"
+               role="combobox" aria-expanded="false" aria-autocomplete="list"
+               aria-controls="route-dest-suggest"
                placeholder="Nama tempat atau alamat" />
+        <ul id="route-dest-suggest" class="route-suggest" role="listbox"
+            aria-label="Saran tempat untuk tujuan" hidden></ul>
       </div>
       <div class="route-modes" role="group" aria-label="Moda perjalanan">
         <button type="button" class="scene-btn active" data-route-mode="car">MOBIL</button>
