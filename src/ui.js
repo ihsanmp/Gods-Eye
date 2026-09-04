@@ -199,6 +199,49 @@ import {
   speedRulerTicks,
 } from './cockpitMath.js';
 
+/** Escape text bound for innerHTML. Camera names come from a live catalogue. */
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/** Metres between two lat/lon pairs, for ranking cameras against a destination. */
+function greatCircleMetres(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+}
+
+/**
+ * WMO weather code in words.
+ *
+ * Grouped rather than enumerated: the forecast distinguishes light from dense
+ * drizzle, and for "what is it doing where I am going" that difference does not
+ * change anything the operator would do.
+ */
+function describeWeatherCode(code) {
+  const value = Number(code);
+  if (!Number.isFinite(value)) return 'Tidak diketahui';
+  if (value === 0) return 'Cerah';
+  if (value <= 2) return 'Cerah berawan';
+  if (value === 3) return 'Berawan';
+  if (value <= 48) return 'Berkabut';
+  if (value <= 57) return 'Gerimis';
+  if (value <= 67) return 'Hujan';
+  if (value <= 77) return 'Salju';
+  if (value <= 82) return 'Hujan deras';
+  if (value <= 86) return 'Hujan salju';
+  return 'Badai petir';
+}
+
 /** Duration (ms) for shader intensity crossfade between style presets. */
 const TRANSITION_DURATION_MS = 500;
 /** Map of style name to its GLSL shader module for post-process stages. */
@@ -6415,6 +6458,36 @@ export class StyleManager {
     attachSuggest(originInput, document.getElementById('route-origin-suggest'));
     attachSuggest(destInput, document.getElementById('route-dest-suggest'));
 
+    /*
+     * Turn the journey around.
+     *
+     * The text alone is not the whole endpoint: a field that was filled from a
+     * suggestion also carries the exact coordinates that were picked, and those
+     * are what the search actually routes to. Swapping the text without them
+     * would silently downgrade a precise endpoint back to a name lookup, so the
+     * dataset moves with the value.
+     */
+    const swapBtn = document.getElementById('route-swap-btn');
+    swapBtn?.addEventListener('click', () => {
+      const carry = (input) => ({
+        value: input.value,
+        lat: input.dataset.pickedLat,
+        lon: input.dataset.pickedLon,
+      });
+      const place = (input, held) => {
+        input.value = held.value;
+        if (held.lat === undefined) delete input.dataset.pickedLat;
+        else input.dataset.pickedLat = held.lat;
+        if (held.lon === undefined) delete input.dataset.pickedLon;
+        else input.dataset.pickedLon = held.lon;
+      };
+      const origin = carry(originInput);
+      const dest = carry(destInput);
+      place(originInput, dest);
+      place(destInput, origin);
+      setStatus('Asal dan tujuan ditukar.');
+    });
+
     /** A field's picked coordinates, when the user chose from the suggestions. */
     const pickedPoint = (input) => {
       const lat = Number(input?.dataset.pickedLat);
@@ -6573,6 +6646,7 @@ export class StyleManager {
 
         this._routeMarkId = mark.id || null;
         this._renderRouteResult(resultEl, mark, { formatKm, formatDuration });
+        this._renderRouteDestinationInfo(resultEl, mark, this._routeGeneration);
         setStatus(mark.fallback
           ? 'Jalur jalan tidak tersedia - yang digambar adalah garis lurus.'
           : 'Rute digambar di peta.');
@@ -6631,6 +6705,175 @@ export class StyleManager {
     }
     resultEl.innerHTML = rows.join('');
     resultEl.hidden = false;
+  }
+
+  /**
+   * What waits at the far end: traffic, the nearest camera, the weather.
+   *
+   * The reference this follows shows a place description under the route. A
+   * description is the one thing this console does not need - it is a
+   * surveillance map, and the useful questions about a destination are whether
+   * the road there is moving, whether anything is watching it, and what the sky
+   * is doing when you arrive.
+   *
+   * Rendered in two passes on purpose. The traffic figures come from the route
+   * that was just computed, so they are drawn immediately; the camera and the
+   * weather are network lookups and fill in when they land. The panel therefore
+   * never sits blank waiting for the slowest of the three.
+   *
+   * @param {HTMLElement} resultEl
+   * @param {object} mark Route mark; `destination` is where the line ended.
+   * @param {number} generation Route generation at call time, so a superseded
+   *   search cannot write into the panel belonging to a newer one.
+   * @returns {void}
+   */
+  _renderRouteDestinationInfo(resultEl, mark, generation) {
+    if (!resultEl) return;
+    const end = mark?.destination;
+    if (!end || !Number.isFinite(end.lat) || !Number.isFinite(end.lon)) return;
+
+    const container = document.createElement('div');
+    container.className = 'route-info';
+    container.innerHTML = `
+      <div class="route-info-card" data-info="traffic">
+        <span class="route-info-title">LALU LINTAS</span>
+        <div class="route-info-body">Menghitung...</div>
+      </div>
+      <div class="route-info-card" data-info="cctv">
+        <span class="route-info-title">CCTV TERDEKAT</span>
+        <div class="route-info-body">Mencari kamera...</div>
+      </div>
+      <div class="route-info-card" data-info="weather">
+        <span class="route-info-title">CUACA DI TUJUAN</span>
+        <div class="route-info-body">Mengambil cuaca...</div>
+      </div>`;
+    resultEl.appendChild(container);
+
+    /** Still the current search? A stale reply must not overwrite a newer one. */
+    const current = () => this._routeGeneration === generation && container.isConnected;
+    const body = (name) => container.querySelector(`[data-info="${name}"] .route-info-body`);
+
+    this._renderRouteTrafficCard(body('traffic'), mark);
+    void this._fillNearestCameraCard(body('cctv'), end, current);
+    void this._fillDestinationWeatherCard(body('weather'), end, current);
+  }
+
+  /**
+   * The traffic card, built only from what the routing actually knows.
+   *
+   * There is no live traffic here to report. The TomTom flow proxy is the one
+   * source that would carry it and it has no key (`/api/tomtom/status` reports
+   * hasKey:false), while OSRM's durations come from typical speeds per road
+   * class, not from conditions right now. So this shows the route's own
+   * figures and says where they come from, rather than dressing an estimate up
+   * as a live reading.
+   * @returns {void}
+   */
+  _renderRouteTrafficCard(el, mark) {
+    if (!el) return;
+    if (mark?.fallback || !Number.isFinite(mark?.durationS) || !(mark.durationS > 0)) {
+      el.innerHTML = '<span class="route-info-note">Tidak ada perkiraan waktu untuk jalur ini.</span>';
+      return;
+    }
+    const km = (mark.distanceM || 0) / 1000;
+    const minutes = Math.round(mark.durationS / 60);
+    const kph = Math.round(km / (mark.durationS / 3600));
+    el.innerHTML =
+      `<span class="route-info-strong">${minutes} menit</span> · ${km.toFixed(1)} km`
+      + `<span class="route-info-sub">Rata-rata ${kph} km/jam</span>`
+      + '<span class="route-info-sub route-info-note">Estimasi rute (OSRM), bukan kondisi langsung.'
+      + ' Data langsung perlu TOMTOM_API_KEY.</span>';
+  }
+
+  /**
+   * The camera nearest the destination, out of the whole catalogue.
+   *
+   * Distance is measured to the destination the ROUTE ended at rather than to
+   * the text that was typed, so the answer matches the line drawn on the map.
+   * @returns {Promise<void>}
+   */
+  async _fillNearestCameraCard(el, end, current) {
+    if (!el) return;
+    try {
+      const response = await fetch('/api/cctv/sources', { cache: 'no-store' });
+      if (!current()) return;
+      if (!response.ok) throw new Error(`sources ${response.status}`);
+      const payload = await response.json();
+      if (!current()) return;
+      const cameras = Array.isArray(payload?.sources) ? payload.sources : [];
+
+      let best = null;
+      let bestM = Infinity;
+      for (const camera of cameras) {
+        if (!Number.isFinite(camera?.lat) || !Number.isFinite(camera?.lon)) continue;
+        const metres = greatCircleMetres(end.lat, end.lon, camera.lat, camera.lon);
+        if (metres < bestM) { bestM = metres; best = camera; }
+      }
+      if (!current()) return;
+
+      if (!best) {
+        el.innerHTML = '<span class="route-info-note">Tidak ada kamera dalam katalog.</span>';
+        return;
+      }
+      // Far enough away and the camera is not watching the destination in any
+      // useful sense, so the distance is reported plainly rather than implied.
+      const away = bestM >= 1000 ? `${(bestM / 1000).toFixed(1)} km` : `${Math.round(bestM)} m`;
+      el.innerHTML =
+        `<span class="route-info-strong">${escapeHtml(best.name || best.id)}</span>`
+        + `<span class="route-info-sub">${away} dari tujuan${best.city ? ` · ${escapeHtml(best.city)}` : ''}</span>`
+        + `<button type="button" class="route-info-action" data-camera-id="${escapeHtml(best.id)}">BUKA KAMERA</button>`;
+
+      el.querySelector('[data-camera-id]')?.addEventListener('click', () => {
+        void this._openCameraFromRoute(best.id);
+      });
+    } catch {
+      if (current()) el.innerHTML = '<span class="route-info-note">Daftar kamera tidak bisa dimuat.</span>';
+    }
+  }
+
+  /**
+   * Weather where the route ends.
+   *
+   * /api/weather-effects already serves a point forecast for the visual
+   * effects, so the destination reading costs nothing new - same endpoint, a
+   * different point.
+   * @returns {Promise<void>}
+   */
+  async _fillDestinationWeatherCard(el, end, current) {
+    if (!el) return;
+    try {
+      const response = await fetch(`/api/weather-effects?latitude=${end.lat}&longitude=${end.lon}`);
+      if (!current()) return;
+      if (!response.ok) throw new Error(`weather ${response.status}`);
+      const payload = await response.json();
+      if (!current()) return;
+      const weather = payload?.weather;
+      if (!weather || !Number.isFinite(weather.temperatureC)) {
+        el.innerHTML = '<span class="route-info-note">Cuaca tidak tersedia untuk titik ini.</span>';
+        return;
+      }
+      const rain = Number(weather.precipitationMm) || 0;
+      el.innerHTML =
+        `<span class="route-info-strong">${Math.round(weather.temperatureC)}&deg;C</span>`
+        + ` · ${describeWeatherCode(weather.weatherCode)}`
+        + `<span class="route-info-sub">Terasa ${Math.round(weather.apparentTemperatureC)}&deg;C`
+        + ` · angin ${Math.round(weather.windKph)} km/jam`
+        + `${rain > 0 ? ` · hujan ${rain.toFixed(1)} mm` : ''}</span>`;
+    } catch {
+      if (current()) el.innerHTML = '<span class="route-info-note">Cuaca tidak bisa dimuat.</span>';
+    }
+  }
+
+  /**
+   * Open one camera from the route panel, turning CCTV on if it is off.
+   * @returns {Promise<void>}
+   */
+  async _openCameraFromRoute(cameraId) {
+    if (!await this._toggleCctvEnabled(true)) return;
+    this._runExplicitCctvFocus(
+      () => cameraId,
+      (id) => cctvLayer.focusCamera(id, 1.8),
+    );
   }
 
   /**

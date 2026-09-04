@@ -323,6 +323,11 @@
  */
 .panel-collapsible button,
 #pp-toggles button {
+  /* Chrome paints ButtonFace, an opaque #f0f0f0, on any button no reset has
+     touched - so a control added later arrives as a pale blob on the dark
+     card until this clears it. The named rules above set their own fills and
+     outrank this one, so only the unclaimed buttons land here. */
+  background: transparent !important;
   color: var(--gev-card-label) !important;
   border-color: var(--gev-card-line) !important;
   box-shadow: none !important;
@@ -444,4 +449,34 @@
 
 .panel-collapsible .scene-shot-row:hover {
   background: var(--gev-card-hover) !important;
+}
+
+/* ---- 10. the route's destination report ---------------------------- */
+
+/*
+ * Three small cards inside the route panel, one shade lighter than its
+ * surface so they read as items ON the card rather than as another card.
+ */
+.panel-collapsible .route-info-card {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.panel-collapsible .route-info-title {
+  color: var(--gev-card-muted) !important;
+  font-weight: 600 !important;
+}
+
+.panel-collapsible .route-info-body {
+  color: var(--gev-card-label) !important;
+}
+
+.panel-collapsible .route-info-sub,
+.panel-collapsible .route-info-note {
+  color: var(--gev-card-muted) !important;
+}
+
+.panel-collapsible .route-info-strong {
+  color: var(--gev-card-title) !important;
+  font-weight: 600 !important;
 }

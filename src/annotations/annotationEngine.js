@@ -635,6 +635,19 @@ export function createAnnotationEngine({
           // prefer=main. The Route panel renders it; other callers ignore it.
           ...(anno.roads ? { roads: anno.roads } : {}),
           ...(Number.isFinite(anno.alternativeCount) ? { alternativeCount: anno.alternativeCount } : {}),
+          // Where the route actually ENDED, which is not always where the
+          // caller aimed - the endpoint is snapped onto the road network. The
+          // Route panel reports the weather and the nearest camera for the
+          // destination, and both must describe the end of the line that was
+          // drawn rather than the text that was typed.
+          ...(Array.isArray(anno.path) && anno.path.length
+            ? {
+              destination: {
+                lat: anno.path[anno.path.length - 1].lat,
+                lon: anno.path[anno.path.length - 1].lon,
+              },
+            }
+            : {}),
         }
         : {}),
     };

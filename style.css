@@ -9476,3 +9476,68 @@ body > #location-bar .search-toggle-btn {
 body > #location-bar .location-search-wrap {
   position: relative;
 }
+
+/* ------------------------------------------------------------------
+   Route: swapping the two endpoints, and what waits at the far end
+   ------------------------------------------------------------------ */
+
+/*
+ * The swap control sits between DARI and KE, the way it does on every maps
+ * app, so the gesture reads as "turn the journey around" rather than as a
+ * button belonging to either field.
+ */
+.route-swap-row {
+  display: flex;
+  justify-content: flex-end;
+  margin: -2px 0 4px;
+}
+
+.route-swap-btn {
+  width: 26px;
+  height: 26px;
+  line-height: 1;
+  font-size: 14px;
+  cursor: pointer;
+  border-radius: 999px;
+}
+
+/* The destination report: traffic figures, the nearest camera, the weather. */
+.route-info {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.route-info-card {
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+
+.route-info-title {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+
+.route-info-body {
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.route-info-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+}
+
+/* The nearest camera is an action - it opens that camera - so it looks like
+   one rather than like the two cards that only report. */
+.route-info-action {
+  margin-top: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  border-radius: 8px;
+  cursor: pointer;
+}
