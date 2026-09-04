@@ -1778,9 +1778,30 @@ function createProjectionRuntime(record) {
     video.playsInline = true;
     video.crossOrigin = 'anonymous';
     video.preload = 'auto';
-    video.addEventListener('canplay', () => {
-      video.play().catch(() => {});
-    });
+    // Retry on several readiness events, not just `canplay`.
+    //
+    // A single canplay listener is one chance at autoplay, taken at whichever
+    // moment the element first thinks it can play - which for an HLS stream can
+    // be before hls.js has attached any data. If that attempt is rejected the
+    // feed stays paused forever with a full buffer behind it, and the plane
+    // looks exactly like a dead camera. Measured: readyState 4 with 49.8 s
+    // buffered and currentTime frozen at 0.
+    //
+    // The element is muted, which is what earns autoplay permission in the first
+    // place, so these retries are cheap and normally only the first one runs.
+    const attemptPlay = () => {
+      if (runtime.destroyed || !video.paused) return;
+      video.play().catch((error) => {
+        // Never silent: a blocked autoplay and a broken stream produce the same
+        // black plane, and only the log tells them apart.
+        if (error?.name !== 'AbortError') {
+          console.warn('[cctv] autoplay blocked, will retry on next readiness event:', error?.name || error);
+        }
+      });
+    };
+    for (const event of ['loadeddata', 'canplay', 'canplaythrough']) {
+      video.addEventListener(event, attemptPlay);
+    }
 
     const mediaUrl = mediaUrlFor(record.camera);
     // Only Safari and mobile WebViews play HLS from a plain `video.src`. Chrome,

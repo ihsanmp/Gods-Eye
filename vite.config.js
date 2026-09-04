@@ -4100,22 +4100,59 @@ function isVideoFeedType(feedType) {
 }
 
 /**
- * Rewrite an HLS playlist's relative URIs to absolute upstream URLs.
+ * Whether a playlist may pull `candidateUrl` through the proxy.
+ *
+ * Bounded to the camera's own stream directory on its own origin, so a rewritten
+ * playlist can reach its variants and segments and nothing else. Without this the
+ * `?u=` hop below would be an open proxy: any page could ask the dev server to
+ * fetch any URL and hand back the bytes.
+ *
+ * @param {string} configuredUrl - The camera's URL from the source list.
+ * @param {string} candidateUrl - Absolute URL requested by a rewritten playlist.
+ * @returns {boolean}
+ */
+function cctvUpstreamAllowed(configuredUrl, candidateUrl) {
+  try {
+    const base = new URL(configuredUrl);
+    const target = new URL(candidateUrl);
+    if (target.origin !== base.origin) return false;
+    if (target.protocol !== 'http:' && target.protocol !== 'https:') return false;
+    const directory = base.pathname.slice(0, base.pathname.lastIndexOf('/') + 1);
+    return target.pathname.startsWith(directory);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Rewrite an HLS playlist's URIs so every hop comes back through this proxy.
  *
  * Master playlists reference their variants — and variants their segments —
- * relatively ("chunklist_w1.m3u8", "media_w1_15468.ts"). Proxied verbatim through
- * /api/cctv/media/<id>, a player resolves those against the proxy path, so the next
- * hop arrives here as a camera id that matches no source and the stream dies one
- * request in. Absolutizing keeps every hop pointed at the origin that issued it.
+ * relatively ("chunklist_w1.m3u8", "media_w1_15468.ts"). Proxied verbatim, a
+ * player resolves those against the proxy path, so the next hop arrives as a
+ * camera id that matches no source and the stream dies one request in.
+ *
+ * This used to fix that by absolutizing to the upstream origin, on the stated
+ * assumption that "segments still flow straight from the upstream, which serves
+ * Access-Control-Allow-Origin: *". True of the Austin, Caltrans and TfL feeds it
+ * was written for; NOT true of Indonesia's ATCS feeds, which send no CORS
+ * headers at all. The player fetched the master playlist happily, was blocked
+ * fetching the variant, and the camera plane stayed black with nothing in the UI
+ * to say why.
+ *
+ * So every URI is absolutized and then pointed back at `/api/cctv/media/<id>?u=`,
+ * keeping the whole chain on this origin where CORS is ours to set.
  *
  * @param {string} playlist - Raw m3u8 text.
  * @param {string} baseUrl - Absolute URL the playlist was fetched from.
- * @returns {string} Playlist with every URI absolute.
+ * @param {string} proxyBase - `/api/cctv/media/<encoded id>`.
+ * @returns {string} Playlist with every URI routed through the proxy.
  */
-function rewriteHlsPlaylist(playlist, baseUrl) {
+function rewriteHlsPlaylist(playlist, baseUrl, proxyBase) {
   const absolutize = (uri) => {
     try {
-      return new URL(uri, baseUrl).href;
+      const absolute = new URL(uri, baseUrl).href;
+      return proxyBase ? `${proxyBase}?u=${encodeURIComponent(absolute)}` : absolute;
     } catch {
       return uri;
     }
@@ -5268,8 +5305,19 @@ function cctvProxy() {
           if (url.pathname.startsWith('/media/')) {
             const cameraId = decodeURIComponent(url.pathname.replace('/media/', '').trim()) || 'camera';
             const source = sourceById.get(cameraId);
-            const mediaUrl = source?.url || '';
+            const configuredUrl = source?.url || '';
             const feedType = normalizeFeedType(source?.feedType || 'image');
+
+            // A rewritten playlist asks for its own variants and segments by
+            // absolute URL. Serve them only when they belong to this camera's
+            // stream directory; anything else is refused rather than fetched.
+            const requestedUpstream = url.searchParams.get('u');
+            if (requestedUpstream && !cctvUpstreamAllowed(configuredUrl, requestedUpstream)) {
+              res.writeHead(403, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+              res.end(JSON.stringify({ error: 'Upstream URL is not part of this camera stream' }));
+              return;
+            }
+            const mediaUrl = requestedUpstream || configuredUrl;
 
             if (!mediaUrl || !/^https?:\/\//i.test(mediaUrl)) {
               setHealth(cameraId, {
@@ -5320,8 +5368,8 @@ function cctvProxy() {
               }
 
               // An m3u8 must be rewritten, not streamed byte-for-byte — see
-              // rewriteHlsPlaylist. Segments still flow straight from the upstream,
-              // which serves Access-Control-Allow-Origin: *.
+              // rewriteHlsPlaylist. Every hop it names comes back here, so the
+              // whole chain stays on an origin whose CORS headers we control.
               if (contentType.includes('mpegurl')) {
                 const playlist = await upstream.text();
                 res.writeHead(200, {
@@ -5330,7 +5378,11 @@ function cctvProxy() {
                   'Access-Control-Allow-Origin': '*',
                   'X-Gev-Source': 'live-media',
                 });
-                res.end(rewriteHlsPlaylist(playlist, mediaUrl));
+                res.end(rewriteHlsPlaylist(
+                  playlist,
+                  mediaUrl,
+                  `/api/cctv/media/${encodeURIComponent(cameraId)}`,
+                ));
                 return;
               }
 
