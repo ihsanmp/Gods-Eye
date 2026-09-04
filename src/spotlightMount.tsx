@@ -340,9 +340,9 @@ function SpotlightHost() {
         [{
           type: 'pin',
           label: String(row.label || '').split(',')[0].trim() || 'Hasil pencarian',
-          // Amber, because red is the route's colour in this console and a
-          // searched place is not a route.
-          color: 'amber',
+          // Red, the colour a map pin is everywhere - and free to use now that
+          // the route line has taken blue.
+          color: 'red',
           // A point annotation takes its coordinates from the spec itself; the
           // `points` array is for the shapes that have two ends or a path.
           latitude: row.lat,

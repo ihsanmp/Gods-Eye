@@ -42,10 +42,36 @@ const PALETTE = {
 const MARK_SCALE_NEAR_H = 800;   // m: at/below this, full-size reticles
 const MARK_SCALE_FAR_H = 6000;   // m: at/above this, minimum size
 const MARK_SCALE_MIN = 0.32;     // floor so dots never vanish
+/*
+ * A place pin gets a much higher floor than a reticle.
+ *
+ * The 0.32 floor exists because reticles come in crowds - contacts, cameras,
+ * detections - and full-size ones merge into a blob when the camera pulls
+ * back. A searched place is not a crowd: there is exactly one at a time, it is
+ * the thing the operator just asked for, and at 0.32 it shrank to 8 pixels on
+ * an archipelago-wide view, which is the view this console now opens on.
+ */
+const PIN_SCALE_MIN = 0.72;
 const RING_OUTER_R = 34;
 const RING_INNER_R = 18;
 const DOT_R = 5;
 const LABEL_DOT_R = 4;
+
+/*
+ * The place pin, drawn with its TIP AT THE ORIGIN so positioning it is a plain
+ * translate to the projected point - no offset arithmetic to get wrong, and the
+ * tip marks the coordinate exactly.
+ *
+ * From the tip, one curve rises to the left flank of the head, a large arc
+ * carries over the top, and a mirrored curve returns to the tip.
+ */
+const PIN_HEAD_CY = 27;   // head centre, above the tip
+const PIN_HEAD_R = 13;
+const PIN_EYE_R = 5;
+const PIN_TOTAL_H = PIN_HEAD_CY + PIN_HEAD_R;
+const PIN_PATH = `M0,0 C-4.5,-9 -${PIN_HEAD_R},-16.5 -${PIN_HEAD_R},-${PIN_HEAD_CY} `
+  + `A${PIN_HEAD_R},${PIN_HEAD_R} 0 1,1 ${PIN_HEAD_R},-${PIN_HEAD_CY} `
+  + `C${PIN_HEAD_R},-16.5 4.5,-9 0,0 Z`;
 function markScale(h) {
   if (!(h > MARK_SCALE_NEAR_H)) return 1;
   if (h >= MARK_SCALE_FAR_H) return MARK_SCALE_MIN;
@@ -177,8 +203,37 @@ export function createScreenAnnotationRenderer(viewer, {
       });
       parts.label = makeCallout(anno.label, c);
       if (parts.label) group.appendChild(parts.label.node);
+    } else if (anno.type === 'pin') {
+      /*
+       * A searched place gets a teardrop, not a reticle.
+       *
+       * The pulsing rings are this console's language for "something is being
+       * watched here" - contacts, cameras, detections all wear them - so the
+       * one place the operator just asked for looked like more of the same
+       * surveillance furniture. The teardrop is the shape every maps app uses
+       * for "here": its tip IS the coordinate, so it points at the spot instead
+       * of covering it, and its dark rim and white centre keep it readable over
+       * a pale street map and a dark satellite tile alike.
+       */
+      parts.pin = svgEl('g', { class: 'gev-anno-pin' });
+      parts.pin.appendChild(svgEl('path', {
+        d: PIN_PATH,
+        fill: c,
+        stroke: 'rgba(0, 0, 0, 0.45)',
+        'stroke-width': '1.6',
+        'stroke-linejoin': 'round',
+      }));
+      parts.pin.appendChild(svgEl('circle', {
+        cx: '0', cy: String(-PIN_HEAD_CY), r: String(PIN_EYE_R),
+        fill: '#ffffff', stroke: 'rgba(0, 0, 0, 0.28)', 'stroke-width': '1',
+      }));
+      group.appendChild(parts.pin);
+      parts.leader = svgEl('line', { class: 'gev-anno-leader', stroke: c, 'stroke-width': '1.5', 'stroke-opacity': '0.7' });
+      group.appendChild(parts.leader);
+      parts.label = makeCallout(anno.label, c);
+      if (parts.label) group.appendChild(parts.label.node);
     } else {
-      // pin / highlight / label — pulsing target rings + a marker dot + callout
+      // highlight / label — pulsing target rings + a marker dot + callout
       if (anno.type !== 'label') {
         parts.ringOuter = svgEl('circle', { class: 'gev-anno-ring gev-pulse', fill: 'none', stroke: c, 'stroke-width': '2', r: '34' });
         parts.ringInner = svgEl('circle', { class: 'gev-anno-ring', fill: c, 'fill-opacity': '0.12', stroke: c, 'stroke-width': '2.5', r: '18', filter: 'url(#gev-sketch)' });
@@ -429,15 +484,31 @@ export function createScreenAnnotationRenderer(viewer, {
         if (p) {
           group.style.display = '';
           const baseDotR = anno.type === 'label' ? LABEL_DOT_R : DOT_R;
+          // The teardrop is drawn once with its tip at the origin, so placing
+          // it is a translate - the tip lands exactly on the projected point.
+          const pinScale = Math.max(mScale, PIN_SCALE_MIN);
+          if (parts.pin) {
+            parts.pin.setAttribute(
+              'transform',
+              `translate(${p.x.toFixed(1)},${p.y.toFixed(1)}) scale(${pinScale.toFixed(2)})`,
+            );
+          }
           if (parts.dot) { parts.dot.setAttribute('cx', p.x.toFixed(1)); parts.dot.setAttribute('cy', p.y.toFixed(1)); parts.dot.setAttribute('r', (baseDotR * mScale).toFixed(1)); }
           if (parts.ringOuter) { parts.ringOuter.setAttribute('cx', p.x.toFixed(1)); parts.ringOuter.setAttribute('cy', p.y.toFixed(1)); parts.ringOuter.setAttribute('r', (RING_OUTER_R * mScale).toFixed(1)); }
           if (parts.ringInner) { parts.ringInner.setAttribute('cx', p.x.toFixed(1)); parts.ringInner.setAttribute('cy', p.y.toFixed(1)); parts.ringInner.setAttribute('r', (RING_INNER_R * mScale).toFixed(1)); }
           if (parts.label) {
             // Keep the callout tucked near the (now smaller) reticle by scaling its offset.
-            const lx = p.x + 18 * mScale; const ly = p.y - 34 * mScale;
+            // A pin is tall and its anchor is at the tip, so its caption clears
+            // the head instead of being pierced by it.
+            const lx = p.x + 18 * mScale;
+            const ly = parts.pin
+              ? p.y - (PIN_TOTAL_H + 6) * pinScale
+              : p.y - 34 * mScale;
             positionCallout(parts.label, lx, ly, false);
             if (parts.leader) {
-              parts.leader.setAttribute('x1', p.x.toFixed(1)); parts.leader.setAttribute('y1', p.y.toFixed(1));
+              // The leader leaves the pin's head, not the ground under it.
+              const y1 = parts.pin ? p.y - PIN_HEAD_CY * pinScale : p.y;
+              parts.leader.setAttribute('x1', p.x.toFixed(1)); parts.leader.setAttribute('y1', y1.toFixed(1));
               parts.leader.setAttribute('x2', lx.toFixed(1)); parts.leader.setAttribute('y2', (ly + parts.label.height).toFixed(1));
               parts.label._leader = parts.leader; // so de-collision can re-point it
             }
