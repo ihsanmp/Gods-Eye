@@ -145,11 +145,25 @@ const SpotlightInput = ({
 
 interface SearchResultCardProps extends SearchResult {
   isLast: boolean;
+  onSelect?: () => void;
 }
 
-const SearchResultCard = ({ icon, label, description, link, isLast }: SearchResultCardProps) => {
+const SearchResultCard = ({ icon, label, description, link, isLast, onSelect }: SearchResultCardProps) => {
   return (
-    <a href={link} target="_blank" className="overflow-hidden w-full group/card">
+    <a
+      href={link}
+      target={onSelect ? undefined : '_blank'}
+      onClick={
+        onSelect
+          ? (event) => {
+            // A live result is an action in this app, not a link out.
+            event.preventDefault();
+            onSelect();
+          }
+          : undefined
+      }
+      className="overflow-hidden w-full group/card"
+    >
       <div
         className={cn(
           'flex items-center text-black justify-start hover:bg-white gap-3 py-2 px-2 rounded-xl hover:shadow-md w-full',
@@ -174,9 +188,10 @@ const SearchResultCard = ({ icon, label, description, link, isLast }: SearchResu
 interface SearchResultsContainerProps {
   searchResults: SearchResult[];
   onHover: (index: number | null) => void;
+  onSelect?: (result: SearchResult, index: number) => void;
 }
 
-const SearchResultsContainer = ({ searchResults, onHover }: SearchResultsContainerProps) => {
+const SearchResultsContainer = ({ searchResults, onHover, onSelect }: SearchResultsContainerProps) => {
   return (
     <motion.div
       layout
@@ -203,6 +218,7 @@ const SearchResultsContainer = ({ searchResults, onHover }: SearchResultsContain
               description={result.description}
               link={result.link}
               isLast={index === searchResults.length - 1}
+              onSelect={onSelect ? () => onSelect(result, index) : undefined}
             />
           </motion.div>
         );
@@ -215,6 +231,18 @@ interface AppleSpotlightProps {
   shortcuts?: Shortcut[];
   isOpen?: boolean;
   handleClose?: () => void;
+  /**
+   * Live results. When omitted the component keeps its own sample list, so the
+   * demo still works standalone; when supplied it stops being a demo and shows
+   * whatever the host searched.
+   */
+  results?: SearchResult[];
+  /** Every keystroke, so the host can run the search. */
+  onSearchChange?: (value: string) => void;
+  /** A row was chosen. Present only for live results. */
+  onSelectResult?: (result: SearchResult, index: number) => void;
+  /** Shown in place of the list while a search is in flight or found nothing. */
+  emptyMessage?: string | null;
 }
 
 const AppleSpotlight = ({
@@ -241,7 +269,11 @@ const AppleSpotlight = ({
     }
   ],
   isOpen = true,
-  handleClose = () => {}
+  handleClose = () => {},
+  results,
+  onSearchChange,
+  onSelectResult,
+  emptyMessage = null
 }: AppleSpotlightProps) => {
   const [hovered, setHovered] = useState(false);
   const [hoveredSearchResult, setHoveredSearchResult] = useState<number | null>(null);
@@ -250,9 +282,10 @@ const AppleSpotlight = ({
 
   const handleSearchValueChange = (value: string) => {
     setSearchValue(value);
+    onSearchChange?.(value);
   };
 
-  const searchResults: SearchResult[] = [
+  const sampleResults: SearchResult[] = [
     {
       icon: <Bird />, // lucide-react v1 dropped its brand icons; Twitter no longer exists
       label: 'Twitter',
@@ -320,6 +353,9 @@ const AppleSpotlight = ({
       link: 'https://x.com/samitkapoorr'
     }
   ];
+
+  // Live results replace the sample list entirely once the host supplies them.
+  const searchResults = results ?? sampleResults;
 
   return (
     <AnimatePresence mode="wait">
@@ -402,11 +438,17 @@ const AppleSpotlight = ({
                   onChange={handleSearchValueChange}
                 />
 
-                {searchValue && (
+                {searchValue && searchResults.length > 0 && (
                   <SearchResultsContainer
                     searchResults={searchResults}
                     onHover={setHoveredSearchResult}
+                    onSelect={onSelectResult}
                   />
+                )}
+                {searchValue && searchResults.length === 0 && emptyMessage && (
+                  <div className="px-6 py-4 w-full border-t bg-neutral-100 text-sm text-gray-500">
+                    {emptyMessage}
+                  </div>
                 )}
               </motion.div>
               {hovered &&
