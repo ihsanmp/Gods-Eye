@@ -9433,3 +9433,46 @@ body.scene-playback-mode #first-run-launcher {
 .place-suggest li + li {
   border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
+
+/* ============================================================
+   STANDALONE TOP-CENTRE SEARCH BAR
+   As a dock tray this was a collapsed panel holding a zero-width
+   input behind a magnifier toggle - two gates before anyone could
+   type. At the top centre the field IS the point of the control,
+   so it is always present, sized, and typable. Scoped to the
+   body-level bar so the dock variant, if it ever returns, is
+   untouched.
+   ============================================================ */
+
+body > #location-bar.collapsed .location-city-row {
+  display: flex !important;
+}
+
+body > #location-bar .location-search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+body > #location-bar #location-search {
+  width: clamp(200px, 32vw, 380px);
+  padding: 7px 10px;
+  border: 1px solid rgba(123, 189, 211, 0.22);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+body > #location-bar #location-search:focus {
+  border-color: rgba(0, 212, 255, 0.55);
+  background: rgba(0, 212, 255, 0.06);
+}
+
+/* The magnifier no longer gates the field; it stays as a submit affordance. */
+body > #location-bar .search-toggle-btn {
+  flex: 0 0 auto;
+}
+
+/* The suggestion sheet anchors to the field, so the wrap is its origin. */
+body > #location-bar .location-search-wrap {
+  position: relative;
+}
