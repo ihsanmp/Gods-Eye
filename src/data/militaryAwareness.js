@@ -1363,22 +1363,93 @@ function resolveSubjectLabel(subject) {
 }
 
 /** Refresh proximity counts/distances against the subject's current live position. */
+/** Identity of the synthetic "current view" subject, kept out of the contact id space. */
+const VIEW_SUBJECT_LAYER = 'view';
+const VIEW_SUBJECT_ID = 'view-centre';
+
+/**
+ * The point the camera is looking at, as a stand-in subject for the Contacts
+ * window when the operator has not picked a contact.
+ *
+ * `isSame()` compares layerId + id, and no real layer is called 'view', so this
+ * subject can never be mistaken for a contact and never excludes one from its
+ * own cohorts.
+ *
+ * @returns {{layerId: string, id: string, label: string, position: Cesium.Cartesian3,
+ *   synthetic: true}|null} Null when there is no viewer or no usable centre.
+ */
+function viewCentreSubject() {
+  const viewer = state.viewer;
+  const canvas = viewer?.scene?.canvas;
+  if (!viewer || !canvas) return null;
+
+  let position = null;
+  try {
+    position = viewer.camera.pickEllipsoid(
+      new Cesium.Cartesian2(canvas.clientWidth / 2, canvas.clientHeight / 2),
+      viewer.scene.globe?.ellipsoid,
+    );
+  } catch {
+    position = null;
+  }
+  if (!position) {
+    // The centre ray missed the globe - the horizon is in frame, or the camera
+    // is looking at sky. The ground directly beneath the camera is still a
+    // truthful answer to "where am I looking", and always exists.
+    const carto = viewer.camera.positionCartographic;
+    if (!carto) return null;
+    position = Cesium.Cartesian3.fromRadians(carto.longitude, carto.latitude, 0);
+  }
+  return {
+    layerId: VIEW_SUBJECT_LAYER,
+    id: VIEW_SUBJECT_ID,
+    label: 'TAMPILAN SAAT INI',
+    position,
+    synthetic: true,
+  };
+}
+
 function refreshSelectedSubject(force = false) {
-  if (!state.enabled || !state.subject) return;
+  if (!state.enabled) return;
   const sources = collectSourceStates();
   const nextSourceRevision = sourceRevision(sources);
   const sourceRevisionChanged = nextSourceRevision !== state.sourceRevision;
-  const resolved = resolveSubjectPosition(state.subject, {
-    allowCollectionMaterialization: !document.body?.classList?.contains('cockpit-mode') || sourceRevisionChanged,
-  });
-  if (!resolved) return;
-  const { position, presence } = resolved;
-  // UNCHECKED leaves the verdict alone: this tick simply did not look.
-  if (presence === SUBJECT_PRESENCE.LIVE) state.subjectMissing = false;
-  else if (presence === SUBJECT_PRESENCE.MISSING) state.subjectMissing = true;
-  const nextLabel = resolveSubjectLabel(state.subject);
-  const labelChanged = nextLabel !== state.subject.label;
-  state.subject = { ...state.subject, position, label: nextLabel };
+
+  let position;
+  let labelChanged = false;
+  if (!state.subject || state.subject.synthetic) {
+    // Nothing is selected, so the window centres on WHAT IS ON SCREEN. Before
+    // this, Contacts simply refused to count until the operator clicked a
+    // contact - and the roster it eventually showed was centred on that
+    // contact, which could be anywhere. Opening Contacts over Yogyakarta and
+    // being told about traffic near a plane over Texas is not a useful answer
+    // to "what is around here".
+    //
+    // The synthetic subject is re-derived on EVERY tick rather than stored,
+    // because the camera is the thing it tracks: pan the map and the window
+    // follows, with the existing movement gate deciding when that is worth a
+    // re-evaluation.
+    const viewSubject = viewCentreSubject();
+    if (!viewSubject) return;
+    labelChanged = state.subject?.label !== viewSubject.label;
+    state.subject = viewSubject;
+    position = viewSubject.position;
+    // A place cannot go missing the way a contact can.
+    state.subjectMissing = false;
+  } else {
+    const resolved = resolveSubjectPosition(state.subject, {
+      allowCollectionMaterialization: !document.body?.classList?.contains('cockpit-mode') || sourceRevisionChanged,
+    });
+    if (!resolved) return;
+    const presence = resolved.presence;
+    position = resolved.position;
+    // UNCHECKED leaves the verdict alone: this tick simply did not look.
+    if (presence === SUBJECT_PRESENCE.LIVE) state.subjectMissing = false;
+    else if (presence === SUBJECT_PRESENCE.MISSING) state.subjectMissing = true;
+    const nextLabel = resolveSubjectLabel(state.subject);
+    labelChanged = nextLabel !== state.subject.label;
+    state.subject = { ...state.subject, position, label: nextLabel };
+  }
   const movementM = state.lastEvaluatedPosition
     ? Cesium.Cartesian3.distance(state.lastEvaluatedPosition, position)
     : Infinity;
@@ -1541,11 +1612,21 @@ function attachRuntimeListeners() {
     syncAwarenessRenderHold();
     if (!decision.refresh) return;
     state.lastSubjectRefreshMs = now;
-    if (state.subject && ['flights', 'military', 'ais-live-vessels'].includes(state.subject.layerId)) {
+    if (state.subject && !state.subject.synthetic
+      && ['flights', 'military', 'ais-live-vessels'].includes(state.subject.layerId)) {
       refreshSelectedSubject();
     } else if (!state.passive && state.autoFocusRetryPending) {
+      // Entry-time recovery: feeds were empty when Contacts opened, so this tick
+      // is owed one auto-focus attempt. It must keep priority over the
+      // view-centred refresh below - taking the tick for a camera update would
+      // consume the only retry and leave Context permanently unfocused.
       state.autoFocusRetryPending = false;
       focusAttentionTarget();
+    } else if (!state.subject || state.subject.synthetic) {
+      // A moving CAMERA needs re-evaluating just as a moving subject does when
+      // the window is centred on the view. Without this the window would only
+      // update on the layer's own poll tick, lagging the map by seconds.
+      refreshSelectedSubject();
     } else {
       scheduleDirectionOverlayUpdate();
     }
@@ -1671,16 +1752,25 @@ function activateOperationalContext() {
  * @param {Array<{position: Cesium.Cartesian3}>} candidates Observed candidates.
  * @returns {Object|null} The best currently observable candidate.
  */
-function closestToCurrentView(candidates) {
-  if (!Array.isArray(candidates) || !candidates.length) return null;
-  const cameraPosition = state.viewer?.camera?.positionWC;
-  if (!cameraPosition) return candidates.find((candidate) => candidate?.position) || null;
-
+/**
+ * Nearest candidate to an explicit world position.
+ *
+ * Distances are measured from the point the operator is LOOKING AT, not from
+ * the camera eye: at altitude those differ by the whole standoff distance, and
+ * ranking by eye distance quietly favours whatever lies under the camera over
+ * whatever is centred in frame.
+ *
+ * @param {Cesium.Cartesian3} position
+ * @param {Array<{position?: Cesium.Cartesian3}>} candidates
+ * @returns {object|null}
+ */
+function closestToPosition(position, candidates) {
+  if (!position || !Array.isArray(candidates) || !candidates.length) return null;
   let closest = null;
   let closestDistance = Infinity;
   for (const candidate of candidates) {
     if (!candidate?.position) continue;
-    const distance = Cesium.Cartesian3.distance(cameraPosition, candidate.position);
+    const distance = Cesium.Cartesian3.distance(position, candidate.position);
     if (Number.isFinite(distance) && distance < closestDistance) {
       closest = candidate;
       closestDistance = distance;
@@ -1694,28 +1784,71 @@ function closestToCurrentView(candidates) {
  * and military aircraft compete in one nearest-to-view pool; military is
  * concatenated first so exact distance ties resolve to military under the
  * strict comparison. An AIS vessel is only a fallback and is never inferred
- * to be military. There is deliberately no distance cap.
+ * to be military.
+ *
+ * BOUNDED BY THE WINDOW THE PANEL CLAIMS. This used to pull candidates with
+ * `getAllPositions(800/1000)` and had, in its own words, "deliberately no
+ * distance cap". Two things went wrong together: the cap sliced an arbitrary
+ * 1000 out of a feed holding thousands, so the actual nearest contact was often
+ * not even a candidate; and with no distance bound the nearest of that wrong
+ * slice was accepted however far away it was. Measured over Jakarta with
+ * aircraft loaded at 20 km, 21 km and 53 km, entry auto-focused a contact
+ * 894 km away in Riau - and then reported it as a "250 km window".
+ *
+ * Now the candidates come from the same proximity engine the panel counts with,
+ * centred on the VIEW rather than the camera eye, so what gets focused is
+ * something actually in the window. When nothing is in range this returns false
+ * and leaves the subject unset, which is no longer a dead end: the view-centred
+ * window in refreshSelectedSubject answers instead.
+ *
  * @returns {boolean} Whether a target was selected and framed.
  */
 function focusAttentionTarget() {
   if (!state.enabled || state.subject || !state.viewer || state.autoFocusAttempted) return false;
 
-  const nearestFlight = closestToCurrentView([
-    ...militaryFlightsLayer.getAllPositions(800)
-      .map((item) => ({ ...item, layerId: 'military' })),
-    ...flightsLayer.getAllPositions(1000)
-      .map((item) => ({ ...item, layerId: 'flights' })),
-  ]);
+  // The ground point in frame is the right centre; the camera's own position is
+  // the fallback when the scene cannot be ray-cast.
+  const centre = viewCentreSubject()?.position || state.viewer?.camera?.positionWC || null;
+
+  // With a centre, candidates come from the proximity window, which is bounded
+  // to the same radius the panel reports. With NO centre there is no "near" to
+  // measure, so the unbounded observed sets stand in and the first positioned
+  // candidate wins - the behaviour this had before the bound existed, kept so a
+  // viewer without a positioned camera still focuses something.
+  const flightCandidates = centre
+    ? (() => {
+      const window = collectAircraftProximityWindow(centre);
+      return [
+        ...(window?.military || []).map((item) => ({ ...item, layerId: 'military' })),
+        ...(window?.flights || []).map((item) => ({ ...item, layerId: 'flights' })),
+      ];
+    })()
+    : [
+      ...militaryFlightsLayer.getAllPositions(800).map((item) => ({ ...item, layerId: 'military' })),
+      ...flightsLayer.getAllPositions(1000).map((item) => ({ ...item, layerId: 'flights' })),
+    ];
+  const nearestFlight = centre
+    ? closestToPosition(centre, flightCandidates)
+    : flightCandidates.find((candidate) => candidate?.position) || null;
   if (nearestFlight) {
     const layer = nearestFlight.layerId === 'military' ? militaryFlightsLayer : flightsLayer;
-    if (layer.trackById(nearestFlight.id, { origin: 'programmatic' })) {
+    // Proximity rows are keyed by transponder address; `id` is the collection
+    // form. Accept either so this does not depend on which one a layer hands back.
+    const trackId = nearestFlight.id ?? nearestFlight.icao24;
+    if (trackId !== undefined && layer.trackById(trackId, { origin: 'programmatic' })) {
       state.autoFocusAttempted = true;
       return true;
     }
   }
 
-  const vessel = closestToCurrentView(aisLiveVesselsLayer.getAllPositions(12000));
-  if (!vessel || !aisLiveVesselsLayer.selectById(vessel.id)) return false;
+  const vesselCandidates = centre
+    ? aisLiveVesselsLayer.getNearby(centre, AWARENESS_RADIUS_M, AWARENESS_QUERY_LIMIT)
+    : aisLiveVesselsLayer.getAllPositions(12000);
+  const vessel = centre
+    ? closestToPosition(centre, vesselCandidates)
+    : vesselCandidates.find((candidate) => candidate?.position) || null;
+  const vesselId = vessel?.id ?? vessel?.mmsi;
+  if (vesselId === undefined || !aisLiveVesselsLayer.selectById(vesselId)) return false;
 
   state.autoFocusAttempted = true;
   if (!contextTargetFlyToAllowed('ais-live-vessels')) return true;
