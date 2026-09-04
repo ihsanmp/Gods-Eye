@@ -385,8 +385,21 @@ const OVERPASS_MAX_CONCURRENT = 6;
 let _overpassConcurrent = 0;
 /** Hard cap on the OSRM route response we will buffer. */
 const ROUTE_MAX_RESPONSE_BYTES = 8 * 1024 * 1024; // 8 MB
-/** Reject routes whose straight-line spans are obviously abusive (km). */
-const ROUTE_MAX_LEG_KM = 600;
+/**
+ * Reject routes whose straight-line spans are obviously abusive (km).
+ *
+ * 600 km was too tight for a country this shape. Indonesia spans ~5,100 km, and
+ * the guard refused ordinary domestic drives that a road network really does
+ * connect: Jakarta-Surabaya (663 km straight, ~800 km of road, the busiest
+ * long-distance route in the country), Medan-Palembang (996 km), and
+ * Makassar-Manado (952 km) were all rejected as abuse.
+ *
+ * 1500 km covers every real road journey on one island - Sumatra end to end is
+ * ~1,700 km straight but no single leg of it is - while still refusing the
+ * spans that no road can serve. Jakarta-Jayapura (3,777 km) is still refused,
+ * correctly: there is no road, and asking OSRM to prove it is pure waste.
+ */
+const ROUTE_MAX_LEG_KM = 1500;
 
 /**
  * Indonesian alley naming. A `gang` is a lane too narrow for ordinary car
@@ -453,7 +466,12 @@ function scoreOsrmRoute(route) {
  */
 const ROUTE_MAIN_MAX_DETOUR = 1.25;
 const ROUTE_MAIN_MIN_GAIN = 0.05;
-const ROUTE_MAX_TOTAL_KM = 2500;
+/**
+ * Total across all legs. Raised with ROUTE_MAX_LEG_KM so a multi-stop trip is
+ * not refused by the sum after every individual leg passed - a 12-waypoint tour
+ * of Java would otherwise trip this while no single hop came close.
+ */
+const ROUTE_MAX_TOTAL_KM = 4000;
 
 /**
  * Minimal fixed-window per-key rate limiter for the dev proxies. Not a hard
@@ -2652,6 +2670,16 @@ const NOMINATIM_MAX_QUERY_CHARS = 200;
 const NOMINATIM_CANDIDATES = 8;
 /** Metro-sized floor (~44 km) for the viewport bias box. See parseGeocodeBias. */
 const GEOCODE_BIAS_MIN_SPAN_DEG = 0.4;
+/**
+ * Nominatim importance below which a viewport-biased result set is treated as
+ * having found nothing that matters, triggering one unbiased retry.
+ *
+ * Calibrated against measured values: a provincial capital scores ~0.52-0.58
+ * (Jayapura 0.581, Ternate 0.516) while the villages and side streets that
+ * share their names score ~0.15-0.23. 0.45 sits in that gap, so a real city
+ * found on the first pass never pays for a second round trip.
+ */
+const GEOCODE_WEAK_IMPORTANCE = 0.45;
 const _nominatimCache = new Map();
 let _nominatimLastCallAt = 0;
 
@@ -3122,12 +3150,47 @@ function nominatimProxy() {
             if (results.some((row) => inGeocodeBox(row, box))) break;
           }
 
-          // On-screen candidates win outright; ties fall back to Nominatim's own
-          // importance ranking, which is what the single-result query used to give.
-          results = dedupeGeocodeHits(results)
-            .sort((a, b) => (inGeocodeBox(b, box) - inGeocodeBox(a, box))
-              || (geocodeNamePrefixMatch(b, query) - geocodeNamePrefixMatch(a, query))
-              || (b.importance - a.importance));
+          // A viewbox does not merely re-rank at Nominatim - it can DROP the
+          // right answer entirely, even with bounded=0. Searching "Jayapura"
+          // over Java returned five Javanese villages (best importance 0.23) and
+          // no Papuan city at all, so no amount of local re-ranking could have
+          // recovered it: the candidate never arrived.
+          //
+          // So when the biased pass comes back with nothing of substance, ask
+          // once more WITHOUT the box and merge. Gated on weakness rather than
+          // run always, because it costs a rate-limited round trip: a search
+          // that already found something important (a city, a major landmark)
+          // has no need of it.
+          const bestImportance = results.reduce((max, row) => Math.max(max, Number(row.importance) || 0), 0);
+          if (box && bestImportance < GEOCODE_WEAK_IMPORTANCE) {
+            const wait = NOMINATIM_MIN_INTERVAL_MS - (Date.now() - _nominatimLastCallAt);
+            if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+            _nominatimLastCallAt = Date.now();
+            results = results.concat(await queryNominatim(query, null));
+          }
+
+          // Viewport proximity is a PREFERENCE, not a veto.
+          //
+          // It used to win outright, which is right for "Malioboro" (the street
+          // on screen beats the same-named one in Surabaya) and badly wrong for
+          // anything the user names outside the current view: searching
+          // "Ternate" over Java returned a housing-complex street in Tangerang
+          // instead of the city in Maluku, and "Timika" a side street in Malang
+          // instead of the town in Papua. In both cases a trivial local name
+          // match outranked a real city, because being on screen was worth more
+          // than being the place.
+          //
+          // Scored instead: Nominatim's own `importance` carries the ranking and
+          // the on-screen bonus breaks ties between comparable candidates. The
+          // bonus is deliberately smaller than the gap between a city (~0.6-0.75)
+          // and a minor street (~0.1-0.3), so proximity decides between two
+          // streets or two cities but never promotes a street over a city.
+          const IN_VIEW_BONUS = 0.15;
+          const NAME_PREFIX_BONUS = 0.05;
+          const rankScore = (row) => Number(row.importance || 0)
+            + (inGeocodeBox(row, box) ? IN_VIEW_BONUS : 0)
+            + (geocodeNamePrefixMatch(row, query) ? NAME_PREFIX_BONUS : 0);
+          results = dedupeGeocodeHits(results).sort((a, b) => rankScore(b) - rankScore(a));
 
           _nominatimCache.set(cacheKey, { at: Date.now(), results });
           if (_nominatimCache.size > NOMINATIM_CACHE_MAX_ENTRIES) {
