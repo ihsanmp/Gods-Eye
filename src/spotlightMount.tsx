@@ -71,6 +71,8 @@ function SpotlightHost() {
   const [emptyMessage, setEmptyMessage] = useState<string | null>(null);
   const rowsRef = useRef<GeocodeRow[]>([]);
   const debounceRef = useRef<number | undefined>(undefined);
+  /** The query the debounce is holding, so Enter can run it without waiting. */
+  const pendingQueryRef = useRef<string>('');
   const abortRef = useRef<AbortController | null>(null);
 
   const search = useCallback(async (text: string) => {
@@ -119,9 +121,11 @@ function SpotlightHost() {
   const onSearchChange = useCallback(
     (value: string) => {
       const text = value.trim();
+      pendingQueryRef.current = text;
       window.clearTimeout(debounceRef.current);
       if (text.length < 3) {
         abortRef.current?.abort();
+        rowsRef.current = [];
         setResults([]);
         setEmptyMessage(text ? 'Ketik minimal 3 huruf.' : null);
         return;
@@ -129,13 +133,15 @@ function SpotlightHost() {
       setEmptyMessage('Mencari...');
       // /api/geocode is fronted by Nominatim, whose usage policy caps this near
       // one call a second, so a request per keystroke would queue behind itself.
-      debounceRef.current = window.setTimeout(() => { void search(text); }, 400);
+      debounceRef.current = window.setTimeout(() => {
+        pendingQueryRef.current = '';
+        void search(text);
+      }, 400);
     },
     [search]
   );
 
-  const onSelectResult = useCallback((_result: any, index: number) => {
-    const row = rowsRef.current[index];
+  const flyToRow = useCallback((row: GeocodeRow | undefined) => {
     const viewer = (window as any).__godsEyeView?.viewer;
     if (!row || !viewer) return;
     // Fly to the chosen row's OWN coordinates rather than re-geocoding its
@@ -147,6 +153,27 @@ function SpotlightHost() {
       duration: 2.4
     });
   }, []);
+
+  const onSelectResult = useCallback(
+    (_result: any, index: number) => flyToRow(rowsRef.current[index]),
+    [flyToRow]
+  );
+
+  /**
+   * Enter goes to the first result.
+   *
+   * If the debounce has not fired yet - Enter pressed straight after typing,
+   * which is the common case - the search is run immediately rather than
+   * dropped, so a fast typist is not silently ignored.
+   */
+  const onSubmit = useCallback(async () => {
+    const pending = pendingQueryRef.current;
+    if (pending && pending.length >= 3) {
+      window.clearTimeout(debounceRef.current);
+      await search(pending);
+    }
+    flyToRow(rowsRef.current[0]);
+  }, [flyToRow, search]);
 
   useEffect(() => () => {
     window.clearTimeout(debounceRef.current);
@@ -160,6 +187,7 @@ function SpotlightHost() {
       results={results}
       onSearchChange={onSearchChange}
       onSelectResult={onSelectResult}
+      onSubmit={() => { void onSubmit(); }}
       emptyMessage={emptyMessage}
     />
   );

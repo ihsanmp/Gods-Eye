@@ -103,6 +103,7 @@ interface SpotlightInputProps {
   hidePlaceholder: boolean;
   value: string;
   onChange: (value: string) => void;
+  onSubmit?: () => void;
   placeholderClassName?: string;
 }
 
@@ -111,6 +112,7 @@ const SpotlightInput = ({
   hidePlaceholder,
   value,
   onChange,
+  onSubmit,
   placeholderClassName
 }: SpotlightInputProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -136,6 +138,11 @@ const SpotlightInput = ({
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            onSubmit?.();
+          }}
           className="w-full bg-transparent outline-none ring-none"
         />
       </div>
@@ -241,6 +248,12 @@ interface AppleSpotlightProps {
   onSearchChange?: (value: string) => void;
   /** A row was chosen. Present only for live results. */
   onSelectResult?: (result: SearchResult, index: number) => void;
+  /**
+   * Enter was pressed. The bar clears itself afterwards, so a completed search
+   * leaves the same empty field it started from rather than a stale list
+   * describing somewhere the camera has already flown.
+   */
+  onSubmit?: () => void;
   /** Shown in place of the list while a search is in flight or found nothing. */
   emptyMessage?: string | null;
 }
@@ -273,6 +286,7 @@ const AppleSpotlight = ({
   results,
   onSearchChange,
   onSelectResult,
+  onSubmit,
   emptyMessage = null
 }: AppleSpotlightProps) => {
   const [hovered, setHovered] = useState(false);
@@ -283,6 +297,27 @@ const AppleSpotlight = ({
   const handleSearchValueChange = (value: string) => {
     setSearchValue(value);
     onSearchChange?.(value);
+  };
+
+  /**
+   * Reset to the resting state. Used after Enter and after a row is chosen:
+   * both finish the search, and leaving the list up would keep describing a
+   * place the camera has already gone to.
+   */
+  const resetSearch = () => {
+    setSearchValue('');
+    setHoveredSearchResult(null);
+    onSearchChange?.('');
+  };
+
+  const handleSubmit = () => {
+    onSubmit?.();
+    resetSearch();
+  };
+
+  const handleSelect = (result: SearchResult, index: number) => {
+    onSelectResult?.(result, index);
+    resetSearch();
   };
 
   const sampleResults: SearchResult[] = [
@@ -436,13 +471,14 @@ const AppleSpotlight = ({
                   hidePlaceholder={!(hoveredSearchResult !== null || !searchValue)}
                   value={searchValue}
                   onChange={handleSearchValueChange}
+                  onSubmit={handleSubmit}
                 />
 
                 {searchValue && searchResults.length > 0 && (
                   <SearchResultsContainer
                     searchResults={searchResults}
                     onHover={setHoveredSearchResult}
-                    onSelect={onSelectResult}
+                    onSelect={onSelectResult ? handleSelect : undefined}
                   />
                 )}
                 {searchValue && searchResults.length === 0 && emptyMessage && (
