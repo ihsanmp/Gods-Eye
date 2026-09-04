@@ -598,8 +598,12 @@
       </div>
       <div class="route-field">
         <label for="route-origin">DARI</label>
-        <input id="route-origin" type="text" autocomplete="off" spellcheck="false"
-               placeholder="Kosongkan = titik tengah layar" />
+        <div class="route-origin-row">
+          <input id="route-origin" type="text" autocomplete="off" spellcheck="false"
+                 placeholder="Ketik tempat, atau pakai GPS" />
+          <button id="route-gps-btn" type="button" class="route-gps-btn"
+                  title="Pakai lokasi saya (perlu izin lokasi)" aria-label="Pakai lokasi saya">GPS</button>
+        </div>
       </div>
       <div class="route-field">
         <label for="route-dest">KE</label>
@@ -619,7 +623,7 @@
         <button id="route-search-btn" type="button" class="scene-btn">CARI RUTE</button>
         <button id="route-clear-btn" type="button" class="scene-btn">HAPUS</button>
       </div>
-      <div id="route-status" role="status" aria-live="polite">Isi tujuan, lalu tekan CARI RUTE.</div>
+      <div id="route-status" role="status" aria-live="polite">Isi tujuan. Titik awal dari GPS, atau ketik sendiri.</div>
       <div id="route-result" class="route-result" hidden></div>
     </div>
   </div>

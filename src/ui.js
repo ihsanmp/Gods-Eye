@@ -6132,6 +6132,7 @@ export class StyleManager {
     const destInput = document.getElementById('route-dest');
     const searchBtn = document.getElementById('route-search-btn');
     const clearBtn = document.getElementById('route-clear-btn');
+    const gpsBtn = document.getElementById('route-gps-btn');
     const statusEl = document.getElementById('route-status');
     const resultEl = document.getElementById('route-result');
     const avoidInput = document.getElementById('route-avoid-alleys');
@@ -6141,6 +6142,12 @@ export class StyleManager {
 
     this._routeMode = 'car';
     this._routeMarkId = null;
+    /**
+     * Last GPS fix, or null. Held rather than re-requested per search so one
+     * permission prompt covers a whole planning session; cleared the moment the
+     * user types a place, because a typed origin is an explicit override.
+     */
+    this._routeGpsFix = null;
     // Monotonic, so a slow search that the user superseded can never overwrite
     // the newer one's status line or result.
     this._routeGeneration = 0;
@@ -6160,6 +6167,80 @@ export class StyleManager {
     }
     setMode('car');
 
+    /** What the DARI field reads while it is standing in for a GPS fix. */
+    const GPS_LABEL = 'Lokasi saya (GPS)';
+
+    /**
+     * Ask the browser for one position fix.
+     *
+     * Resolves to null on every failure rather than throwing, and always leaves
+     * a status line saying WHICH failure it was - "location unavailable" is
+     * useless when the fix is one setting away. Typing a place stays a complete
+     * alternative, so this is never the only way forward.
+     *
+     * @returns {Promise<{latitude: number, longitude: number}|null>}
+     */
+    const requestGps = () => new Promise((resolve) => {
+      // Geolocation is gated to secure contexts. localhost counts, so this only
+      // trips on a LAN-shared instance served over plain http.
+      if (!window.isSecureContext || !navigator.geolocation) {
+        setStatus('GPS tidak tersedia di koneksi ini. Isi kolom DARI secara manual.');
+        resolve(null);
+        return;
+      }
+      if (gpsBtn) { gpsBtn.disabled = true; gpsBtn.textContent = '...'; }
+      setStatus('Meminta izin lokasi...');
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          if (gpsBtn) { gpsBtn.disabled = false; gpsBtn.textContent = 'GPS'; }
+          resolve({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracyM: Math.round(position.coords.accuracy || 0),
+          });
+        },
+        (error) => {
+          if (gpsBtn) { gpsBtn.disabled = false; gpsBtn.textContent = 'GPS'; }
+          // Each branch names the thing the user can actually change.
+          if (error.code === error.PERMISSION_DENIED) {
+            setStatus('Izin lokasi ditolak. Izinkan lokasi di browser, atau isi kolom DARI.');
+          } else if (error.code === error.POSITION_UNAVAILABLE) {
+            setStatus('Hidupkan GPS/Layanan Lokasi untuk memakai lokasi Anda, atau isi kolom DARI.');
+          } else {
+            setStatus('GPS tidak menjawab tepat waktu. Coba lagi, atau isi kolom DARI.');
+          }
+          resolve(null);
+        },
+        // A cold GPS fix is genuinely slow; maximumAge lets a fix from earlier in
+        // the session answer instantly instead of re-prompting the hardware.
+        { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 },
+      );
+    });
+
+    const applyGpsFix = (fix) => {
+      this._routeGpsFix = fix;
+      if (originInput) {
+        originInput.value = GPS_LABEL;
+        originInput.dataset.gpsPlaceholder = 'true';
+      }
+      setStatus(`Lokasi didapat (akurasi sekitar ${fix.accuracyM} m). Isi tujuan lalu tekan CARI RUTE.`);
+    };
+
+    gpsBtn?.addEventListener('click', async () => {
+      const fix = await requestGps();
+      if (fix) applyGpsFix(fix);
+    });
+
+    // Typing over the GPS label is an explicit override, so the held fix must go
+    // - otherwise the panel would route from the old coordinates while showing
+    // the name the user just typed.
+    originInput?.addEventListener('input', () => {
+      if (originInput.dataset.gpsPlaceholder === 'true' && originInput.value !== GPS_LABEL) {
+        delete originInput.dataset.gpsPlaceholder;
+        this._routeGpsFix = null;
+      }
+    });
+
     const clearRoute = () => {
       this._routeGeneration += 1;
       if (this._routeMarkId && this._annotations?.removeById) {
@@ -6167,19 +6248,9 @@ export class StyleManager {
       }
       this._routeMarkId = null;
       if (resultEl) { resultEl.hidden = true; resultEl.innerHTML = ''; }
-      setStatus('Isi tujuan, lalu tekan CARI RUTE.');
+      setStatus('Isi tujuan. Titik awal dari GPS, atau ketik sendiri.');
     };
     clearBtn?.addEventListener('click', clearRoute);
-
-    /** Screen-centre coordinates, used when DARI is left blank. */
-    const viewCentre = () => {
-      const carto = this.viewer?.camera?.positionCartographic;
-      if (!carto) return null;
-      return {
-        latitude: Cesium.Math.toDegrees(carto.latitude),
-        longitude: Cesium.Math.toDegrees(carto.longitude),
-      };
-    };
 
     const formatKm = (m) => (m >= 10000
       ? `${Math.round(m / 1000)} km`
@@ -6202,16 +6273,39 @@ export class StyleManager {
       const generation = ++this._routeGeneration;
       const current = () => generation === this._routeGeneration;
 
+      // Retire the previous answer HERE, at the top, not after the origin is
+      // settled. Every early return below is a failed search, and leaving the
+      // last route's distance on screen beside "izin lokasi ditolak" invites
+      // reading those numbers as this destination's.
+      if (resultEl) { resultEl.hidden = true; resultEl.innerHTML = ''; }
+
       if (!this._annotations?.annotate) {
         setStatus('Mesin peta belum siap. Coba lagi sebentar lagi.');
         return;
       }
 
+      // Origin precedence: a held GPS fix (the field is showing its label), then
+      // a typed place, then one attempt at GPS. There is deliberately no silent
+      // fallback to the screen centre - routing from wherever the camera happens
+      // to point is a guess the user never asked for, and a wrong start is worse
+      // than being asked for one.
       const origin = originInput?.value.trim() || '';
-      const originPoint = origin ? { target: origin } : viewCentre();
-      if (!originPoint) {
-        setStatus('Titik asal tidak bisa ditentukan. Isi kolom DARI.');
-        return;
+      const usingHeldFix = this._routeGpsFix && origin === GPS_LABEL;
+      let originPoint = null;
+      let originLabel = origin;
+
+      if (usingHeldFix) {
+        originPoint = { latitude: this._routeGpsFix.latitude, longitude: this._routeGpsFix.longitude };
+        originLabel = 'Lokasi saya';
+      } else if (origin) {
+        originPoint = { target: origin };
+      } else {
+        const fix = await requestGps();
+        if (!current()) return;
+        if (!fix) return; // requestGps already said which setting to change
+        applyGpsFix(fix);
+        originPoint = { latitude: fix.latitude, longitude: fix.longitude };
+        originLabel = 'Lokasi saya';
       }
 
       // Replace, never stack: a second search must not leave the first route on
@@ -6222,7 +6316,6 @@ export class StyleManager {
       }
 
       searchBtn.disabled = true;
-      if (resultEl) { resultEl.hidden = true; resultEl.innerHTML = ''; }
       setStatus('Mencari rute...');
 
       try {
@@ -6231,7 +6324,7 @@ export class StyleManager {
           mode: this._routeMode,
           prefer: avoidInput?.checked ? 'main' : 'fastest',
           color: 'cyan',
-          label: origin ? `${origin} - ${destination}` : destination,
+          label: originLabel ? `${originLabel} - ${destination}` : destination,
           points: [originPoint, { target: destination }],
           // Both endpoints are typed in full here, so a destination on another
           // continent is the request, not a geocoder mistake.

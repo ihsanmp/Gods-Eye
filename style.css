@@ -9309,3 +9309,40 @@ body.scene-playback-mode #first-run-launcher {
 .route-note-warn {
   color: #ffd97a;
 }
+
+/* GPS shortcut sits inside the DARI row so the field and its button read as one
+   control, and the button never wraps under the input on a narrow panel. */
+.route-origin-row {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.route-origin-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.route-gps-btn {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  color: var(--text-primary);
+  background: rgba(0, 212, 255, 0.1);
+  border: 1px solid rgba(0, 212, 255, 0.35);
+  border-radius: 7px;
+  padding: 0 10px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.route-gps-btn:hover:not(:disabled) {
+  background: rgba(0, 212, 255, 0.2);
+  border-color: rgba(0, 212, 255, 0.6);
+}
+
+.route-gps-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
