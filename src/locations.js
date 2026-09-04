@@ -1,5 +1,6 @@
 import * as Cesium from 'cesium';
 import { viewportBias, placesNearViewRecovery } from './annotations/annotationResolver.js';
+import { OSM_TYPE_TO_GOOGLE_TYPES } from './data/osmPlaceTypes.js';
 
 /**
  * Points of Interest per city.
@@ -340,49 +341,6 @@ export function findPoiByName(query) {
 
 /** Distinguishes an authority veto from a genuine not-found result. */
 export const CANCELLED_SEARCH = Object.freeze({ cancelled: true });
-
-/**
- * Nominatim's `addresstype`/`type` vocabulary mapped onto the Google Geocoding
- * `types` values `geocodeNavigationMode` already understands, so a keyless hit
- * is framed at the same scale a keyed one would be. Anything unlisted falls
- * through to `precise-place`, which is the right default for a named landmark.
- */
-const OSM_TYPE_TO_GOOGLE_TYPES = {
-  country: ['country'],
-  state: ['administrative_area_level_1'],
-  province: ['administrative_area_level_1'],
-  region: ['administrative_area_level_1'],
-  county: ['administrative_area_level_2'],
-  state_district: ['administrative_area_level_2'],
-  city: ['locality'],
-  town: ['locality'],
-  municipality: ['locality'],
-  village: ['sublocality'],
-  hamlet: ['sublocality'],
-  suburb: ['sublocality_level_1'],
-  neighbourhood: ['neighborhood'],
-  quarter: ['neighborhood'],
-  city_district: ['neighborhood'],
-  borough: ['neighborhood'],
-  postcode: ['postal_code'],
-  road: ['route'],
-  residential: ['route'],
-  street: ['route'],
-  park: ['park'],
-  nature_reserve: ['park'],
-  forest: ['natural_feature'],
-  water: ['natural_feature'],
-  bay: ['natural_feature'],
-  peak: ['natural_feature'],
-  island: ['natural_feature'],
-  beach: ['natural_feature'],
-  river: ['natural_feature'],
-  aerodrome: ['airport'],
-  airport: ['airport'],
-  university: ['university'],
-  college: ['university'],
-  stadium: ['stadium'],
-};
 
 /**
  * Keyless geocode via the /api/geocode Nominatim proxy. Used only when the

@@ -587,6 +587,43 @@
     </div>
   </div>
 
+  <!-- Route Planner Panel -->
+  <div id="route-panel" class="panel-collapsible collapsed" data-panel-id="route-panel">
+    <div class="panel-glow"></div>
+    <div class="route-panel-inner">
+      <div class="panel-header">
+        <span class="panel-title">RUTE</span>
+        <span class="panel-divider"></span>
+        <button class="panel-collapse-btn" data-collapse-target="route-panel" title="Collapse panel">+</button>
+      </div>
+      <div class="route-field">
+        <label for="route-origin">DARI</label>
+        <input id="route-origin" type="text" autocomplete="off" spellcheck="false"
+               placeholder="Kosongkan = titik tengah layar" />
+      </div>
+      <div class="route-field">
+        <label for="route-dest">KE</label>
+        <input id="route-dest" type="text" autocomplete="off" spellcheck="false"
+               placeholder="Nama tempat atau alamat" />
+      </div>
+      <div class="route-modes" role="group" aria-label="Moda perjalanan">
+        <button type="button" class="scene-btn active" data-route-mode="car">MOBIL</button>
+        <button type="button" class="scene-btn" data-route-mode="bike">SEPEDA</button>
+        <button type="button" class="scene-btn" data-route-mode="foot">JALAN</button>
+      </div>
+      <label class="route-avoid" for="route-avoid-alleys">
+        <input id="route-avoid-alleys" type="checkbox" checked />
+        <span>Utamakan jalan besar</span>
+      </label>
+      <div class="route-controls">
+        <button id="route-search-btn" type="button" class="scene-btn">CARI RUTE</button>
+        <button id="route-clear-btn" type="button" class="scene-btn">HAPUS</button>
+      </div>
+      <div id="route-status" role="status" aria-live="polite">Isi tujuan, lalu tekan CARI RUTE.</div>
+      <div id="route-result" class="route-result" hidden></div>
+    </div>
+  </div>
+
   <!-- CCTV Coverage Panel -->
   <div id="cctv-panel" class="panel-collapsible collapsed" data-panel-id="cctv-panel">
     <div class="panel-glow"></div>

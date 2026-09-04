@@ -398,6 +398,9 @@ export function createAnnotationEngine({
           screenX: pt.screenX,
           screenY: pt.screenY,
           footprint: false,
+          // Set by the Route panel, where both endpoints are typed in full and
+          // the destination is routinely nowhere near the current view.
+          allowDistant: spec.allowDistant === true,
           signal,
         });
         if (r) resolvedPts.push(r);
@@ -415,13 +418,18 @@ export function createAnnotationEngine({
       }
       // Real street-following route (OSM/OSRM), mode-aware.
       const mode = normalizeMode(spec.mode);
-      const routed = await fetchRoute(resolvedPts.map((p) => [p.lon, p.lat]), mode, signal);
+      const prefer = spec.prefer === 'main' ? 'main' : 'fastest';
+      const routed = await fetchRoute(resolvedPts.map((p) => [p.lon, p.lat]), mode, signal, prefer);
       if (routed) {
         return {
           path: routed.geometry.map(([lon, lat]) => ({ lon, lat, height: 0 })),
           distanceM: routed.distanceM,
           durationS: routed.durationS,
           mode,
+          // Present only for prefer=main. The Route panel reports it; every
+          // other caller ignores it.
+          roads: routed.roads || null,
+          alternativeCount: Array.isArray(routed.alternatives) ? routed.alternatives.length : null,
           source: resolvedPts[0].source,
           fallback: false,
         };
@@ -613,7 +621,16 @@ export function createAnnotationEngine({
       // Route-specific signal so the voice layer can be honest about an OSRM outage:
       // fallback=true means a straight direct line, not a real route.
       ...(anno.type === 'route'
-        ? { fallback: Boolean(anno.fallback), mode: anno.mode, distanceM: anno.distanceM, durationS: anno.durationS }
+        ? {
+          fallback: Boolean(anno.fallback),
+          mode: anno.mode,
+          distanceM: anno.distanceM,
+          durationS: anno.durationS,
+          // Road-mix breakdown, present only when the caller asked for
+          // prefer=main. The Route panel renders it; other callers ignore it.
+          ...(anno.roads ? { roads: anno.roads } : {}),
+          ...(Number.isFinite(anno.alternativeCount) ? { alternativeCount: anno.alternativeCount } : {}),
+        }
         : {}),
     };
   }
@@ -714,6 +731,8 @@ export function createAnnotationEngine({
         mode: resolved.mode || null,
         distanceM: resolved.distanceM ?? null,
         durationS: resolved.durationS ?? null,
+        roads: resolved.roads ?? null,
+        alternativeCount: resolved.alternativeCount ?? null,
         fallback: Boolean(resolved.fallback),
       };
     }
@@ -868,6 +887,27 @@ export function createAnnotationEngine({
     fadeOutAll,
     count: () => annotations.size,
     list: () => Array.from(annotations.values()),
+
+    /**
+     * Remove one mark by the id `annotate()` returned for it.
+     *
+     * clear() is all-or-nothing, which is right for "clear the map" but wrong
+     * for any caller that owns ONE mark: the Route panel replaces its own route
+     * on every search and must be able to take it back without erasing marks
+     * the user made by voice.
+     *
+     * @param {string} id
+     * @returns {boolean} True when a mark was actually removed.
+     */
+    removeById(id) {
+      const anno = annotations.get(id);
+      if (!anno) return false;
+      renderer.remove(anno);
+      annotations.delete(id);
+      renderer.sync(annotations);
+      syncAnnotationHold();
+      return true;
+    },
 
     /**
      * Subscribe to deferred-outline outcomes. Listener receives
@@ -1081,7 +1121,15 @@ function normalizeMode(m) {
 }
 
 /** Fetch a real street-following route from the /api/route proxy (OSM/OSRM). */
-async function fetchRoute(coordPairs, mode, externalSignal) {
+/**
+ * @param {Array<[number, number]>} coordPairs Ordered [lon, lat] waypoints.
+ * @param {string} mode Routing profile.
+ * @param {AbortSignal|null} externalSignal
+ * @param {'fastest'|'main'} [prefer='fastest'] `main` asks the proxy to compare
+ *   alternatives and pick the one that stays on named streets. Off by default so
+ *   the voice route tool keeps the exact behaviour it shipped with.
+ */
+async function fetchRoute(coordPairs, mode, externalSignal, prefer = 'fastest') {
   const controller = new AbortController();
   const onAbort = () => controller.abort();
   if (externalSignal) {
@@ -1091,7 +1139,8 @@ async function fetchRoute(coordPairs, mode, externalSignal) {
   const timer = setTimeout(() => controller.abort(), 13000);
   try {
     const coords = coordPairs.map(([lon, lat]) => `${lon.toFixed(6)},${lat.toFixed(6)}`).join(';');
-    const res = await fetch(`/api/route?profile=${mode}&coords=${encodeURIComponent(coords)}`, { signal: controller.signal });
+    const preferParam = prefer === 'main' ? '&prefer=main' : '';
+    const res = await fetch(`/api/route?profile=${mode}&coords=${encodeURIComponent(coords)}${preferParam}`, { signal: controller.signal });
     const data = await res.json();
     if (data?.ok && Array.isArray(data.geometry) && data.geometry.length >= 2) return data;
   } catch { /* routing unavailable / aborted → caller falls back to straight segments */ } finally {

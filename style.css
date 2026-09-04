@@ -9161,3 +9161,151 @@ body.scene-playback-mode #first-run-launcher {
   /* Scrolling a tile into view must not animate either. */
   .first-run-choices { scroll-behavior: auto; }
 }
+
+/* ============================================================
+   ROUTE PANEL
+   Mirrors .cctv-panel-inner's glass shell so the two read as
+   the same family of panel; only the form controls are new.
+   ============================================================ */
+
+.route-panel-inner {
+  position: relative;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--panel-radius);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 268px;
+}
+
+.route-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.route-field label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1.4px;
+  color: var(--text-secondary);
+}
+
+.route-field input {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 7px;
+  padding: 7px 9px;
+  outline: none;
+  /* Without this the input overflows the fixed-width panel once the
+     placeholder is longer than the field. */
+  min-width: 0;
+}
+
+.route-field input::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.65;
+}
+
+.route-field input:focus {
+  border-color: rgba(0, 212, 255, 0.55);
+  background: rgba(0, 212, 255, 0.06);
+}
+
+.route-modes {
+  display: flex;
+  gap: 6px;
+}
+
+/* Equal thirds regardless of label length, so the row never reflows when the
+   mode names differ in width. */
+.route-modes .scene-btn {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.route-avoid {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.route-avoid input {
+  accent-color: #00d4ff;
+  width: 13px;
+  height: 13px;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.route-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.route-controls .scene-btn {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+#route-status {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.route-result {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 8px;
+}
+
+.route-headline {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+}
+
+.route-headline strong {
+  font-size: 17px;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.route-headline span {
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--text-secondary);
+}
+
+.route-note {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.8px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+/* Amber, not red: a route through an alley is a caveat about the route, not a
+   failure to produce one. */
+.route-note-warn {
+  color: #ffd97a;
+}

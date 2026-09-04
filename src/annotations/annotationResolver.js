@@ -3,6 +3,7 @@ import { lookupNeighborhoodRing } from '../data/neighborhoodPolygons.js';
 import { lookupNaturalRegionOutline, findNaturalRegion } from '../data/naturalEarthRegions.js';
 import { registerDynamicCredit, NATURAL_EARTH_CREDIT } from '../data/dataCredits.js';
 import { isPickedWorldPosition } from '../data/scenePick.js';
+import { OSM_TYPE_TO_GOOGLE_TYPES } from '../data/osmPlaceTypes.js';
 
 /**
  * Annotation target resolver.
@@ -92,6 +93,7 @@ function linkAbort(controller, externalSignal) {
 export async function resolveAnnotationTarget({
   viewer, target, latitude, longitude, footprint = false, intent = 'the_thing',
   entityKind = null, labelHint = null, deferFootprint = false, screenX, screenY, signal,
+  allowDistant = false,
 }) {
   let lon = Number(longitude);
   let lat = Number(latitude);
@@ -112,7 +114,13 @@ export async function resolveAnnotationTarget({
   const trace = { query: String(target || '').trim(), places: 'skipped', geocode: 'none', osmSnap: 'skipped' };
   // Guard bypass is an ASK-SIDE fact. A returned admin type can be a wrong match
   // ("the Texas Capitol" → the state), so geocode types must never grant it.
-  const bypassNearViewGuards = Boolean(adminScopeFromAsk(target, entityKind));
+  //
+  // `allowDistant` is the other ask-side fact: a destination TYPED INTO A FIELD
+  // is a deliberate "go here", not an utterance about what is on screen. The
+  // proximity gate exists to catch a geocoder wandering off while someone talks
+  // about the view; it must not stop someone in Austin from routing in
+  // Yogyakarta. Callers pass it only for explicit, fully-typed input.
+  const bypassNearViewGuards = allowDistant || Boolean(adminScopeFromAsk(target, entityKind));
 
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
     const query = String(target || '').trim();
@@ -599,16 +607,70 @@ function ringAreaM2(ring) {
 }
 
 /**
+ * Forward-geocode through the keyless /api/geocode (Nominatim) proxy.
+ *
+ * Shares `geocodePlace`'s cache and result shape so callers cannot tell which
+ * provider answered. `bounds` already arrives in Google's
+ * {southwest,northeast} form, so the existing viewport normalizer takes it
+ * unchanged.
+ *
+ * Never throws: a dead fallback must degrade to "not found", not break the
+ * mark that asked for it.
+ *
+ * @param {string} query
+ * @param {string} biasRect "swLat,swLng|neLat,neLng" - the same string the
+ *   Google path sends as `bounds`.
+ * @param {string} cacheKey
+ * @param {AbortSignal} signal
+ * @returns {Promise<object|null>}
+ */
+async function keylessGeocodePlace(query, biasRect, cacheKey, signal) {
+  try {
+    const bias = biasRect ? `&bias=${encodeURIComponent(biasRect)}` : '';
+    const response = await fetch(`/api/geocode?q=${encodeURIComponent(query)}${bias}`, { signal });
+    if (!response.ok) return null;
+    const data = await response.json();
+    const hit = data?.results?.[0];
+    if (!hit || !Number.isFinite(hit.lat) || !Number.isFinite(hit.lon)) {
+      // A clean empty answer IS definitive here - unlike a denied Google key,
+      // the proxy actually searched.
+      negCache(geocodeCache, cacheKey, signal, true);
+      return null;
+    }
+    const label = shortLabel(hit.label || query);
+    const place = {
+      lat: hit.lat,
+      lon: hit.lon,
+      label,
+      // Nominatim has no separate canonical-name field, so the first comma-part
+      // of display_name is the closest equivalent to Google's primary name.
+      primaryName: String(hit.label || query).split(',')[0].trim() || label,
+      types: OSM_TYPE_TO_GOOGLE_TYPES[hit.osmType] || [],
+      viewport: normalizeGeocodeViewport(hit.bounds),
+    };
+    cacheWrite(geocodeCache, cacheKey, place);
+    return place;
+  } catch {
+    return null; // network/abort - transient, and the caller may still negCache
+  }
+}
+
+/**
  * Forward-geocode a place name via Google Geocoding, biased to the current
- * viewport so "the marina" resolves near where the user is looking.
+ * viewport so "the marina" resolves near where the user is looking. Falls
+ * through to the keyless proxy when Google has no key or no answer.
  */
 async function geocodePlace(query, biasRect, signal) {
   const apiKey = window.__GOOGLE_MAPS_API_KEY__ || import.meta.env.GOOGLE_MAPS_API_KEY;
-  if (!apiKey) return null;
 
   const cacheKey = `${query.toLowerCase()}|${biasRect || ''}`;
   const cached = cacheRead(geocodeCache, cacheKey);
   if (cached !== undefined) return cached;
+
+  // No key at all: every Google lookup would come back REQUEST_DENIED, which
+  // used to make every name-addressed mark fail silently - voice annotations
+  // and drawn routes alike. Go straight to the keyless proxy instead.
+  if (!apiKey) return keylessGeocodePlace(query, biasRect, cacheKey, signal);
 
   let url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${apiKey}`;
   if (biasRect) url += `&bounds=${biasRect}`;
@@ -617,6 +679,10 @@ async function geocodePlace(query, biasRect, signal) {
     const response = await fetch(url, { signal });
     const data = await response.json();
     if (data.status !== 'OK' || !data.results?.length) {
+      // A key that is present but rejected, rate-limited, or simply finds
+      // nothing is still worth a second opinion from OSM before giving up.
+      const keyless = await keylessGeocodePlace(query, biasRect, cacheKey, signal);
+      if (keyless) return keyless;
       // ZERO_RESULTS is a definitive not-found (cacheable); OVER_QUERY_LIMIT /
       // REQUEST_DENIED / UNKNOWN_ERROR are transient → don't poison the cache.
       negCache(geocodeCache, cacheKey, signal, data?.status === 'ZERO_RESULTS');

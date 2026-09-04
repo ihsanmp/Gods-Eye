@@ -387,6 +387,72 @@ let _overpassConcurrent = 0;
 const ROUTE_MAX_RESPONSE_BYTES = 8 * 1024 * 1024; // 8 MB
 /** Reject routes whose straight-line spans are obviously abusive (km). */
 const ROUTE_MAX_LEG_KM = 600;
+
+/**
+ * Indonesian alley naming. A `gang` is a lane too narrow for ordinary car
+ * traffic, and OSM names them explicitly - which matters here because OSRM
+ * returns no highway tags at all, so the step name is the only signal there is.
+ */
+const ROUTE_ALLEY_NAME_RE = /^\s*(gang|gg\.?)\s/i;
+
+/**
+ * Score one OSRM route by how much of its distance runs on ordinary streets.
+ *
+ * Three buckets, worst to best:
+ *   - alley:   named as a gang, so narrow by definition
+ *   - unnamed: no name at all, which in OSM practice is a service road,
+ *              alley or track far more often than it is a real street
+ *   - named:   an ordinary street; a `ref` (national/provincial route number)
+ *              additionally marks a trunk road and is weighted up
+ *
+ * This is INFERENCE, not classification. An unnamed road may simply be
+ * unmapped, and a road mapped as `Gang` may be perfectly drivable. It is good
+ * enough to rank alternatives against each other, which is all it is used for -
+ * it never rejects a route outright.
+ *
+ * @param {object} route One entry from OSRM's `routes`, requested with steps=true.
+ * @returns {{mainShare: number, alleyM: number, unnamedM: number, namedM: number}}
+ */
+function scoreOsrmRoute(route) {
+  let alleyM = 0;
+  let unnamedM = 0;
+  let namedM = 0;
+  let trunkM = 0;
+  for (const leg of route?.legs || []) {
+    for (const step of leg?.steps || []) {
+      const distance = Number(step?.distance) || 0;
+      if (distance <= 0) continue;
+      const name = String(step?.name || '').trim();
+      if (!name) { unnamedM += distance; continue; }
+      if (ROUTE_ALLEY_NAME_RE.test(name)) { alleyM += distance; continue; }
+      namedM += distance;
+      if (String(step?.ref || '').trim()) trunkM += distance;
+    }
+  }
+  const total = alleyM + unnamedM + namedM;
+  // A route with no usable steps scores neutral rather than zero, so a
+  // degenerate response is never ranked below one that genuinely uses alleys.
+  // mainShare is kept as a PLAIN fraction of distance on named streets - folding
+  // the trunk bonus into this numerator pushed it past 1 on ordinary routes,
+  // where it clamped and lost all power to separate one alternative from
+  // another. The bonus is reported beside it instead, and used only to break
+  // ties.
+  return {
+    mainShare: total > 0 ? Math.round((namedM / total) * 1000) / 1000 : 1,
+    trunkShare: total > 0 ? Math.round((trunkM / total) * 1000) / 1000 : 0,
+    alleyM: Math.round(alleyM),
+    unnamedM: Math.round(unnamedM),
+    namedM: Math.round(namedM),
+  };
+}
+
+/**
+ * How much slower a cleaner route may be before the fastest one keeps the lead,
+ * and how much cleaner it has to be to bother. Without the time bound this would
+ * happily send a driver around half a city to avoid one short lane.
+ */
+const ROUTE_MAIN_MAX_DETOUR = 1.25;
+const ROUTE_MAIN_MIN_GAIN = 0.05;
 const ROUTE_MAX_TOTAL_KM = 2500;
 
 /**
@@ -2996,6 +3062,10 @@ function overpassProxy() {
                 : null;
           if (!profile) return fail('invalid profile');
           const osrmProfile = profile === 'car' ? 'driving' : profile;
+          // `main` asks OSRM for alternatives and picks the one that stays on
+          // real streets. Default stays `fastest` so existing callers (the
+          // annotate_map route tool) get byte-identical behaviour.
+          const prefer = url.searchParams.get('prefer') === 'main' ? 'main' : 'fastest';
           const pairs = (url.searchParams.get('coords') || '').split(';').map((s) => s.trim()).filter(Boolean);
           if (pairs.length < 2 || pairs.length > 12) return fail('need 2-12 coordinates');
           const clean = [];
@@ -3023,7 +3093,7 @@ function overpassProxy() {
           }
           if (totalKm > ROUTE_MAX_TOTAL_KM) return fail('route too long');
           const coords = clean.join(';');
-          const cacheKey = `${profile}|${coords}`;
+          const cacheKey = `${profile}|${prefer}|${coords}`;
           const now = Date.now();
           const cached = _routeCache.get(cacheKey);
           if (cached && now - cached.cachedAt <= ROUTE_CACHE_MS) {
@@ -3031,7 +3101,12 @@ function overpassProxy() {
             res.end(JSON.stringify(cached.payload));
             return;
           }
-          const upstream = `https://routing.openstreetmap.de/routed-${profile}/route/v1/${osrmProfile}/${coords}?overview=full&geometries=geojson&alternatives=false&steps=false`;
+          // steps=true is what makes road-class scoring possible at all: OSRM
+          // returns no highway tags, so the per-step name/ref is the only signal
+          // available for telling a street from a gang.
+          const upstream = prefer === 'main'
+            ? `https://routing.openstreetmap.de/routed-${profile}/route/v1/${osrmProfile}/${coords}?overview=full&geometries=geojson&alternatives=3&steps=true`
+            : `https://routing.openstreetmap.de/routed-${profile}/route/v1/${osrmProfile}/${coords}?overview=full&geometries=geojson&alternatives=false&steps=false`;
           const controller = new AbortController();
           const timer = setTimeout(() => controller.abort(), 12000);
           let osrm;
@@ -3048,15 +3123,62 @@ function overpassProxy() {
           } finally {
             clearTimeout(timer);
           }
-          const route = osrm?.routes?.[0];
-          if (osrm?.code !== 'Ok' || !route?.geometry?.coordinates?.length) return fail('no route found');
-          const payload = {
-            ok: true,
-            profile,
-            distanceM: Math.round(route.distance),
-            durationS: Math.round(route.duration),
-            geometry: route.geometry.coordinates,
-          };
+          if (osrm?.code !== 'Ok') return fail('no route found');
+          const candidates = (osrm?.routes || []).filter((r) => r?.geometry?.coordinates?.length);
+          if (!candidates.length) return fail('no route found');
+
+          let payload;
+          if (prefer === 'main') {
+            // OSRM already returns these fastest-first, so index 0 is the time
+            // baseline every alternative is measured against.
+            const scored = candidates.map((r, index) => ({
+              distanceM: Math.round(r.distance),
+              durationS: Math.round(r.duration),
+              geometry: r.geometry.coordinates,
+              roads: scoreOsrmRoute(r),
+              fastest: index === 0,
+            }));
+            const baseline = scored[0];
+            let chosen = 0;
+            for (let i = 1; i < scored.length; i += 1) {
+              const candidate = scored[i];
+              const slower = candidate.durationS / Math.max(1, baseline.durationS);
+              if (slower > ROUTE_MAIN_MAX_DETOUR) continue;
+              const gain = candidate.roads.mainShare - scored[chosen].roads.mainShare;
+              if (gain >= ROUTE_MAIN_MIN_GAIN) { chosen = i; continue; }
+              // Equally clean on named streets: prefer the one that spends more
+              // of its distance on numbered trunk roads.
+              if (Math.abs(gain) < 0.01
+                && candidate.roads.trunkShare > scored[chosen].roads.trunkShare + 0.05) {
+                chosen = i;
+              }
+            }
+            const best = scored[chosen];
+            payload = {
+              ok: true,
+              profile,
+              prefer,
+              // Top-level fields describe the CHOSEN route, so every existing
+              // consumer reads the same shape it always did.
+              distanceM: best.distanceM,
+              durationS: best.durationS,
+              geometry: best.geometry,
+              roads: best.roads,
+              chosenIndex: chosen,
+              // Trimmed: geometries are large and the panel only needs to label
+              // the options it did not take.
+              alternatives: scored.map(({ geometry, ...rest }) => rest),
+            };
+          } else {
+            const route = candidates[0];
+            payload = {
+              ok: true,
+              profile,
+              distanceM: Math.round(route.distance),
+              durationS: Math.round(route.duration),
+              geometry: route.geometry.coordinates,
+            };
+          }
           _routeCache.set(cacheKey, { payload, cachedAt: now });
           if (_routeCache.size > 200) _routeCache.delete(_routeCache.keys().next().value);
           res.writeHead(200, { 'Content-Type': 'application/json' });

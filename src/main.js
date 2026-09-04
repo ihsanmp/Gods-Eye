@@ -317,6 +317,9 @@ async function init() {
 
     // Initialize the voice "whiteboard" annotation engine (world-space renderer)
     const annotations = initAnnotations({ viewer, tileset });
+    // The Route panel draws through the same engine the voice route tool uses,
+    // so there is one routing path and one way a route can look on the map.
+    styleManager.attachAnnotations(annotations);
 
     // Keep startup chrome truthful: a share is not restored until camera,
     // visual/map/panel lanes, and every requested layer have terminated.

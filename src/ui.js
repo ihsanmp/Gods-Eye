@@ -205,6 +205,7 @@ const SHARE_PANEL_STATE_SPECS = Object.freeze([
   { id: 'control-panel', pinnable: true },
   { id: 'location-bar', pinnable: true },
   { id: 'data-panel' },
+  { id: 'route-panel' },
   { id: 'cctv-panel' },
   { id: 'radio-panel' },
   { id: 'scene-panel' },
@@ -215,6 +216,7 @@ const SHARE_PANEL_STATE_SPECS = Object.freeze([
 /** Standard map-view panels cleared out of the way on a fresh Cockpit entry. */
 const COCKPIT_ENTRY_COLLAPSE_PANEL_IDS = Object.freeze([
   'data-panel',
+  'route-panel',
   'cctv-panel',
   'scene-panel',
   'pp-toggles',
@@ -6100,6 +6102,205 @@ export class StyleManager {
     const cameraId = activate();
     if (!cameraId) return false;
     return this._runExplicitNavigation('camera', () => focus(cameraId));
+  }
+
+  /**
+   * Hand the panel the annotation engine. Called once from main.js, after the
+   * engine exists — StyleManager is constructed before it, so this cannot be a
+   * constructor argument.
+   * @param {object|null} annotations
+   * @returns {void}
+   */
+  attachAnnotations(annotations) {
+    this._annotations = annotations || null;
+    this._initRoutePanel();
+  }
+
+  /**
+   * Route planner: two place fields, a travel mode, and a road preference.
+   *
+   * It deliberately owns no routing or drawing of its own. Everything goes
+   * through the annotation engine's `route` type — the same path the voice
+   * route tool uses — so a route looks identical however it was asked for, and
+   * there is one place where routing can break.
+   *
+   * @returns {void}
+   */
+  _initRoutePanel() {
+    if (this._routePanelReady) return;
+    const originInput = document.getElementById('route-origin');
+    const destInput = document.getElementById('route-dest');
+    const searchBtn = document.getElementById('route-search-btn');
+    const clearBtn = document.getElementById('route-clear-btn');
+    const statusEl = document.getElementById('route-status');
+    const resultEl = document.getElementById('route-result');
+    const avoidInput = document.getElementById('route-avoid-alleys');
+    const modeBtns = Array.from(document.querySelectorAll('[data-route-mode]'));
+    if (!destInput || !searchBtn) return;
+    this._routePanelReady = true;
+
+    this._routeMode = 'car';
+    this._routeMarkId = null;
+    // Monotonic, so a slow search that the user superseded can never overwrite
+    // the newer one's status line or result.
+    this._routeGeneration = 0;
+
+    const setStatus = (text) => { if (statusEl) statusEl.textContent = text; };
+
+    const setMode = (mode) => {
+      this._routeMode = mode;
+      for (const btn of modeBtns) {
+        const active = btn.dataset.routeMode === mode;
+        btn.classList.toggle('active', active);
+        btn.setAttribute('aria-pressed', String(active));
+      }
+    };
+    for (const btn of modeBtns) {
+      btn.addEventListener('click', () => setMode(btn.dataset.routeMode));
+    }
+    setMode('car');
+
+    const clearRoute = () => {
+      this._routeGeneration += 1;
+      if (this._routeMarkId && this._annotations?.removeById) {
+        this._annotations.removeById(this._routeMarkId);
+      }
+      this._routeMarkId = null;
+      if (resultEl) { resultEl.hidden = true; resultEl.innerHTML = ''; }
+      setStatus('Isi tujuan, lalu tekan CARI RUTE.');
+    };
+    clearBtn?.addEventListener('click', clearRoute);
+
+    /** Screen-centre coordinates, used when DARI is left blank. */
+    const viewCentre = () => {
+      const carto = this.viewer?.camera?.positionCartographic;
+      if (!carto) return null;
+      return {
+        latitude: Cesium.Math.toDegrees(carto.latitude),
+        longitude: Cesium.Math.toDegrees(carto.longitude),
+      };
+    };
+
+    const formatKm = (m) => (m >= 10000
+      ? `${Math.round(m / 1000)} km`
+      : `${(m / 1000).toFixed(1)} km`);
+    const formatDuration = (s) => {
+      if (!Number.isFinite(s)) return null;
+      const mins = Math.round(s / 60);
+      if (mins < 60) return `${mins} menit`;
+      const h = Math.floor(mins / 60);
+      return `${h} jam ${mins % 60} menit`;
+    };
+
+    const runSearch = async () => {
+      const destination = destInput.value.trim();
+      if (!destination) {
+        setStatus('Tujuan belum diisi.');
+        destInput.focus();
+        return;
+      }
+      const generation = ++this._routeGeneration;
+      const current = () => generation === this._routeGeneration;
+
+      if (!this._annotations?.annotate) {
+        setStatus('Mesin peta belum siap. Coba lagi sebentar lagi.');
+        return;
+      }
+
+      const origin = originInput?.value.trim() || '';
+      const originPoint = origin ? { target: origin } : viewCentre();
+      if (!originPoint) {
+        setStatus('Titik asal tidak bisa ditentukan. Isi kolom DARI.');
+        return;
+      }
+
+      // Replace, never stack: a second search must not leave the first route on
+      // the map beside it.
+      if (this._routeMarkId && this._annotations.removeById) {
+        this._annotations.removeById(this._routeMarkId);
+        this._routeMarkId = null;
+      }
+
+      searchBtn.disabled = true;
+      if (resultEl) { resultEl.hidden = true; resultEl.innerHTML = ''; }
+      setStatus('Mencari rute...');
+
+      try {
+        const outcome = await this._annotations.annotate([{
+          type: 'route',
+          mode: this._routeMode,
+          prefer: avoidInput?.checked ? 'main' : 'fastest',
+          color: 'cyan',
+          label: origin ? `${origin} - ${destination}` : destination,
+          points: [originPoint, { target: destination }],
+          // Both endpoints are typed in full here, so a destination on another
+          // continent is the request, not a geocoder mistake.
+          allowDistant: true,
+        }], { flyTo: true });
+        if (!current()) return;
+
+        const mark = outcome?.results?.[0];
+        if (!mark?.ok) {
+          // failedTargets names the waypoint that could not be found, which is
+          // the only actionable part of a routing failure.
+          const missing = mark?.failedTargets?.join(', ');
+          setStatus(missing ? `Tidak ketemu: ${missing}` : 'Rute tidak ditemukan.');
+          return;
+        }
+
+        this._routeMarkId = mark.id || null;
+        this._renderRouteResult(resultEl, mark, { formatKm, formatDuration });
+        setStatus(mark.fallback
+          ? 'Jalur jalan tidak tersedia - yang digambar adalah garis lurus.'
+          : 'Rute digambar di peta.');
+      } catch (error) {
+        if (!current()) return;
+        console.warn('[route] search failed', error);
+        setStatus('Pencarian rute gagal. Periksa koneksi lalu coba lagi.');
+      } finally {
+        if (current()) searchBtn.disabled = false;
+      }
+    };
+
+    searchBtn.addEventListener('click', () => { void runSearch(); });
+    for (const input of [originInput, destInput]) {
+      input?.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') { event.preventDefault(); void runSearch(); }
+      });
+    }
+  }
+
+  /**
+   * Render one route result. Kept separate from the search flow so the honesty
+   * rules live in one readable place.
+   * @returns {void}
+   */
+  _renderRouteResult(resultEl, mark, { formatKm, formatDuration }) {
+    if (!resultEl) return;
+    const rows = [];
+    const duration = formatDuration(mark.durationS);
+    rows.push(`<div class="route-headline"><strong>${formatKm(mark.distanceM || 0)}</strong>${duration ? `<span>${duration}</span>` : ''}</div>`);
+
+    if (mark.fallback) {
+      // A straight line is not a route, and must never be presented as one.
+      rows.push('<div class="route-note route-note-warn">Garis lurus, bukan jalur jalan. Tanpa perkiraan waktu.</div>');
+    } else if (mark.roads) {
+      const mainPct = Math.round((mark.roads.mainShare || 0) * 100);
+      rows.push(`<div class="route-note">${mainPct}% jarak di jalan bernama.</div>`);
+      // Only worth surfacing when there is something to report: a clean route
+      // saying "0 m gang" is noise.
+      if (mark.roads.alleyM > 0) {
+        rows.push(`<div class="route-note route-note-warn">Melewati gang: ${mark.roads.alleyM} m.</div>`);
+      }
+      if (mark.roads.unnamedM > 0) {
+        rows.push(`<div class="route-note">Jalan tanpa nama: ${mark.roads.unnamedM} m.</div>`);
+      }
+      if (mark.alternativeCount > 1) {
+        rows.push(`<div class="route-note">Dipilih dari ${mark.alternativeCount} alternatif.</div>`);
+      }
+    }
+    resultEl.innerHTML = rows.join('');
+    resultEl.hidden = false;
   }
 
   /**
