@@ -83,6 +83,16 @@ function viewportBias(viewer: any): string | null {
       Cesium.Math.toDegrees(rect.east).toFixed(4)
     ];
     if (parts.some((value) => value === 'NaN')) return null;
+    /*
+     * A rectangle that covers the planet is not a bias.
+     *
+     * From high enough up - and the console now opens at 4,200 km -
+     * computeViewRectangle returns the whole globe, -90,-180 to 90,180. Sending
+     * that tells the server a viewport exists when none usefully does. Better
+     * to send nothing and let it answer as an unbiased search.
+     */
+    const span = Math.abs(rect.east - rect.west) + Math.abs(rect.north - rect.south);
+    if (span > Cesium.Math.toRadians(300)) return null;
     return `${parts[0]},${parts[1]}|${parts[2]},${parts[3]}`;
   } catch {
     return null;
@@ -239,7 +249,17 @@ function RouteBar({ destination, onClose }: RouteBarProps) {
 }
 
 function SpotlightHost() {
-  const [results, setResults] = useState<any[] | undefined>(undefined);
+  /*
+   * Starts as an empty list, never undefined.
+   *
+   * AppleSpotlight reads `results ?? sampleResults`, so leaving it undefined
+   * hands the bar back to the component's own demo rows - Twitter, Safari,
+   * Mail. That is what "kafe" showed: not a failed search, a search still in
+   * flight, with the demo list standing in for it. A category lookup goes to
+   * Overpass and takes tens of seconds, so that window was long enough to look
+   * like the answer.
+   */
+  const [results, setResults] = useState<any[]>([]);
   const [emptyMessage, setEmptyMessage] = useState<string | null>(null);
   /** The one search pin currently on the globe, so it can be taken back. */
   const searchMarkRef = useRef<string | null>(null);
@@ -286,8 +306,19 @@ function SpotlightHost() {
         })
       );
       // An honest empty beats a stale list: the geocoder answered, and the
-      // answer was nothing.
-      setEmptyMessage(rows.length ? null : 'Tidak ada tempat yang cocok.');
+      // answer was nothing. WHY it was nothing is the part worth passing on -
+      // "zoom in" and "nothing of that kind nearby" ask for different things
+      // from the operator, and "the search is down" asks for neither.
+      const REASONS: Record<string, string> = {
+        'category-needs-view': 'Perbesar peta dulu - pencarian kategori mencari di sekitar area yang tampil.',
+        'category-empty-nearby': 'Tidak ada yang seperti itu di sekitar area ini.',
+        'category-search-unavailable': 'Pencarian kategori sedang tidak bisa dijangkau. Coba lagi sebentar lagi.',
+      };
+      setEmptyMessage(
+        rows.length
+          ? null
+          : (REASONS[String(data?.reason || '')] || 'Tidak ada tempat yang cocok.'),
+      );
     } catch (error: any) {
       if (error?.name === 'AbortError') return;
       setResults([]);
@@ -307,7 +338,21 @@ function SpotlightHost() {
         setEmptyMessage(text ? 'Ketik minimal 3 huruf.' : null);
         return;
       }
-      setEmptyMessage('Mencari...');
+      /*
+       * Retire the previous answer the moment the question changes.
+       *
+       * Rows left on screen under a new query describe somewhere else, and the
+       * bar has no way to say so. Clearing them also lets the searching message
+       * through: the component only shows it when the list is empty.
+       *
+       * A category word ("kafe", "spbu", "supermarket", "tempat makan") is
+       * answered by Overpass, which was measured at 13-33 s from this network,
+       * so this message is on screen long enough to need to say what is
+       * happening rather than just spin.
+       */
+      rowsRef.current = [];
+      setResults([]);
+      setEmptyMessage('Mencari di sekitar peta...');
       // /api/geocode is fronted by Nominatim, whose usage policy caps this near
       // one call a second, so a request per keystroke would queue behind itself.
       debounceRef.current = window.setTimeout(() => {

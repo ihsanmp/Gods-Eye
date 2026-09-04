@@ -3242,7 +3242,30 @@ function nominatimProxy() {
           // view centre. Needs the box: without a centre there is nothing to
           // rank by, so a keyless global "mall" still falls through to a name
           // search rather than inventing an answer.
-          const categorySelectors = box ? geocodeCategorySelectors(query) : null;
+          const categorySelectors = geocodeCategorySelectors(query);
+          /*
+           * A category with nothing to centre on is not a name lookup either.
+           *
+           * The rule below - a recognised category NEVER falls through to the
+           * name index - was only being applied when a usable box arrived. With
+           * no box the same query slipped straight past it, which is what
+           * answered "kafe" from the opening view with five places actually
+           * CALLED Kafe. The opening view is the whole archipelago, whose
+           * rectangle covers the globe and is rejected as a bias, so the hole
+           * was open exactly when a new operator would first reach for it.
+           *
+           * Saying which of the two is missing is the useful part: the search
+           * works, the map is just showing too much of the world for "near
+           * here" to mean anything.
+           */
+          if (categorySelectors && !box) {
+            return send(200, {
+              source: 'OVERPASS',
+              category: true,
+              results: [],
+              reason: 'category-needs-view',
+            });
+          }
           if (categorySelectors) {
             let categoryResults = [];
             let categoryError = null;
