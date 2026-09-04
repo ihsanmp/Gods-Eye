@@ -6169,6 +6169,12 @@ export class StyleManager {
 
     /** What the DARI field reads while it is standing in for a GPS fix. */
     const GPS_LABEL = 'Lokasi saya (GPS)';
+    /**
+     * How long a held fix may stand in for "where I am now". Long enough that
+     * planning several routes in a row costs one permission prompt, short enough
+     * that a fix cannot outlive the GPS being switched off without being noticed.
+     */
+    const ROUTE_GPS_FIX_MAX_AGE_MS = 120000;
 
     /**
      * Ask the browser for one position fix.
@@ -6197,6 +6203,7 @@ export class StyleManager {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
             accuracyM: Math.round(position.coords.accuracy || 0),
+            at: Date.now(),
           });
         },
         (error) => {
@@ -6211,9 +6218,11 @@ export class StyleManager {
           }
           resolve(null);
         },
-        // A cold GPS fix is genuinely slow; maximumAge lets a fix from earlier in
-        // the session answer instantly instead of re-prompting the hardware.
-        { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 },
+        // A cold fix is genuinely slow, so a recent one may answer instead of
+        // re-waking the hardware - but only a RECENT one. At 60 s the browser
+        // could hand back a position from before the user switched location
+        // services off, which is the difference between "here" and "where I was".
+        { enableHighAccuracy: true, timeout: 12000, maximumAge: 15000 },
       );
     });
 
@@ -6241,16 +6250,40 @@ export class StyleManager {
       }
     });
 
+    /**
+     * The right-hand button is one control with two jobs, because they are the
+     * same intent at different moments: "I do not want this route".
+     * While a search runs it CANCELS; otherwise it CLEARS what was drawn. Two
+     * separate buttons would leave one of them dead most of the time, and the
+     * user could not find a cancel that only exists during a two-second window.
+     */
+    const syncClearButton = () => {
+      if (!clearBtn) return;
+      clearBtn.textContent = this._routeSearching ? 'BATAL' : 'HAPUS RUTE';
+      clearBtn.disabled = !this._routeSearching && !this._routeMarkId;
+    };
+
     const clearRoute = () => {
+      const wasSearching = this._routeSearching;
+      // Bumping the generation is what actually cancels: the in-flight search
+      // checks it after every await and discards itself, including taking back
+      // any mark it managed to draw.
       this._routeGeneration += 1;
+      this._routeSearching = false;
+      searchBtn.disabled = false;
       if (this._routeMarkId && this._annotations?.removeById) {
         this._annotations.removeById(this._routeMarkId);
       }
       this._routeMarkId = null;
       if (resultEl) { resultEl.hidden = true; resultEl.innerHTML = ''; }
-      setStatus('Isi tujuan. Titik awal dari GPS, atau ketik sendiri.');
+      setStatus(wasSearching
+        ? 'Pencarian dibatalkan.'
+        : 'Isi tujuan. Titik awal dari GPS, atau ketik sendiri.');
+      syncClearButton();
     };
     clearBtn?.addEventListener('click', clearRoute);
+    this._routeSearching = false;
+    syncClearButton();
 
     const formatKm = (m) => (m >= 10000
       ? `${Math.round(m / 1000)} km`
@@ -6290,12 +6323,34 @@ export class StyleManager {
       // to point is a guess the user never asked for, and a wrong start is worse
       // than being asked for one.
       const origin = originInput?.value.trim() || '';
-      const usingHeldFix = this._routeGpsFix && origin === GPS_LABEL;
+      const heldFix = origin === GPS_LABEL ? this._routeGpsFix : null;
+      // A position has a shelf life. Holding one for the whole session meant
+      // that after the user switched location services OFF, the panel kept
+      // routing from the last known coordinates as though they were current -
+      // silently guessing, with no hint that GPS had stopped answering.
+      const heldFixFresh = heldFix && (Date.now() - (heldFix.at || 0)) < ROUTE_GPS_FIX_MAX_AGE_MS;
       let originPoint = null;
       let originLabel = origin;
 
-      if (usingHeldFix) {
-        originPoint = { latitude: this._routeGpsFix.latitude, longitude: this._routeGpsFix.longitude };
+      if (heldFixFresh) {
+        originPoint = { latitude: heldFix.latitude, longitude: heldFix.longitude };
+        originLabel = 'Lokasi saya';
+      } else if (heldFix) {
+        // Stale: ask again rather than reuse. If GPS is now off, requestGps says
+        // exactly that and this search stops instead of inventing a start point.
+        const fresh = await requestGps();
+        if (!current()) return;
+        if (!fresh) {
+          // Stop claiming a location the app no longer has.
+          this._routeGpsFix = null;
+          if (originInput) {
+            originInput.value = '';
+            delete originInput.dataset.gpsPlaceholder;
+          }
+          return;
+        }
+        applyGpsFix(fresh);
+        originPoint = { latitude: fresh.latitude, longitude: fresh.longitude };
         originLabel = 'Lokasi saya';
       } else if (origin) {
         originPoint = { target: origin };
@@ -6316,6 +6371,8 @@ export class StyleManager {
       }
 
       searchBtn.disabled = true;
+      this._routeSearching = true;
+      syncClearButton();
       setStatus('Mencari rute...');
 
       try {
@@ -6333,9 +6390,17 @@ export class StyleManager {
           // continent is the request, not a geocoder mistake.
           allowDistant: true,
         }], { flyTo: true });
-        if (!current()) return;
 
         const mark = outcome?.results?.[0];
+        if (!current()) {
+          // Cancelled or superseded while this was in flight. The engine drew
+          // the mark anyway, so take it back - otherwise a cancelled search
+          // leaves a line on the map that no panel state knows about and the
+          // HAPUS button cannot reach.
+          if (mark?.id && this._annotations.removeById) this._annotations.removeById(mark.id);
+          return;
+        }
+
         if (!mark?.ok) {
           // failedTargets names the waypoint that could not be found, which is
           // the only actionable part of a routing failure.
@@ -6354,7 +6419,14 @@ export class StyleManager {
         console.warn('[route] search failed', error);
         setStatus('Pencarian rute gagal. Periksa koneksi lalu coba lagi.');
       } finally {
-        if (current()) searchBtn.disabled = false;
+        // Only the CURRENT search may release the controls. A superseded one
+        // must not re-enable a button its successor is still using, nor flip
+        // BATAL back to HAPUS while that successor is running.
+        if (current()) {
+          this._routeSearching = false;
+          searchBtn.disabled = false;
+          syncClearButton();
+        }
       }
     };
 
