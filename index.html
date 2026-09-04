@@ -560,6 +560,15 @@
           <span id="map-stack-status" class="pp-stack-status" aria-live="polite">3D</span>
         </div>
         <div id="map-stack-chips" class="map-stack-chip-row" role="group" aria-label="Map source"></div>
+        <!-- Flat view. The same OSM tiles, looked at straight down instead of
+             across a globe - which is what makes their baked-in place labels
+             legible. Cesium's own 2D scene mode, so every layer this console
+             draws keeps working; a second map library would start empty. -->
+        <div class="map-stack-chip-row" role="group" aria-label="Bentuk peta">
+          <button id="map-flat-toggle" type="button" class="map-stack-chip"
+                  aria-pressed="false"
+                  title="Peta datar 2D - tile OSM yang sama, dilihat lurus dari atas">PETA DATAR 2D</button>
+        </div>
       </section>
       </div>
       <div id="style-mini-status" class="panel-mini-status" aria-live="polite">

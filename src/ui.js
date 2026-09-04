@@ -3542,6 +3542,90 @@ export class StyleManager {
     });
 
     this._renderMapStackState(this.mapStackController.getState());
+    this._initFlatMapToggle();
+  }
+
+  /**
+   * The flat-map toggle: the same tiles, seen straight down.
+   *
+   * This is Cesium's own 2D scene mode, not a second map library. The point is
+   * worth stating because the obvious alternative - dropping Leaflet in
+   * alongside - would not add a single place name: the labels people want are
+   * baked into the OSM raster tiles, and this app is already serving
+   * tile.openstreetmap.org. What a flat view actually changes is that those
+   * labels stop being projected across a tilted globe, which is what makes
+   * them hard to read, not the library drawing them.
+   *
+   * Staying inside Cesium also keeps everything else alive. The route line,
+   * the search pin, CCTV markers, contacts and the detection mesh are all
+   * Cesium; a Leaflet canvas would open empty and each of them would have to
+   * be built a second time.
+   * @returns {void}
+   */
+  _initFlatMapToggle() {
+    const button = document.getElementById('map-flat-toggle');
+    if (!button || !this.viewer?.scene) return;
+    const scene = this.viewer.scene;
+
+    button.addEventListener('click', () => {
+      // Read the mode at click time: the scene can also be morphed elsewhere,
+      // and a remembered flag would drift out of step with the real scene.
+      const flat = scene.mode === Cesium.SceneMode.SCENE2D;
+      // Photoreal tiles have no 2D form - they are a 3D mesh - so entering flat
+      // view from that stack would show an empty map. Say so instead.
+      if (!flat && this.mapStackController?.getActiveId?.() === 'photoreal') {
+        this._showToast('Peta datar tidak tersedia untuk Google 3D. Pilih OSM atau Bing dulu.');
+        return;
+      }
+      /*
+       * Carry the view across the morph.
+       *
+       * Cesium does not: measured, morphing to 2D from 4,200 km over Indonesia
+       * left the camera at 0N 0E and 31,890 km - the Gulf of Guinea, seen from
+       * four times as far out. Switching how you look at the map should not
+       * also decide where you are looking, so where is captured first and put
+       * back once the morph has settled.
+       */
+      const before = this.viewer.camera.positionCartographic;
+      const keep = before ? {
+        lon: Cesium.Math.toDegrees(before.longitude),
+        lat: Cesium.Math.toDegrees(before.latitude),
+        height: before.height,
+      } : null;
+
+      if (flat) scene.morphTo3D(1.2);
+      else scene.morphTo2D(1.2);
+
+      // Settle the label after the morph rather than before it: a morph can be
+      // interrupted, and the button must describe the scene that actually won.
+      window.setTimeout(() => {
+        if (keep && Number.isFinite(keep.height)) {
+          this.viewer.camera.setView({
+            destination: Cesium.Cartesian3.fromDegrees(keep.lon, keep.lat, keep.height),
+            // 2D has no tilt to restore, and straight down is the whole point
+            // of the flat view.
+            orientation: { heading: 0, pitch: -Cesium.Math.PI_OVER_TWO, roll: 0 },
+          });
+        }
+        this._syncFlatMapToggle();
+      }, 1500);
+    });
+
+    // The mode can change without this button - a share link, a scene preset -
+    // so it follows the scene rather than assuming it owns it.
+    scene.morphComplete?.addEventListener?.(() => this._syncFlatMapToggle());
+    this._syncFlatMapToggle();
+  }
+
+  /** Point the flat-map button and the status chip at the scene's real mode. */
+  _syncFlatMapToggle() {
+    const button = document.getElementById('map-flat-toggle');
+    const scene = this.viewer?.scene;
+    if (!button || !scene) return;
+    const flat = scene.mode === Cesium.SceneMode.SCENE2D;
+    button.classList.toggle('active', flat);
+    button.setAttribute('aria-pressed', flat ? 'true' : 'false');
+    button.textContent = flat ? 'KEMBALI KE GLOBE 3D' : 'PETA DATAR 2D';
   }
 
   /**
