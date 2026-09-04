@@ -173,6 +173,13 @@
 #left-panel-stack > [data-panel-id].collapsed,
 #right-context-rail > [data-panel-id].collapsed,
 #command-dock > [data-panel-id].collapsed,
+/*
+ * VISUAL PRESETS is addressed by id, because it is the one panel of the seven
+ * that carries no data-panel-id attribute - it is a dock tray, written before
+ * that convention. Keying it off [data-panel-id] like its siblings matched
+ * nothing at all, so its chip stayed in the dock in every state.
+ */
+#command-dock > #control-panel.collapsed,
 #pp-toggles.collapsed {
   display: none !important;
 }
