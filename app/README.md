@@ -33,14 +33,23 @@ Peran launcher:
 
 1. Preflight: Node ada di PATH, `node_modules` terpasang, `.env` punya
    `GOOGLE_MAPS_API_KEY`. Kegagalan muncul sebagai kotak dialog, bukan diam.
-2. Menyalakan Vite di port 4173 secara tersembunyi — atau memakai ulang server
+2. Menampilkan splash — hanya pada start dingin. Launcher sengaja tak terlihat,
+   jadi tanpa ini klik ikon tidak menghasilkan apa pun di layar selama beberapa
+   detik, yang terbaca sebagai gagal dan mengundang klik kedua. Splash-nya
+   best-effort: kalau gagal dibuat, peluncuran tetap berjalan.
+3. Menyalakan Vite di port 4173 secara tersembunyi — atau memakai ulang server
    yang sudah jalan, sehingga klik ganda memberi jendela kedua, bukan rebutan
    port.
-3. Menunggu server benar-benar menjawab (bukan sekadar port terbuka).
-4. Membuka Chrome — atau Edge — dalam mode `--app` dengan direktori profil
-   sendiri di `app/browser-profile/`.
-5. Menunggu jendela ditutup, lalu mematikan server yang ia nyalakan sendiri.
+4. Menunggu server benar-benar menjawab (bukan sekadar port terbuka). Status
+   splash membedakan keduanya: "Menyalakan sistem" saat port belum terbuka,
+   "Menyiapkan globe" setelah Vite boot tapi belum menyajikan aplikasi.
+5. Membuka Chrome — atau Edge — dalam mode `--app` dengan direktori profil
+   sendiri di `app/browser-profile/`, menahan splash 2,5 detik melintasi
+   start-up Chrome supaya layar tidak sempat kosong, lalu menutupnya.
+6. Menunggu jendela ditutup, lalu mematikan server yang ia nyalakan sendiri.
    Server milik orang lain tidak disentuh.
+
+Start dingin terukur ~6 detik; dengan cache Vite hangat ~2 detik.
 
 Jejaknya ada di `app/launcher.log`; keluaran Vite ada di `app/server.log` dan
 `app/server.err.log`.
