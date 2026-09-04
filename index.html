@@ -35,18 +35,40 @@
     <span class="indicator-value" id="active-style-name">NORMAL</span>
   </div>
 
-  <!-- Top-center camera and share actions -->
-  <nav id="top-center-actions" aria-label="Globe actions">
-    <button id="clear-selected-layers" type="button" aria-label="Clear selected data layers" title="Turn off all selected data layers">
-      <span class="material-symbols-outlined" aria-hidden="true">layers_clear</span>
-    </button>
-    <button id="share-btn" type="button" aria-label="Copy share link" title="Copy share link">
-      <span class="share-icon" aria-hidden="true">&#x1F517;</span>
-    </button>
-    <button id="reset-globe-view" type="button" aria-label="Reset to full globe view" title="Reset camera and return to full globe view">
-      <span class="material-symbols-outlined" aria-hidden="true">public</span>
-    </button>
-  </nav>
+  <!-- The top-center Clear Layers / Share / Reset Globe actions were removed;
+       the search bar occupies this position now. Their behaviour survives
+       elsewhere: Reset Globe on the cockpit control and the zoom_to_globe voice
+       tool, Clear Layers on the DATA LAYERS panel, and the share link in the
+       address bar, which ShareLinkManager still keeps current. -->
+  <div id="location-bar" class="panel-collapsible collapsed">
+    <div class="panel-glow"></div>
+    <div class="location-inner">
+      <div class="location-toolbar">
+        <span class="location-toolbar-label"><span class="dock-label-icon dock-label-icon-location" aria-hidden="true"></span>LOCATION</span>
+        <button class="panel-collapse-btn" data-collapse-target="location-bar" title="Collapse panel">+</button>
+      </div>
+      <div id="location-mini-status" class="location-mini-status" aria-live="polite">
+        <div id="location-mini-city" class="location-mini-city">📍 Location: --</div>
+        <div id="location-mini-poi" class="location-mini-poi">Landmark: --</div>
+      </div>
+      <div class="dock-popover-content">
+        <button class="dock-pin-btn" data-pin-target="location-bar" type="button" aria-label="Pin location tray" aria-pressed="false" title="Keep location tray open"><img src="/pin.svg" alt="" /></button>
+        <div id="poi-row" class="poi-row-container"></div>
+        <div class="location-bar-divider" id="location-bar-divider"></div>
+        <div class="location-city-row">
+          <div id="location-pills" class="location-pills"></div>
+          <div class="location-search-wrap">
+            <button id="search-toggle" class="search-toggle-btn" title="Search any location">
+              <span>&#x1F50E;</span>
+            </button>
+            <input type="text" id="location-search" placeholder="Search any location..." autocomplete="off" spellcheck="false"
+                   role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="location-search-suggest" />
+            <ul id="location-search-suggest" class="place-suggest" role="listbox" aria-label="Saran tempat" hidden></ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
   <div id="global-loading-status" role="status" aria-live="polite" aria-atomic="true" hidden>
     <span id="global-loading-label">LOADING LIVE DATA</span>
     <span id="global-loading-detail"></span>
@@ -544,33 +566,6 @@
   </div>
 
   <!-- Location bar -->
-  <div id="location-bar" class="panel-collapsible collapsed">
-    <div class="panel-glow"></div>
-    <div class="location-inner">
-      <div class="location-toolbar">
-        <span class="location-toolbar-label"><span class="dock-label-icon dock-label-icon-location" aria-hidden="true"></span>LOCATION</span>
-        <button class="panel-collapse-btn" data-collapse-target="location-bar" title="Collapse panel">+</button>
-      </div>
-      <div id="location-mini-status" class="location-mini-status" aria-live="polite">
-        <div id="location-mini-city" class="location-mini-city">📍 Location: --</div>
-        <div id="location-mini-poi" class="location-mini-poi">Landmark: --</div>
-      </div>
-      <div class="dock-popover-content">
-        <button class="dock-pin-btn" data-pin-target="location-bar" type="button" aria-label="Pin location tray" aria-pressed="false" title="Keep location tray open"><img src="/pin.svg" alt="" /></button>
-        <div id="poi-row" class="poi-row-container"></div>
-        <div class="location-bar-divider" id="location-bar-divider"></div>
-        <div class="location-city-row">
-          <div id="location-pills" class="location-pills"></div>
-          <div class="location-search-wrap">
-            <button id="search-toggle" class="search-toggle-btn" title="Search any location">
-              <span>&#x1F50E;</span>
-            </button>
-            <input type="text" id="location-search" placeholder="Search any location..." autocomplete="off" spellcheck="false" />
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
   </div>
 
   <div id="left-panel-stack">

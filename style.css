@@ -1406,7 +1406,6 @@ body.ui-clean-view #clean-view-exit {
 
 body.ui-clean-view #title-bar,
 body.ui-clean-view #style-indicator,
-body.ui-clean-view #top-center-actions,
 body.ui-clean-view #global-loading-status,
 body.ui-clean-view #traffic-sync-chip,
 body.ui-clean-view #cctv-sync-chip,
@@ -1601,9 +1600,13 @@ body.ui-clean-view #scene-runtime.active {
 }
 
 /* ── Location Bar ────────────────────────────── */
+/* Top centre, in the slot the removed Clear/Share/Reset actions used to hold.
+   Search is the control people reach for most, and the bottom-centre position
+   put it in the same band as the voice pill and the LOCATION/VISUAL PRESETS
+   dock. */
 #location-bar {
   position: fixed;
-  bottom: 130px;
+  top: 32px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 100;
@@ -1871,54 +1874,6 @@ body.ui-clean-view #scene-runtime.active {
 }
 
 /* ── Top-center Globe Actions ────────────────── */
-#top-center-actions {
-  position: fixed;
-  top: 32px;
-  left: 50%;
-  z-index: 100;
-  display: flex;
-  gap: 8px;
-  transform: translateX(-50%);
-}
-
-#top-center-actions button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-  border-radius: 50%;
-  color: var(--text-secondary);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  outline: none;
-}
-
-#top-center-actions button:hover,
-#top-center-actions button:focus-visible {
-  border-color: var(--glass-border-hover);
-  background: rgba(255, 255, 255, 0.06);
-  transform: scale(1.1);
-}
-
-#top-center-actions button:active {
-  transform: scale(0.95);
-}
-
-#top-center-actions button:disabled {
-  cursor: wait;
-  opacity: 0.55;
-  transform: none;
-}
-
-#top-center-actions .material-symbols-outlined {
-  font-size: 18px;
-}
 
 #global-loading-status {
   position: fixed;
@@ -3837,14 +3792,13 @@ body.cockpit-mode #view-switcher button {
 }
 .cockpit-help span { color: var(--cockpit-accent); }
 body.cockpit-mode :is(
-  #title-bar, #style-indicator, #top-center-actions, #traffic-sync-chip, #cctv-sync-chip,
+  /* #location-bar is named explicitly now: it used to be hidden as a child of
+     #command-dock, and moving it to the top centre took it out of that reach. */
+  #title-bar, #style-indicator, #location-bar, #traffic-sync-chip, #cctv-sync-chip,
   #command-dock,
   #military-awareness-panel, #military-awareness-direction-overlay,
   #cockpit-entry
 ) { display: none !important; }
-body.cockpit-mode :is(#clear-selected-layers, #share-btn, #reset-globe-view) {
-  display: none !important;
-}
 body.cockpit-mode #left-panel-stack {
   z-index: 147;
   display: flex;
@@ -6737,7 +6691,6 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
 /* ── Recording Mode ─────────────────────────── */
 body.recording-mode #title-bar,
 body.recording-mode #style-indicator,
-body.recording-mode #top-center-actions,
 body.recording-mode #global-loading-status,
 body.recording-mode #traffic-sync-chip,
 body.recording-mode #cctv-sync-chip,
@@ -6763,9 +6716,6 @@ body.recording-mode #scene-runtime.active {
 }
 
 /* Scene playback owns layer and camera sequencing until Stop or completion. */
-body.scene-playback-mode :is(#clear-selected-layers, #reset-globe-view) {
-  display: none !important;
-}
 
 /* ── Responsive ───────────────────────────────── */
 @media (max-width: 720px) {
@@ -6991,10 +6941,13 @@ body.scene-playback-mode :is(#clear-selected-layers, #reset-globe-view) {
   left: 50%;
   z-index: 145;
   display: grid;
-  grid-template-areas: 'locations voice presets';
-  grid-template-columns: minmax(300px, 1fr) minmax(230px, 270px) minmax(390px, 1.15fr);
+  /* The locations tray moved to the top centre, so the dock is voice +
+     presets. Its column is dropped rather than left empty, which would hold a
+     300px gap where nothing renders and push the dock off centre. */
+  grid-template-areas: 'voice presets';
+  grid-template-columns: minmax(230px, 270px) minmax(390px, 1.15fr);
   align-items: stretch;
-  width: min(94vw, 1240px);
+  width: min(94vw, 760px);
   padding: 6px;
   overflow: visible;
   background: rgba(9, 18, 27, 0.84);
@@ -9409,4 +9362,74 @@ body.scene-playback-mode #first-run-launcher {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* ============================================================
+   PLACE SUGGESTIONS under the top search bar.
+   Light surface on purpose: the reference the owner asked for is
+   the familiar maps-autocomplete look, and a legible white sheet
+   over a dark globe reads as a distinct layer rather than more HUD.
+   ============================================================ */
+
+.place-suggest {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 160;
+  margin: 0;
+  padding: 6px 0;
+  list-style: none;
+  max-height: 320px;
+  overflow-y: auto;
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
+.place-suggest li {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 9px 16px;
+  cursor: pointer;
+}
+
+.place-suggest li:hover,
+.place-suggest li.active {
+  background: #f1f3f4;
+}
+
+.place-suggest .place-icon {
+  flex: 0 0 auto;
+  color: #5f6368;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.place-suggest .place-text {
+  min-width: 0;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 13.5px;
+  line-height: 1.35;
+  color: #202124;
+  /* One line, ellipsised: a full OSM display_name is a paragraph. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The matched fragment is the only bold part, as in the reference. */
+.place-suggest .place-text b {
+  font-weight: 600;
+  color: #202124;
+}
+
+.place-suggest .place-secondary {
+  color: #70757a;
+  font-weight: 400;
+}
+
+.place-suggest li + li {
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
 }

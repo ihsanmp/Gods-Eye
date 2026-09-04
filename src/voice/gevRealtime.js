@@ -2584,10 +2584,12 @@ function createVoiceControl({ reset = false } = {}) {
     `;
     const commandDock = document.getElementById('command-dock');
     if (commandDock) {
-      const locationBar = document.getElementById('location-bar');
+      // The location/search tray is NOT pulled in here any more. It used to be
+      // reparented into the dock at runtime regardless of where the markup put
+      // it, which silently overrode any attempt to place it elsewhere - moving
+      // it in index.html had no effect at all until this line went.
       const controlPanel = document.getElementById('control-panel');
       commandDock.appendChild(root);
-      if (locationBar) commandDock.insertBefore(locationBar, root);
       if (controlPanel) commandDock.appendChild(controlPanel);
     } else {
       document.body.appendChild(root);

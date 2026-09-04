@@ -12,7 +12,7 @@ import {
   clampBloomIntensity,
   decodeBloomIntensity,
 } from './bloom.js';
-import { LOCATIONS, CITY_POIS, GLOBE_VIEW, flyToGlobeView, flyToPresetLocation, flyToPOI, searchAndFlyTo } from './locations.js';
+import { LOCATIONS, CITY_POIS, GLOBE_VIEW, flyToGlobeView, flyToPresetLocation, flyToPOI, flyToLandmark, searchAndFlyTo } from './locations.js';
 import { locationMiniStatus } from './locationStatus.js';
 import { citiesForCountry } from './data/countryCities.js';
 // Same bias string the search box and annotation resolver send, so the route
@@ -9879,6 +9879,189 @@ export class StyleManager {
     timer = setTimeout(() => { void detect(); }, 2500);
   }
 
+  /**
+   * Maps-style place autocomplete under the top search bar.
+   *
+   * Same source as the route panel's suggestions - /api/geocode, biased to the
+   * viewport - with the presentation the owner asked for: matched fragment in
+   * bold, the rest of the address in grey beside it, and a category icon.
+   *
+   * @returns {void}
+   */
+  _initSearchSuggestions() {
+    const input = this._locationSearch;
+    const listEl = document.getElementById('location-search-suggest');
+    if (!input || !listEl) return;
+
+    let debounce = null;
+    let controller = null;
+    let rows = [];
+    let activeIndex = -1;
+
+    const close = () => {
+      listEl.hidden = true;
+      listEl.innerHTML = '';
+      input.setAttribute('aria-expanded', 'false');
+      rows = [];
+      activeIndex = -1;
+    };
+    this._closeSearchSuggestions = close;
+
+    const syncActive = () => {
+      [...listEl.children].forEach((child, index) => {
+        child.classList.toggle('active', index === activeIndex);
+        child.setAttribute('aria-selected', String(index === activeIndex));
+      });
+    };
+
+    /** Rough category icon from the OSM type, defaulting to a map pin. */
+    const iconFor = (osmType) => {
+      const t = String(osmType || '').toLowerCase();
+      if (/station|halt|railway/.test(t)) return 'train';
+      if (/aerodrome|airport/.test(t)) return 'flight';
+      if (/mall|shop|supermarket|retail/.test(t)) return 'storefront';
+      if (/restaurant|cafe|fast_food|food/.test(t)) return 'restaurant';
+      if (/hospital|clinic|pharmacy/.test(t)) return 'local_hospital';
+      if (/hotel|guest_house|hostel/.test(t)) return 'hotel';
+      if (/school|university|college/.test(t)) return 'school';
+      if (/city|town|village|municipality|suburb/.test(t)) return 'location_city';
+      if (/road|street|residential/.test(t)) return 'signpost';
+      return 'place';
+    };
+
+    /**
+     * Primary name with the typed fragment emboldened, plus the rest of the
+     * address in grey. Built from DOM nodes, never innerHTML: these strings come
+     * from OpenStreetMap and are written by strangers.
+     */
+    const buildText = (row, typed) => {
+      const wrap = document.createElement('span');
+      wrap.className = 'place-text';
+      const name = row.primary;
+      const at = name.toLowerCase().indexOf(typed.toLowerCase());
+      if (at >= 0 && typed) {
+        wrap.append(document.createTextNode(name.slice(0, at)));
+        const strong = document.createElement('b');
+        strong.textContent = name.slice(at, at + typed.length);
+        wrap.append(strong, document.createTextNode(name.slice(at + typed.length)));
+      } else {
+        const strong = document.createElement('b');
+        strong.textContent = name;
+        wrap.append(strong);
+      }
+      if (row.context) {
+        const secondary = document.createElement('span');
+        secondary.className = 'place-secondary';
+        secondary.textContent = ` ${row.context}`;
+        wrap.append(secondary);
+      }
+      return wrap;
+    };
+
+    const pick = (index) => {
+      const row = rows[index];
+      if (!row) return;
+      input.value = row.primary;
+      close();
+      this._collapsePOIRow();
+      // Fly by coordinate, so the chosen row is where the camera goes - not
+      // whatever a second geocode of the same text would return.
+      this.runImmediateLocationNavigation(() => flyToLandmark(this.viewer, row.lat, row.lon, {
+        // A settlement wants context, a building wants to fill the frame.
+        range: /city|town|village|municipality|county|state|region/i.test(row.osmType || '') ? 30000 : 1200,
+        pitch: -45,
+      }));
+      this._setActiveLocation(null);
+    };
+
+    const render = (found, typed) => {
+      rows = found;
+      activeIndex = -1;
+      if (!rows.length) { close(); return; }
+      listEl.innerHTML = '';
+      rows.forEach((row, index) => {
+        const li = document.createElement('li');
+        li.setAttribute('role', 'option');
+        li.setAttribute('aria-selected', 'false');
+        li.dataset.index = String(index);
+        const icon = document.createElement('span');
+        icon.className = 'material-symbols-outlined place-icon';
+        icon.setAttribute('aria-hidden', 'true');
+        icon.textContent = iconFor(row.osmType);
+        li.append(icon, buildText(row, typed));
+        listEl.appendChild(li);
+      });
+      listEl.hidden = false;
+      input.setAttribute('aria-expanded', 'true');
+    };
+
+    const query = async (text) => {
+      controller?.abort();
+      controller = new AbortController();
+      const bias = viewportBias(this.viewer);
+      try {
+        const response = await fetch(
+          `/api/geocode?q=${encodeURIComponent(text)}${bias ? `&bias=${encodeURIComponent(bias)}` : ''}`,
+          { signal: controller.signal },
+        );
+        if (!response.ok) { close(); return; }
+        const data = await response.json();
+        if (input.value.trim() !== text) return; // the field moved on
+        render((data?.results || [])
+          .filter((row) => Number.isFinite(row.lat) && Number.isFinite(row.lon))
+          .slice(0, 6)
+          .map((row) => {
+            const parts = String(row.label || '').split(',').map((part) => part.trim());
+            return {
+              lat: row.lat,
+              lon: row.lon,
+              osmType: row.osmType,
+              primary: parts[0] || text,
+              context: parts.slice(1, 4).join(', '),
+            };
+          }), text);
+      } catch (error) {
+        if (error?.name !== 'AbortError') close();
+      }
+    };
+
+    input.addEventListener('input', () => {
+      const text = input.value.trim();
+      clearTimeout(debounce);
+      if (text.length < 3) { close(); return; }
+      debounce = setTimeout(() => { void query(text); }, 400);
+    });
+
+    input.addEventListener('keydown', (event) => {
+      if (listEl.hidden) return;
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        const step = event.key === 'ArrowDown' ? 1 : -1;
+        activeIndex = (activeIndex + step + rows.length) % rows.length;
+        syncActive();
+      } else if (event.key === 'Enter' && activeIndex >= 0) {
+        // Only claimed while a row is highlighted; plain Enter still submits the
+        // typed query through the existing search path.
+        event.preventDefault();
+        event.stopPropagation();
+        pick(activeIndex);
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        close();
+      }
+    });
+
+    // mousedown, not click: blur fires first and would close the list mid-press.
+    listEl.addEventListener('mousedown', (event) => {
+      const option = event.target.closest('[data-index]');
+      if (!option) return;
+      event.preventDefault();
+      pick(Number(option.dataset.index));
+    });
+
+    input.addEventListener('blur', () => { setTimeout(close, 140); });
+  }
+
   _initLocationBar() {
     const QWERTY_KEYS = ['Q', 'W', 'E', 'R', 'T'];
 
@@ -9911,6 +10094,8 @@ export class StyleManager {
         this._locationSearch.focus();
       }
     });
+
+    this._initSearchSuggestions();
 
     // Search submit on Enter
     this._locationSearch.addEventListener('keydown', async (e) => {
@@ -10386,6 +10571,10 @@ export class StyleManager {
    * @returns {void}
    */
   _initShareButton() {
+    // The top-centre share button was removed; the link itself still lives in
+    // the address bar, kept current by ShareLinkManager. Guarded rather than
+    // deleted so a future surface can wire this up again.
+    if (!this._shareBtn) return;
     this._shareBtn.addEventListener('click', async () => {
       const success = await this.shareLinkManager.copyLink();
       this._showToast(success ? 'Link copied!' : 'Copy failed');

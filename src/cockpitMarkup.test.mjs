@@ -21,15 +21,14 @@ test('Cockpit has one reset action beside its bottom exit path', () => {
     html,
     /id="map-view-switch"[^>]*aria-label="Exit cockpit view"[^>]*aria-keyshortcuts="Escape C"[\s\S]*?close_fullscreen[\s\S]*?EXIT COCKPIT/,
   );
-  const topCenterActions = html.match(/<nav id="top-center-actions"[\s\S]*?<\/nav>/);
-  assert.ok(topCenterActions, 'Top-center globe actions are missing');
-  assert.match(topCenterActions[0], /id="clear-selected-layers"[\s\S]*?id="share-btn"[\s\S]*?id="reset-globe-view"/);
-  assert.equal((html.match(/id="clear-selected-layers"/g) || []).length, 1, 'Clear Layers must have one DOM owner');
-  assert.equal((html.match(/id="reset-globe-view"/g) || []).length, 1, 'Reset Globe must have one DOM owner');
+  // The top-center Clear Layers / Share / Reset Globe group was removed and the
+  // search bar took that position. The COCKPIT reset is a different control and
+  // still has to exist, exactly once, in the view switcher.
+  assert.equal((html.match(/id="top-center-actions"/g) || []).length, 0, 'the removed top-center group must not come back');
+  assert.equal((html.match(/id="reset-globe-view"/g) || []).length, 0, 'map-only reset went with that group');
   assert.equal((html.match(/id="cockpit-reset-globe"/g) || []).length, 1, 'Cockpit Reset must have one DOM owner');
   const viewSwitcher = html.match(/<nav id="view-switcher"[\s\S]*?<\/nav>/);
   assert.ok(viewSwitcher, 'View switcher is missing');
-  assert.doesNotMatch(viewSwitcher[0], /id="reset-globe-view"/, 'map-only reset must stay outside Cockpit');
   assert.match(
     viewSwitcher[0],
     /id="cockpit-reset-globe"[^>]*type="button"[^>]*aria-label="Reset cockpit to full globe view"[^>]*hidden[\s\S]*?public[\s\S]*?RESET[\s\S]*?id="map-view-switch"/,
@@ -218,15 +217,11 @@ test('Cockpit owns a focused shared Display portal and compact Radio controls', 
   assert.match(html, /data-cockpit-display-slot="hud"/);
   assert.match(html, /data-cockpit-display-slot="detection"[\s\S]*?data-cockpit-display-slot="parameters"[\s\S]*?data-cockpit-display-slot="models3d"/);
   assert.doesNotMatch(html, /data-cockpit-display-slot="presets"/);
-  assert.match(html, /id="clear-selected-layers"[^>]*aria-label="Clear selected data layers"/);
-  assert.match(html, /id="reset-globe-view"[^>]*aria-label="Reset to full globe view"/);
-  assert.match(css, /#top-center-actions\s*\{[\s\S]*?left:\s*50%;[\s\S]*?display:\s*flex;[\s\S]*?transform:\s*translateX\(-50%\)/);
-  assert.match(css, /body\.ui-clean-view #top-center-actions/);
-  assert.match(css, /body\.recording-mode #top-center-actions/);
-  assert.match(
-    css,
-    /body\.scene-playback-mode :is\(#clear-selected-layers, #reset-globe-view\)\s*\{\s*display:\s*none !important;/,
-  );
+  // The top-center action group was removed; the search bar holds that slot now
+  // and inherits the same top-centre placement and clean-view/recording hiding.
+  assert.match(css, /#location-bar\s*\{[\s\S]*?top:\s*32px;[\s\S]*?left:\s*50%;[\s\S]*?transform:\s*translateX\(-50%\)/);
+  assert.match(css, /body\.ui-clean-view #location-bar/);
+  assert.match(css, /body\.recording-mode #location-bar/);
   assert.match(sceneDirector, /this\._running = true;\s*document\.body\.classList\.add\('scene-playback-mode'\);/);
   assert.match(sceneDirector, /styleManager\.setRecordingMode\(false\);\s*document\.body\.classList\.remove\('scene-playback-mode'\);/);
   assert.equal((html.match(/id="hud-toggle"/g) || []).length, 1, 'HUD control must have one stateful DOM owner');
@@ -447,15 +442,14 @@ test('real disclosure changes reconsider only their own temporary panel lane', (
   assert.match(collapse, /_scheduleLeftPanelLayout\(\{[\s\S]*?reconsiderAutoCollapse: this\._leftPanelStack\?\.contains\(panelEl\) === true/);
 });
 
-test('Cockpit hides the complete top-center globe action group', () => {
+test('Cockpit hides the top-center search bar', () => {
+  // The globe action group that used to sit here is gone. The search bar took
+  // its place and must be hidden the same way - and it needs naming EXPLICITLY,
+  // because it was previously hidden only as a child of #command-dock and no
+  // longer lives there.
   assert.match(
     css,
-    /body\.cockpit-mode :is\([\s\S]*?#top-center-actions[\s\S]*?\) \{ display: none !important; \}/,
-  );
-  assert.match(
-    css,
-    /body\.cockpit-mode :is\(#clear-selected-layers, #share-btn, #reset-globe-view\)\s*\{\s*display:\s*none !important;/,
-    'Cockpit must hide each map-only globe action even if its group layout is disturbed',
+    /body\.cockpit-mode :is\([\s\S]*?#location-bar[\s\S]*?\) \{ display: none !important; \}/,
   );
 });
 
