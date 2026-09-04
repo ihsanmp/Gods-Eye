@@ -19,7 +19,7 @@ if (typeof window !== 'undefined' && !window.__CESIUM__) window.__CESIUM__ = Ces
  */
 
 let _seq = 0;
-const COLORS = new Set(['primary', 'amber', 'cyan', 'green', 'red']);
+const COLORS = new Set(['primary', 'amber', 'cyan', 'green', 'red', 'blue']);
 // Entity FACTS the voice model may attach to an annotation (annotate_map.entityKind) —
 // what kind of thing the target IS, routing the resolver (e.g. point_feature keeps a
 // monument point-first). Unknown values are dropped, never guessed.

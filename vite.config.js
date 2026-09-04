@@ -3050,6 +3050,43 @@ function geocodeNamePrefixMatch(hit, query) {
 }
 
 /**
+ * How much of the query a candidate actually accounts for, 0..1.
+ *
+ * Nominatim ranks by global importance, which says nothing about whether a
+ * result answers the whole question. Searching "pakuwon solo" returned a
+ * meatball stall in Surabaya called "Bakso solo" above "Pakuwon Mall Solo
+ * Baru" - one word matched in the first, both in the second, and the two
+ * scored the same because importance was the only thing being compared. A
+ * route drawn from that first answer starts 300 km from where it should.
+ *
+ * Words are matched at a word BOUNDARY and by prefix, so "solo" finds "Solo
+ * Baru" and "pakuwon" finds "Pakuwon Mall", while "solo" does not quietly
+ * match inside "Solok". Words shorter than three letters are ignored: "di",
+ * "ke" and their kind appear everywhere and would flatten the measure.
+ *
+ * @param {object} hit
+ * @param {string} query
+ * @returns {number} Fraction of the query's significant words present.
+ */
+function geocodeQueryCoverage(hit, query) {
+  const words = String(query || '')
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((word) => word.length >= 3);
+  if (!words.length) return 1;
+  const haystack = String(hit?.label || '').toLowerCase();
+  let matched = 0;
+  for (const word of words) {
+    const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // The class is doubled here because this is a template literal: a lone
+    // \p would collapse to a bare "p" before RegExp ever saw it.
+    const atWordStart = new RegExp(`(?:^|[^\\p{L}\\p{N}])${escaped}`, 'u');
+    if (atWordStart.test(haystack)) matched += 1;
+  }
+  return matched / words.length;
+}
+
+/**
  * One Nominatim search, normalized into the hit shape searchAndFlyTo consumes.
  * Never throws — a failed variant must not sink the variants after it.
  *
@@ -3292,9 +3329,16 @@ function nominatimProxy() {
           // streets or two cities but never promotes a street over a city.
           const IN_VIEW_BONUS = 0.15;
           const NAME_PREFIX_BONUS = 0.05;
+          // Answering the whole question outweighs being on screen: a candidate
+          // that accounts for every word beats one that accounts for half of
+          // them even when the half-match is the nearer of the two. Still
+          // smaller than the gap between a city and a side street, so it
+          // reorders comparable candidates without promoting a shop over a town.
+          const COVERAGE_BONUS = 0.3;
           const rankScore = (row) => Number(row.importance || 0)
             + (inGeocodeBox(row, box) ? IN_VIEW_BONUS : 0)
-            + (geocodeNamePrefixMatch(row, query) ? NAME_PREFIX_BONUS : 0);
+            + (geocodeNamePrefixMatch(row, query) ? NAME_PREFIX_BONUS : 0)
+            + COVERAGE_BONUS * geocodeQueryCoverage(row, query);
           results = dedupeGeocodeHits(results).sort((a, b) => rankScore(b) - rankScore(a));
 
           _nominatimCache.set(cacheKey, { at: Date.now(), results });

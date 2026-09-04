@@ -6615,10 +6615,10 @@ export class StyleManager {
           type: 'route',
           mode: this._routeMode,
           prefer: avoidInput?.checked ? 'main' : 'fastest',
-          // Red reads as the one thing the operator asked for against a console
-          // that is otherwise cyan throughout - including the detection mesh and
-          // the CCTV markers a route often crosses.
-          color: 'red',
+          // Blue, the colour every maps app draws a route in - and still
+          // distinct from the cyan this console uses everywhere else, including
+          // the detection mesh and the CCTV markers a route often crosses.
+          color: 'blue',
           label: originLabel ? `${originLabel} - ${destination}` : destination,
           points: [originPoint, pickedPoint(destInput) || { target: destination }],
           // Both endpoints are typed in full here, so a destination on another

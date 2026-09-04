@@ -37,6 +37,8 @@ const PALETTE = {
   cyan: '#39d0ff',
   green: '#5dff9f',
   red: '#ff6b6b',
+  /* The route's own colour: Google Maps' route blue, asked for by name. */
+  blue: '#1a73e8',
 };
 
 const CLASSIFY = Cesium.ClassificationType.BOTH;
@@ -45,13 +47,6 @@ const CLAMP = Cesium.HeightReference.CLAMP_TO_GROUND;
 export function createWorldAnnotationRenderer(viewer) {
   const dataSource = new Cesium.CustomDataSource('gev-annotations');
   viewer.dataSources.add(dataSource);
-
-  // Register the GevRouteFlow fabric once so Cesium's Material.fromType() can build the
-  // material the route pipeline renders. The animated `time` uniform is read straight
-  // from performance.now() inside FlowMaterialProperty.getValue (which Cesium calls each
-  // rendered frame with the live uniforms object), so the dashes flow with no extra
-  // per-frame bookkeeping.
-  ensureFlowFabricRegistered();
 
   function colorFor(anno) {
     return Cesium.Color.fromCssColorString(PALETTE[anno.color] || PALETTE.primary);
@@ -162,9 +157,18 @@ export function createWorldAnnotationRenderer(viewer) {
       }));
       if (anno.label) entities.push(labelMarker(anno, base, { point: false }));
     } else if (anno.type === 'route' && Array.isArray(anno.path) && anno.path.length >= 2) {
-      // A real path (street-following) draped on the 3D tiles, with dashes that
-      // FLOW toward the destination (custom st.s + time material; works on the
-      // clamped/classified ground polyline).
+      /*
+       * A real path (street-following) draped on the 3D tiles, drawn SOLID.
+       *
+       * This used to be dashes flowing toward the destination, on a custom
+       * st.s + time material. It looked alive, and that was the problem: a
+       * route is a fact about the road, not an event in progress, and a line
+       * that keeps moving reads as one. Maps that people already know how to
+       * read draw it as a single unbroken band of colour, so this does too.
+       *
+       * The alpha is still the annotation's own fade in and out - a one-shot
+       * lifecycle, not a loop.
+       */
       const positions = Cesium.Cartesian3.fromDegreesArray(
         anno.path.flatMap((p) => [p.lon, p.lat]),
       );
@@ -172,7 +176,7 @@ export function createWorldAnnotationRenderer(viewer) {
         polyline: {
           positions,
           width: 9,
-          material: new FlowMaterialProperty(PALETTE[anno.color] || PALETTE.primary),
+          material: new Cesium.ColorMaterialProperty(liveColor(anno, base, { alpha: 1 })),
           clampToGround: true,
           classificationType: CLASSIFY,
         },
@@ -293,87 +297,6 @@ function pulseFactor() {
   // 0.6 .. 1.0 sinusoid at ~0.8 Hz
   return 0.8 + 0.2 * Math.sin(performance.now() * 0.005);
 }
-
-/**
- * A custom Fabric polyline material whose dashes flow toward the destination.
- * `materialInput.st.s` is the along-line coordinate (0 = origin, 1 = destination),
- * so `fract(s*repeat - time*speed)` scrolls the pattern toward the end. Works on
- * a clamped/classified ground polyline (PolylineMaterialAppearance supports it).
- */
-function makeRouteFlowMaterial(colorCss) {
-  return new Cesium.Material({
-    fabric: {
-      type: 'GevRouteFlow',
-      uniforms: {
-        color: Cesium.Color.fromCssColorString(colorCss).withAlpha(0.95),
-        time: 0.0,
-        repeat: 64.0, // dash cells along the whole route
-        duty: 0.46, // fraction of each cell that is "on"
-        speed: 0.55, // cells per second toward the destination
-      },
-      source: `
-        czm_material czm_getMaterial(czm_materialInput materialInput) {
-          czm_material m = czm_getDefaultMaterial(materialInput);
-          float s = materialInput.st.s;                  // 0 origin -> 1 dest
-          float flow = fract(s * repeat - time * speed); // scroll toward dest
-          float on = smoothstep(duty + 0.08, duty - 0.08, flow);
-          // keep a faint baseline so the whole route stays readable between dashes
-          float a = max(on, 0.18);
-          m.diffuse = color.rgb;
-          m.emission = color.rgb * on * 0.9;             // glow on the lit cells
-          m.alpha = color.a * a;
-          return m;
-        }`,
-    },
-  });
-}
-
-let _flowFabricRegistered = false;
-/** Register the GevRouteFlow fabric ONCE so Cesium's `Material.fromType('GevRouteFlow')`
- *  can build the material the render pipeline uses. Constructing one Material with the
- *  fabric caches it under its type name. */
-function ensureFlowFabricRegistered() {
-  if (_flowFabricRegistered) return;
-  makeRouteFlowMaterial('#ffffff'); // side effect: registers the 'GevRouteFlow' type
-  _flowFabricRegistered = true;
-}
-
-/**
- * MaterialProperty for the animated route. Cesium builds the rendered Material once
- * from getType() (our registered GevRouteFlow fabric), then EACH FRAME calls
- * getValue(time, material.uniforms) and uses whatever we write INTO that uniforms
- * object — it ignores the return value. So getValue writes color/time/repeat/duty/
- * speed straight onto `result` (the live uniforms). Writing the animated `time` here
- * is what actually makes the dashes flow on the GPU. (The prior versions either
- * returned a standalone Material Cesium never rendered, or treated `result` as a
- * Material — both left the real uniforms untouched, so nothing animated.)
- */
-function FlowMaterialProperty(colorCss) {
-  this._color = Cesium.Color.fromCssColorString(colorCss).withAlpha(0.95);
-  this._definitionChanged = new Cesium.Event();
-}
-Object.defineProperties(FlowMaterialProperty.prototype, {
-  isConstant: { get() { return false; } }, // re-evaluated each frame → it animates
-  definitionChanged: { get() { return this._definitionChanged; } },
-});
-FlowMaterialProperty.prototype.getType = function getType() {
-  return 'GevRouteFlow';
-};
-FlowMaterialProperty.prototype.getValue = function getValue(time, result) {
-  // `result` IS the live uniforms object Cesium renders — write into it directly.
-  // `time` is read straight from the wall clock so the dashes flow every rendered
-  // frame (the scene renders continuously; no requestRenderMode here).
-  if (!Cesium.defined(result)) result = {};
-  result.color = this._color;
-  result.time = performance.now() / 1000; // the per-frame animated value
-  result.repeat = 64.0;
-  result.duty = 0.46;
-  result.speed = 0.55;
-  return result;
-};
-FlowMaterialProperty.prototype.equals = function equals(other) {
-  return this === other;
-};
 
 /** Evenly down-sample a [[lon,lat],...] ring to at most n points (keeps shape). */
 function decimateRing(ring, n) {

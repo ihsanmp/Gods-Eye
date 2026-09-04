@@ -32,6 +32,8 @@ const PALETTE = {
   cyan: '#39d0ff',
   green: '#5dff9f',
   red: '#ff6b6b',
+  /* Kept in step with the world renderer: the route's blue. */
+  blue: '#1a73e8',
 };
 
 // Altitude-scaled marker geometry. Zoomed in (≤ NEAR_H) reticles are full-size; pulling
