@@ -449,6 +449,7 @@ export function createAnnotationEngine({
         screenX: spec.screenX,
         screenY: spec.screenY,
         footprint: false,
+        allowDistant: spec.allowDistant === true,
         signal,
       });
       const to = await resolveTarget({
@@ -459,6 +460,7 @@ export function createAnnotationEngine({
         screenX: spec.toScreenX,
         screenY: spec.toScreenY,
         footprint: false,
+        allowDistant: spec.allowDistant === true,
         signal,
       });
       if (!from || !to) {
@@ -494,6 +496,9 @@ export function createAnnotationEngine({
       // timeout — field test 7 logs); deferring them lets the mark appear and the tool
       // result return while the outline resolves, then upgrades the mark in place.
       deferFootprint: wantFootprint,
+      // Threaded on every branch, not just route: a spec that sets allowDistant
+      // and silently has it ignored is worse than one that never had the option.
+      allowDistant: spec.allowDistant === true,
       signal,
     });
   }
