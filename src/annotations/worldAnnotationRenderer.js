@@ -7,13 +7,22 @@ import * as Cesium from 'cesium';
  * live in the 3D scene they track the camera, sit at the right depth, and are
  * occluded by the photoreal buildings the way a real marker would be.
  *
- * IMPORTANT — drawing on Google Photorealistic 3D Tiles:
- *   The Cesium globe is hidden, so there is no terrain to clamp to. Ground
- *   geometry (areas, rings, connectors) is draped onto the photoreal tiles with
- *   `classificationType: CESIUM_3D_TILE`; points and labels clamp to the tile
- *   surface with `heightReference: CLAMP_TO_GROUND` (which requires the tileset
- *   to have `enableCollision = true`, set in initAnnotations). This keeps marks
- *   sitting ON the world instead of buried at sea level.
+ * IMPORTANT — what ground geometry drapes onto:
+ *   There are two surfaces this app can be showing, and only one of them exists
+ *   at a time.
+ *     - Google Photorealistic 3D Tiles: the Cesium globe is HIDDEN, so there is
+ *       no terrain and the drape target is the tileset.
+ *     - OSM / Bing (the keyless stacks, and the default since GEV_MAP_STACK):
+ *       there is no tileset at all and the drape target is the globe.
+ *   So the classification type is BOTH. It was CESIUM_3D_TILE, which silently
+ *   drew nothing whenever photoreal was off: a route reported its distance in
+ *   the panel while no line appeared on the map, because the classification
+ *   target it was drawn against did not exist.
+ *
+ *   Points and labels clamp with `heightReference: CLAMP_TO_GROUND`, which on
+ *   the photoreal stack requires the tileset to have `enableCollision = true`
+ *   (set in initAnnotations) and on the globe stacks clamps to terrain. Either
+ *   way marks sit ON the world instead of buried at sea level.
  *
  * Live alpha (fade in/out) and pulsing are driven by CallbackProperty so they
  * animate every render without the engine touching them per frame.
@@ -30,7 +39,7 @@ const PALETTE = {
   red: '#ff6b6b',
 };
 
-const CLASSIFY = Cesium.ClassificationType.CESIUM_3D_TILE;
+const CLASSIFY = Cesium.ClassificationType.BOTH;
 const CLAMP = Cesium.HeightReference.CLAMP_TO_GROUND;
 
 export function createWorldAnnotationRenderer(viewer) {
