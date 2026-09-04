@@ -2729,6 +2729,197 @@ const GEOCODE_PHRASE_ALIASES = [
 const GEOCODE_GENERIC_PREFIX = /^(kampus|gedung|komplek|kompleks|area|kawasan|daerah|lokasi|tempat)\s+/i;
 
 /**
+ * Category vocabulary -> OSM selectors.
+ *
+ * Nominatim matches place NAMES, so a bare category noun finds only places that
+ * happen to be CALLED that: "kafe" returns a village in the DR Congo, "apotek" a
+ * pharmacy in Paris, "tempat makan" a cemetery whose name contains the words.
+ * These asks are not name lookups at all - they are "what is around me" - and
+ * that is an Overpass question.
+ *
+ * Indonesian first, with the English and colloquial forms people actually type.
+ * Keys are matched after normalisation (lowercased, proximity words stripped).
+ */
+const GEOCODE_CATEGORIES = {
+  mall: ['shop=mall', 'shop=department_store'],
+  'pusat belanja': ['shop=mall', 'shop=department_store'],
+  'pusat perbelanjaan': ['shop=mall', 'shop=department_store'],
+  supermarket: ['shop=supermarket'],
+  minimarket: ['shop=convenience'],
+  pasar: ['amenity=marketplace'],
+  toko: ['shop'],
+
+  'tempat makan': ['amenity=restaurant', 'amenity=fast_food', 'amenity=food_court'],
+  'rumah makan': ['amenity=restaurant', 'amenity=food_court'],
+  restoran: ['amenity=restaurant'],
+  restaurant: ['amenity=restaurant'],
+  warung: ['amenity=restaurant', 'amenity=fast_food'],
+  kuliner: ['amenity=restaurant', 'amenity=fast_food', 'amenity=food_court'],
+  kafe: ['amenity=cafe'],
+  cafe: ['amenity=cafe'],
+  kopi: ['amenity=cafe'],
+  bakery: ['shop=bakery'],
+  'toko roti': ['shop=bakery'],
+
+  'tempat rekreasi': ['tourism=attraction', 'leisure=park', 'tourism=theme_park'],
+  rekreasi: ['tourism=attraction', 'leisure=park', 'tourism=theme_park'],
+  wisata: ['tourism=attraction', 'tourism=museum', 'tourism=viewpoint'],
+  'tempat wisata': ['tourism=attraction', 'tourism=museum', 'tourism=viewpoint'],
+  taman: ['leisure=park'],
+  museum: ['tourism=museum'],
+  bioskop: ['amenity=cinema'],
+  'kebun binatang': ['tourism=zoo'],
+  pantai: ['natural=beach'],
+
+  hotel: ['tourism=hotel'],
+  penginapan: ['tourism=hotel', 'tourism=guest_house'],
+  hostel: ['tourism=hostel'],
+
+  spbu: ['amenity=fuel'],
+  'pom bensin': ['amenity=fuel'],
+  bensin: ['amenity=fuel'],
+  atm: ['amenity=atm'],
+  bank: ['amenity=bank'],
+  apotek: ['amenity=pharmacy'],
+  apotik: ['amenity=pharmacy'],
+  'rumah sakit': ['amenity=hospital'],
+  rs: ['amenity=hospital'],
+  puskesmas: ['amenity=clinic'],
+  klinik: ['amenity=clinic'],
+  dokter: ['amenity=doctors'],
+  'kantor polisi': ['amenity=police'],
+  polisi: ['amenity=police'],
+  'kantor pos': ['amenity=post_office'],
+  masjid: ['amenity=place_of_worship'],
+  gereja: ['amenity=place_of_worship'],
+  sekolah: ['amenity=school'],
+  kampus: ['amenity=university'],
+  universitas: ['amenity=university'],
+  perpustakaan: ['amenity=library'],
+  toilet: ['amenity=toilets'],
+  parkir: ['amenity=parking'],
+
+  halte: ['highway=bus_stop'],
+  terminal: ['amenity=bus_station'],
+  stasiun: ['railway=station'],
+  bandara: ['aeroway=aerodrome'],
+};
+
+/**
+ * Words that express "near me" rather than naming anything. Stripping them lets
+ * "spbu terdekat" and "mall di sekitar sini" reach the same category as "spbu".
+ */
+const GEOCODE_PROXIMITY_WORDS = /\b(terdekat|paling dekat|di sekitar( sini)?|sekitar sini|dekat sini|di dekat sini|near ?by|nearest|around here)\b/gi;
+
+/**
+ * Resolve a query to a category, or null when it names something specific.
+ *
+ * Deliberately EXACT after normalisation, never a substring test: "Mall Taman
+ * Anggrek" and "Hotel Tentrem" name one building each and must stay name
+ * lookups. Only a query that is nothing BUT a category word is a category ask.
+ *
+ * @param {string} query
+ * @returns {string[]|null} OSM selectors, or null.
+ */
+function geocodeCategorySelectors(query) {
+  const normalized = String(query || '')
+    .toLowerCase()
+    .replace(GEOCODE_PROXIMITY_WORDS, ' ')
+    .replace(/[^a-z\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!normalized) return null;
+  return GEOCODE_CATEGORIES[normalized] || null;
+}
+
+/** Straight-line metres between two lat/lon pairs, for ranking category hits. */
+function geocodeDistanceM(aLat, aLon, bLat, bLon) {
+  const R = 6371000;
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const dLat = toRad(bLat - aLat);
+  const dLon = toRad(bLon - aLon);
+  const h = Math.sin(dLat / 2) ** 2
+    + Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/** How many category hits to return, and how far out to look when the box is tiny. */
+const GEOCODE_CATEGORY_LIMIT = 12;
+const GEOCODE_CATEGORY_MIN_RADIUS_M = 3000;
+
+/**
+ * Answer a category ask from Overpass, ranked by distance from the view centre.
+ *
+ * Requires a bias box: "every mall on Earth" is not a question with an answer,
+ * and without a centre there is nothing to rank by. Returns [] rather than
+ * throwing so the caller can fall through to the ordinary name search.
+ *
+ * @param {string[]} selectors OSM selectors, e.g. ['amenity=cafe'].
+ * @param {number[]} box [south, west, north, east].
+ * @returns {Promise<Array<object>>} Results in the /api/geocode result shape.
+ */
+async function overpassCategorySearch(selectors, box) {
+  const [south, west, north, east] = box;
+  const centreLat = (south + north) / 2;
+  const centreLon = (west + east) / 2;
+  // A street-level box holds almost nothing; widen to a floor so "apotek" while
+  // zoomed onto one junction still finds the pharmacies on the next street.
+  const halfSpanM = geocodeDistanceM(centreLat, centreLon, north, centreLon);
+  const radiusM = Math.max(halfSpanM, GEOCODE_CATEGORY_MIN_RADIUS_M);
+
+  // `nwr` covers nodes, ways and relations - a mall is usually a way, an ATM a
+  // node. `center` gives ways/relations a single point without their geometry.
+  const parts = selectors
+    .map((sel) => {
+      const [key, value] = sel.split('=');
+      const filter = value ? `["${key}"="${value}"]` : `["${key}"]`;
+      return `nwr${filter}(around:${Math.round(radiusM)},${centreLat.toFixed(6)},${centreLon.toFixed(6)});`;
+    })
+    .join('');
+  const body = `data=${encodeURIComponent(`[out:json][timeout:20];(${parts});out center tags ${GEOCODE_CATEGORY_LIMIT * 6};`)}`;
+
+  // fetchOverpassPayload reports outcome as {status, rateLimited, runtimeError} -
+  // it has no `ok` field, and treating a missing one as failure silently turned
+  // every category search into an empty result.
+  //
+  // Upstream trouble THROWS while a healthy-but-empty answer returns []. The
+  // caller tells the user very different things for the two - "search is down"
+  // versus "nothing of that kind nearby" - and cannot if both look the same.
+  const payload = await fetchOverpassPayload(body, 4 * 1024 * 1024);
+  if (!payload || payload.status !== 200 || payload.rateLimited || payload.runtimeError) {
+    throw new Error(`Overpass unavailable (status ${payload?.status ?? 'none'})`);
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(payload.body);
+  } catch {
+    throw new Error('Overpass returned unparseable JSON');
+  }
+
+  const rows = [];
+  for (const element of parsed?.elements || []) {
+    const lat = Number(element.lat ?? element.center?.lat);
+    const lon = Number(element.lon ?? element.center?.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+    const tags = element.tags || {};
+    const name = String(tags.name || '').trim();
+    // An unnamed node is a real place but an unusable answer: it cannot be
+    // spoken, labelled on the map, or told apart from its neighbours.
+    if (!name) continue;
+    rows.push({
+      lat,
+      lon,
+      label: [name, tags['addr:street'], tags['addr:city']].filter(Boolean).join(', '),
+      osmType: tags.amenity || tags.shop || tags.tourism || tags.leisure || '',
+      bounds: null,
+      distanceM: Math.round(geocodeDistanceM(centreLat, centreLon, lat, lon)),
+    });
+  }
+  rows.sort((a, b) => a.distanceM - b.distanceM);
+  return rows.slice(0, GEOCODE_CATEGORY_LIMIT);
+}
+
+/**
  * Build the ordered query variants to try for one search term. The raw query
  * always goes first so an exact OSM name is never second-guessed.
  *
@@ -2871,7 +3062,47 @@ function nominatimProxy() {
           const cacheKey = `${query.toLowerCase()}::${box ? box.join(',') : 'global'}`;
           const hit = _nominatimCache.get(cacheKey);
           if (hit && Date.now() - hit.at < NOMINATIM_CACHE_TTL_MS) {
-            return send(200, { source: 'CACHE', results: hit.results });
+            return send(200, { source: hit.source || 'CACHE', results: hit.results });
+          }
+
+          // A bare category noun ("mall", "tempat makan", "spbu terdekat") is a
+          // "what is around me" question, which a name index cannot answer -
+          // Nominatim returns whatever happens to be CALLED that, anywhere on
+          // Earth. Overpass answers it properly, ranked by distance from the
+          // view centre. Needs the box: without a centre there is nothing to
+          // rank by, so a keyless global "mall" still falls through to a name
+          // search rather than inventing an answer.
+          const categorySelectors = box ? geocodeCategorySelectors(query) : null;
+          if (categorySelectors) {
+            let categoryResults = [];
+            let categoryError = null;
+            try {
+              categoryResults = await overpassCategorySearch(categorySelectors, box);
+            } catch (error) {
+              categoryError = error;
+              console.warn('[geocode] category search failed:', error?.message || error);
+            }
+            if (categoryResults.length) {
+              _nominatimCache.set(cacheKey, {
+                at: Date.now(), results: categoryResults, source: 'OVERPASS',
+              });
+              if (_nominatimCache.size > NOMINATIM_CACHE_MAX_ENTRIES) {
+                _nominatimCache.delete(_nominatimCache.keys().next().value);
+              }
+              return send(200, { source: 'OVERPASS', category: true, results: categoryResults });
+            }
+            // A recognised category NEVER falls through to the name index. That
+            // fall-through is exactly what answered "apotek" with a pharmacy in
+            // Paris and "kafe" with a village in the DR Congo: Nominatim matched
+            // the noun as a NAME, anywhere on Earth, and the result looked like a
+            // real answer. An empty answer that says why is worth more than a
+            // confident wrong one. Not cached - Overpass outages are transient.
+            return send(200, {
+              source: 'OVERPASS',
+              category: true,
+              results: [],
+              reason: categoryError ? 'category-search-unavailable' : 'category-empty-nearby',
+            });
           }
 
           // Nominatim matches place NAMES literally, so a generic Indonesian noun the
