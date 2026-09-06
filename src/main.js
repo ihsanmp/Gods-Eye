@@ -180,13 +180,27 @@ async function init() {
     // are no Google 3D Tiles to carry detail). maximumScreenSpaceError is the tile
     // LOD knob: lower loads finer imagery/terrain at the same camera distance.
     // Both cost GPU, so GEV_RENDER_QUALITY dials them back without a code edit.
+    //
+    // `msaa` and `targetFps` were added after measuring the running app: MSAA
+    // was 4x and the frame rate was uncapped at 60, and those two were the
+    // largest GPU costs on the console with nothing else changed. 4x MSAA on a
+    // full-screen globe is the single most expensive setting here, and an
+    // uncapped 60 fps burns nearly double the GPU of 30 while the render
+    // governor is held in continuous mode by an active layer - which is exactly
+    // when the machine is under load. (When no layer is on, the governor idles
+    // and renders on demand, so the cap costs nothing there.)
     const RENDER_QUALITY_PRESETS = {
-      high: { pixelRatioCap: 2, screenSpaceError: 1.5, tileCache: 300 },
-      balanced: { pixelRatioCap: 1.5, screenSpaceError: 2, tileCache: 200 },
-      performance: { pixelRatioCap: 1, screenSpaceError: 3, tileCache: 100 },
+      high: { pixelRatioCap: 2, screenSpaceError: 1.5, tileCache: 300, msaa: 4, targetFps: 60 },
+      balanced: { pixelRatioCap: 1.5, screenSpaceError: 2, tileCache: 200, msaa: 2, targetFps: 45 },
+      performance: { pixelRatioCap: 1, screenSpaceError: 3, tileCache: 100, msaa: 1, targetFps: 30 },
     };
-    const qualityKey = String(import.meta.env.GEV_RENDER_QUALITY || 'high').toLowerCase();
-    const quality = RENDER_QUALITY_PRESETS[qualityKey] || RENDER_QUALITY_PRESETS.high;
+    // Default is BALANCED, not high. The brief was to reduce this machine's
+    // load, and balanced is the honest reading of that: half the MSAA, a 45 fps
+    // cap, a lighter tile cache and pixel ratio, for a difference most eyes
+    // cannot pick out against the cost it saves. GEV_RENDER_QUALITY=high opts
+    // back into the maximum for a machine that wants it.
+    const qualityKey = String(import.meta.env.GEV_RENDER_QUALITY || 'balanced').toLowerCase();
+    const quality = RENDER_QUALITY_PRESETS[qualityKey] || RENDER_QUALITY_PRESETS.balanced;
     // Turning this off makes Cesium adopt devicePixelRatio as its pixel ratio;
     // resolutionScale then multiplies ON TOP of that, so the cap has to be
     // expressed as a ratio or a 2x display renders 4x and burns 16x the pixels.
@@ -194,6 +208,12 @@ async function init() {
     const devicePixels = window.devicePixelRatio || 1;
     viewer.resolutionScale = Math.min(devicePixels, quality.pixelRatioCap) / devicePixels;
     viewer.scene.globe.tileCacheSize = quality.tileCache;
+    // The two GPU levers the measurement turned up. msaaSamples is read live by
+    // the renderer, and targetFrameRate throttles the render loop - harmless in
+    // idle (render-on-demand) mode, a near-halving of GPU while a layer holds
+    // the scene in continuous mode.
+    viewer.scene.msaaSamples = quality.msaa;
+    viewer.targetFrameRate = quality.targetFps;
 
     // Progressive LOD. The quality preset's screen-space error is a STEADY-STATE
     // target: applying it from frame zero multiplies the tiles that must arrive
