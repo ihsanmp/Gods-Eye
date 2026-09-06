@@ -9678,3 +9678,25 @@ body > #location-bar .location-search-wrap {
 #cctv-video[hidden] {
   display: none;
 }
+
+/*
+ * Region switches in the CCTV panel.
+ *
+ * Wraps, because a catalogue can hold more cities than fit on one line, and a
+ * row that scrolls sideways hides the very switches it exists to offer.
+ */
+.cctv-region-row {
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.cctv-region-row[hidden] {
+  display: none;
+}
+
+.cctv-region-row > button {
+  flex: 0 1 auto;
+  padding: 4px 10px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}

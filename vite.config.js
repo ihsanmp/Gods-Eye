@@ -5432,8 +5432,42 @@ function cctvProxy() {
           const url = new URL(req.url || '/', 'http://localhost');
 
           if (url.pathname === '/sources') {
+            /*
+             * Regions are opt-in, so a catalogue spanning several cities does
+             * not have to be loaded whole.
+             *
+             * Every camera carries a cityId already; this just lets the caller
+             * name the ones it wants. `regions` absent means all of them, which
+             * is what every existing caller expects - the filter has to be
+             * asked for, never assumed, or a client that has not been taught
+             * about regions would silently receive an empty catalogue.
+             *
+             * The available regions are reported either way, so the panel can
+             * draw its switches from what the server actually holds instead of
+             * from a list hard-coded to drift.
+             */
+            const requested = String(url.searchParams.get('regions') || '')
+              .split(',')
+              .map((value) => value.trim().toLowerCase())
+              .filter(Boolean);
+            const wanted = requested.length ? new Set(requested) : null;
+            const visible = wanted
+              ? sources.filter((source) => wanted.has(String(source.cityId || '').toLowerCase()))
+              : sources;
+
+            const regionIndex = new Map();
+            for (const source of sources) {
+              const id = String(source.cityId || '').toLowerCase();
+              if (!id) continue;
+              const entry = regionIndex.get(id)
+                || { id, city: source.city || id, count: 0 };
+              entry.count += 1;
+              regionIndex.set(id, entry);
+            }
+
             const body = {
-              sources: sources.map((source) => ({
+              regions: [...regionIndex.values()].sort((a, b) => a.city.localeCompare(b.city)),
+              sources: visible.map((source) => ({
                 id: source.id,
                 name: source.name,
                 city: source.city,

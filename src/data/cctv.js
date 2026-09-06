@@ -1087,15 +1087,67 @@ function cityIdByName(cityName) {
   return null;
 }
 
+/** Regions the operator has switched on, and everything the catalogue holds. */
+const CCTV_REGION_STORAGE_KEY = 'godsEyeView.cctv.regions.v1';
+let _enabledRegions = null;   // null = every region
+let _availableRegions = [];
+
+/** Read the stored region choice. A missing entry means "all", not "none". */
+function readStoredRegions() {
+  try {
+    const raw = localStorage.getItem(CCTV_REGION_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length ? parsed.map(String) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Regions the catalogue offers, as last reported by the backend. */
+export function cctvRegions() {
+  return _availableRegions.map((region) => ({
+    ...region,
+    enabled: !_enabledRegions || _enabledRegions.includes(region.id),
+  }));
+}
+
+/**
+ * Choose which regions load.
+ *
+ * A catalogue that spans several cities should not have to arrive whole - each
+ * camera is a live HLS source, and loading a region nobody is watching costs
+ * bandwidth and map clutter for nothing. An empty or missing selection means
+ * every region, so a fresh install still sees the catalogue it always did.
+ *
+ * @param {string[]|null} regionIds
+ * @returns {void}
+ */
+export function setCctvRegions(regionIds) {
+  const list = Array.isArray(regionIds) && regionIds.length ? regionIds.map(String) : null;
+  _enabledRegions = list;
+  try {
+    if (list) localStorage.setItem(CCTV_REGION_STORAGE_KEY, JSON.stringify(list));
+    else localStorage.removeItem(CCTV_REGION_STORAGE_KEY);
+  } catch { /* private mode - the choice just does not persist */ }
+}
+
 /**
  * Fetches configured camera sources from the backend.
  * @returns {Promise<Object[]>} Array of raw source objects, or empty on failure.
  */
 async function loadCameraSources() {
   try {
-    const resp = await fetch(SOURCE_ENDPOINT, { cache: 'no-store' });
+    if (_enabledRegions === null) _enabledRegions = readStoredRegions();
+    const query = _enabledRegions?.length
+      ? `?regions=${encodeURIComponent(_enabledRegions.join(','))}`
+      : '';
+    const resp = await fetch(`${SOURCE_ENDPOINT}${query}`, { cache: 'no-store' });
     if (!resp.ok) return [];
     const data = await resp.json();
+    // Reported on every load, so the panel's switches follow the catalogue the
+    // server actually holds rather than a list in the client that would drift.
+    if (Array.isArray(data?.regions)) _availableRegions = data.regions;
     if (!Array.isArray(data?.sources)) return [];
     return data.sources;
   } catch {

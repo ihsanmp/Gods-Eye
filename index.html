@@ -662,6 +662,10 @@
       </div>
       <div id="cctv-source-badge" role="status" aria-live="polite">SOURCE · UNKNOWN</div>
       <div id="cctv-meta">Enable CCTV to load camera intersections</div>
+      <!-- Region switches, drawn from whatever the backend catalogue holds.
+           Each region is a set of live HLS cameras, so loading one nobody is
+           watching costs bandwidth and map clutter for nothing. -->
+      <div id="cctv-regions" class="cctv-controls cctv-region-row" role="group" aria-label="Wilayah CCTV"></div>
       <div class="cctv-controls">
         <button id="cctv-enable-btn" class="scene-btn">CCTV OFF</button>
         <button id="cctv-nearest-btn" class="scene-btn">NEAREST</button>

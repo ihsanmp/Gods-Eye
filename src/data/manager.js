@@ -1821,6 +1821,45 @@ export class DataLayerManager {
    * then removes it from the manager. This is the proper cleanup path
    * that was previously missing.
    */
+  /**
+   * Rebuild one layer from scratch, keeping it registered.
+   *
+   * Some layers read configuration once, in init(), and hold the result for the
+   * session - the CCTV catalogue is fetched there, so changing WHICH cameras
+   * should load has no effect until init runs again. Toggling enable does not
+   * do it: the enable path only initialises a layer that has never been
+   * initialised. destroyLayer() would, but it removes the layer from the
+   * registry entirely and registrations are sealed, so it could never come
+   * back.
+   *
+   * This walks the documented lifecycle instead: disable, let the module tear
+   * its own state down, clear the flag that says init has already happened,
+   * and enable again - which then takes the `!entry.initialized` branch and
+   * rebuilds. A layer that was off stays off; it will pick the new
+   * configuration up whenever it is next switched on.
+   *
+   * @param {string} layerId
+   * @returns {Promise<boolean>} False when there is no such layer.
+   */
+  async reinitializeLayer(layerId) {
+    const entry = this.layers.get(layerId);
+    if (!entry) return false;
+    const wasEnabled = entry.enabled;
+    if (wasEnabled) await this.setEnabled(layerId, false, { origin: 'user' });
+    if (typeof entry.module.destroy === 'function') {
+      try {
+        await entry.module.destroy(this.viewer);
+      } catch (error) {
+        // A module that cannot tear down cleanly must not strand the layer in
+        // a state where it can never be rebuilt either.
+        console.warn(`[data] ${layerId} destroy during reinitialize failed:`, error);
+      }
+    }
+    entry.initialized = false;
+    if (wasEnabled) await this.setEnabled(layerId, true, { origin: 'user' });
+    return true;
+  }
+
   async destroyLayer(layerId) {
     const entry = this.layers.get(layerId);
     if (!entry || entry.destroying) return false;

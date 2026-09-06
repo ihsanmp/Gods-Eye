@@ -65,7 +65,7 @@ import flightsLayer from './data/flights.js';
 import militaryFlightsLayer from './data/militaryFlights.js';
 import { isTr3b, toggleTr3b } from './data/tr3bRegistry.js';
 import satellitesLayer from './data/satellites.js';
-import cctvLayer, { playCameraStream } from './data/cctv.js';
+import cctvLayer, { cctvRegions, playCameraStream, setCctvRegions } from './data/cctv.js';
 import radioLayer, {
   buildRadioTunerTicks,
   radioTunerCommitSlot,
@@ -7478,6 +7478,8 @@ export class StyleManager {
       }
     }
 
+    this._renderCctvRegions();
+
     // A live camera plays; a still one is fetched. Every camera in the
     // catalogue is HLS, so this is the path that actually shows a picture.
     this._syncCctvPreviewStream(enabled ? activeCamera : null);
@@ -7501,6 +7503,75 @@ export class StyleManager {
 
     this._syncCctvSourceBadge(activeCamera, enabled);
     this._typeCctvSummary(state?.summary || 'Enable CCTV to start camera-linked intelligence summaries.');
+  }
+
+  /**
+   * Draw the region switches from what the backend catalogue actually holds.
+   *
+   * Not a hard-coded list: the server reports its regions on every source load,
+   * so a catalogue that gains a city gains a switch without this file learning
+   * about it. Turning one off means its cameras are never fetched at all -
+   * every one of them is a live HLS source, and the point of the switch is that
+   * a region nobody is watching costs nothing.
+   *
+   * @returns {void}
+   */
+  _renderCctvRegions() {
+    const host = document.getElementById('cctv-regions');
+    if (!host) return;
+    const regions = cctvRegions();
+    // One region is not a choice; the row would only take space and imply the
+    // catalogue has more in it than it does.
+    if (regions.length < 2) {
+      host.hidden = true;
+      host.innerHTML = '';
+      return;
+    }
+    host.hidden = false;
+    const signature = regions.map((r) => `${r.id}:${r.enabled ? 1 : 0}`).join(',');
+    if (host.dataset.signature === signature) return;
+    host.dataset.signature = signature;
+    host.innerHTML = '';
+
+    for (const region of regions) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `scene-btn${region.enabled ? ' active' : ''}`;
+      button.dataset.regionId = region.id;
+      button.setAttribute('aria-pressed', region.enabled ? 'true' : 'false');
+      button.title = `${region.city} - ${region.count} kamera`;
+      button.textContent = region.city.toUpperCase();
+      button.addEventListener('click', () => { void this._toggleCctvRegion(region.id); });
+      host.appendChild(button);
+    }
+  }
+
+  /**
+   * Turn one region on or off and reload the catalogue.
+   *
+   * Refuses to leave every region off: an empty selection means "all" to the
+   * loader, so switching the last one off would load MORE than it did, which is
+   * the opposite of what the switch is for.
+   *
+   * @param {string} regionId
+   * @returns {Promise<void>}
+   */
+  async _toggleCctvRegion(regionId) {
+    const regions = cctvRegions();
+    const next = regions
+      .filter((region) => (region.id === regionId ? !region.enabled : region.enabled))
+      .map((region) => region.id);
+    if (!next.length) {
+      this._showToast('Setidaknya satu wilayah harus menyala.');
+      return;
+    }
+    setCctvRegions(next.length === regions.length ? null : next);
+    this._renderCctvRegions();
+    // The catalogue is read once, in the layer's init, so a plain off/on will
+    // not pick the new regions up - the enable path only initialises a layer
+    // that has never been initialised.
+    await this.dataManager?.reinitializeLayer?.('cctv');
+    this._renderCctvRegions();
   }
 
   /**
