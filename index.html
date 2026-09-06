@@ -660,6 +660,15 @@
       <div id="cctv-frame-wrap" class="cctv-frame-wrap">
         <img id="cctv-frame" alt="CCTV feed frame" />
       </div>
+      <!-- Manual size. The panel is right-aligned in its rail, so widening it
+           grows the picture leftward over the map instead of pushing anything
+           off screen. -->
+      <div class="cctv-controls cctv-zoom-row" role="group" aria-label="Ukuran tampilan CCTV">
+        <button id="cctv-zoom-out" type="button" class="scene-btn" title="Perkecil tampilan CCTV" aria-label="Perkecil tampilan CCTV">&#8722;</button>
+        <span id="cctv-zoom-label" aria-live="polite">100%</span>
+        <button id="cctv-zoom-in" type="button" class="scene-btn" title="Perbesar tampilan CCTV" aria-label="Perbesar tampilan CCTV">+</button>
+        <button id="cctv-zoom-reset" type="button" class="scene-btn" title="Kembalikan ke ukuran asal">RESET</button>
+      </div>
       <div id="cctv-source-badge" role="status" aria-live="polite">SOURCE · UNKNOWN</div>
       <div id="cctv-meta">Enable CCTV to load camera intersections</div>
       <!-- Region switches, drawn from whatever the backend catalogue holds.

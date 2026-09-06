@@ -242,6 +242,13 @@ function describeWeatherCode(code) {
   return 'Badai petir';
 }
 
+/**
+ * Widths the CCTV panel can take, in pixels. The first is the rail's own width,
+ * so step 0 is "as it was" and RESET is exact rather than approximate.
+ */
+const CCTV_ZOOM_STEPS = Object.freeze([330, 430, 560, 720, 920]);
+const CCTV_ZOOM_STORAGE_KEY = 'godsEyeView.cctv.panelWidth.v1';
+
 /** Duration (ms) for shader intensity crossfade between style presets. */
 const TRANSITION_DURATION_MS = 500;
 /** Map of style name to its GLSL shader module for post-process stages. */
@@ -6969,6 +6976,8 @@ export class StyleManager {
   _initCctvPanel() {
     if (!this._cctvPanel) return;
 
+    this._initCctvZoom();
+
     this._cctvEnableBtn?.addEventListener('click', async () => {
       await this._toggleCctvEnabled();
     });
@@ -7503,6 +7512,81 @@ export class StyleManager {
 
     this._syncCctvSourceBadge(activeCamera, enabled);
     this._typeCctvSummary(state?.summary || 'Enable CCTV to start camera-linked intelligence summaries.');
+  }
+
+  /**
+   * Manual size for the CCTV view.
+   *
+   * The rail is a fixed 330px and right-aligned, so widening the panel grows
+   * the picture LEFT over the map instead of pushing anything off screen. The
+   * width is what moves, not the video: the feed is already as wide as the
+   * panel allows, so scaling it alone would only add letterboxing.
+   *
+   * Steps rather than a free drag. A drag handle on a panel that also scrolls
+   * and collapses fights both of those, and the useful sizes here are a short
+   * list - glance, watch, and read a number plate.
+   * @returns {void}
+   */
+  _initCctvZoom() {
+    const out = document.getElementById('cctv-zoom-out');
+    const inn = document.getElementById('cctv-zoom-in');
+    const reset = document.getElementById('cctv-zoom-reset');
+    if (!out || !inn || !reset) return;
+
+    const stored = Number(localStorage.getItem(CCTV_ZOOM_STORAGE_KEY));
+    this._cctvZoomStep = CCTV_ZOOM_STEPS.includes(stored)
+      ? CCTV_ZOOM_STEPS.indexOf(stored)
+      : 0;
+
+    const step = (delta) => {
+      const next = this._cctvZoomStep + delta;
+      if (next < 0 || next >= CCTV_ZOOM_STEPS.length) return;
+      this._cctvZoomStep = next;
+      this._applyCctvZoom();
+    };
+    out.addEventListener('click', () => step(-1));
+    inn.addEventListener('click', () => step(1));
+    reset.addEventListener('click', () => { this._cctvZoomStep = 0; this._applyCctvZoom(); });
+
+    // A window that shrank below the chosen size would leave the panel running
+    // off the left edge, so the clamp is re-applied on resize.
+    window.addEventListener('resize', () => this._applyCctvZoom());
+    this._applyCctvZoom();
+  }
+
+  /** Put the chosen width on the panel, clamped to what the window can show. */
+  _applyCctvZoom() {
+    const panel = document.getElementById('cctv-panel');
+    if (!panel) return;
+    const wanted = CCTV_ZOOM_STEPS[this._cctvZoomStep] ?? CCTV_ZOOM_STEPS[0];
+    /*
+     * Leave the rail's own right offset plus a margin, so the panel can never
+     * reach past the left edge of the window.
+     *
+     * A window width of 0 is not a small window, it is a window that has not
+     * been measured - a hidden tab, a pane with no layout yet. Clamping to it
+     * would pin the panel at its smallest size and refuse every enlargement,
+     * so an unmeasurable window clamps to nothing at all.
+     */
+    const viewport = window.innerWidth;
+    const room = viewport > CCTV_ZOOM_STEPS[0]
+      ? Math.max(CCTV_ZOOM_STEPS[0], viewport - 140)
+      : Infinity;
+    const width = Math.min(wanted, room);
+    panel.style.setProperty('--cctv-panel-width', `${width}px`);
+
+    const label = document.getElementById('cctv-zoom-label');
+    if (label) {
+      const pct = Math.round((width / CCTV_ZOOM_STEPS[0]) * 100);
+      label.textContent = `${pct}%`;
+    }
+    const out = document.getElementById('cctv-zoom-out');
+    const inn = document.getElementById('cctv-zoom-in');
+    if (out) out.disabled = this._cctvZoomStep <= 0;
+    if (inn) inn.disabled = this._cctvZoomStep >= CCTV_ZOOM_STEPS.length - 1 || width < wanted;
+    try {
+      localStorage.setItem(CCTV_ZOOM_STORAGE_KEY, String(wanted));
+    } catch { /* private mode - the size just does not persist */ }
   }
 
   /**

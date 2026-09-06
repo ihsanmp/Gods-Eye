@@ -9700,3 +9700,35 @@ body > #location-bar .location-search-wrap {
   font-size: 10px;
   letter-spacing: 0.06em;
 }
+
+/*
+ * Manual size for the CCTV view.
+ *
+ * The rail is 330px and right-aligned, so a panel wider than its rail grows
+ * LEFT, out over the map, rather than pushing anything off screen. The width
+ * is a variable so one number moves the whole panel and the picture inside it
+ * keeps its own 16:9 - scaling the video alone would only add letterboxing,
+ * since it is already as wide as the panel allows.
+ */
+#right-context-rail #cctv-panel:not(.collapsed) {
+  width: var(--cctv-panel-width, 100%);
+  max-width: none;
+}
+
+.cctv-zoom-row {
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.cctv-zoom-row > button {
+  flex: 0 0 auto;
+  min-width: 34px;
+  padding: 4px 8px;
+}
+
+#cctv-zoom-label {
+  flex: 1 1 auto;
+  text-align: center;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
