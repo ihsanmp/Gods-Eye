@@ -16,6 +16,7 @@ import {
   UtensilsCrossed
 } from 'lucide-react';
 import { AppleSpotlight } from '@/components/ui/apple-spotlight';
+import { lookupIdentifier, type LookupResult } from '@/lib/idLookup';
 import '@/tailwind.css';
 
 /**
@@ -248,6 +249,37 @@ function RouteBar({ destination, onClose }: RouteBarProps) {
   );
 }
 
+/**
+ * The card a phone or plate lookup shows in the bar.
+ *
+ * A flat list of label/value rows with a note stating plainly what is NOT here
+ * - the tracking and the owner identity that were asked for and are not
+ * lawful to provide. Same slot the route bar uses, so it displaces the place
+ * results rather than sitting beside them.
+ */
+function LookupCard({ result, onClose }: { result: LookupResult; onClose: () => void }) {
+  return (
+    <div className="gev-lookup">
+      <div className="gev-lookup-head">
+        <div>
+          <div className="gev-lookup-title">{result.title}</div>
+          <div className="gev-lookup-subtitle">{result.subtitle}</div>
+        </div>
+        <button type="button" onClick={onClose} aria-label="Tutup">TUTUP</button>
+      </div>
+      <dl className="gev-lookup-rows">
+        {result.rows.map((row) => (
+          <div className="gev-lookup-row" key={row.label}>
+            <dt>{row.label}</dt>
+            <dd>{row.value}</dd>
+          </div>
+        ))}
+      </dl>
+      {result.note ? <div className="gev-lookup-note">{result.note}</div> : null}
+    </div>
+  );
+}
+
 function SpotlightHost() {
   /*
    * Starts as an empty list, never undefined.
@@ -266,6 +298,8 @@ function SpotlightHost() {
   /** The place last chosen from the list - what "route to here" means. */
   const [chosen, setChosen] = useState<GeocodeRow | null>(null);
   const [routeOpen, setRouteOpen] = useState(false);
+  /** A phone/plate lookup, shown in place of place results when one matches. */
+  const [lookup, setLookup] = useState<LookupResult | null>(null);
   const rowsRef = useRef<GeocodeRow[]>([]);
   const debounceRef = useRef<number | undefined>(undefined);
   /** The query the debounce is holding, so Enter can run it without waiting. */
@@ -331,6 +365,27 @@ function SpotlightHost() {
       const text = value.trim();
       pendingQueryRef.current = text;
       window.clearTimeout(debounceRef.current);
+
+      /*
+       * A phone number or a plate is answered from local tables, not the map.
+       *
+       * Checked before anything is sent anywhere: these are offline lookups, so
+       * the moment the text reads as one there is no reason to geocode it, and
+       * every reason not to hand "0812..." to a place search that would list
+       * streets whose numbers happen to match. The card displaces the results
+       * list the same way directions do.
+       */
+      const identified = lookupIdentifier(text);
+      if (identified) {
+        abortRef.current?.abort();
+        rowsRef.current = [];
+        setResults([]);
+        setEmptyMessage(null);
+        setLookup(identified);
+        return;
+      }
+      setLookup(null);
+
       if (text.length < 3) {
         abortRef.current?.abort();
         rowsRef.current = [];
@@ -466,6 +521,8 @@ function SpotlightHost() {
       panel={
         routeOpen ? (
           <RouteBar destination={chosen} onClose={() => setRouteOpen(false)} />
+        ) : lookup ? (
+          <LookupCard result={lookup} onClose={() => setLookup(null)} />
         ) : chosen ? (
           /*
            * What the reference offers once a place is picked: the place, and

@@ -48,6 +48,7 @@
     "egm96-universal": "^1.1.1",
     "framer-motion": "^13.2.0",
     "hls.js": "^1.7.1",
+    "libphonenumber-js": "^1.13.12",
     "lucide-react": "^1.41.0",
     "mgrs": "^2.1.0",
     "pbf": "^5.1.2",

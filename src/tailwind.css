@@ -579,3 +579,94 @@
   background: #ffffff;
   color: #374151;
 }
+
+/* ============================================================
+   PHONE / PLATE LOOKUP CARD (in the search bar)
+   ============================================================ */
+
+#spotlight-root .gev-lookup {
+  width: 100%;
+  padding: 12px 18px 14px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  background: #f5f5f5;
+  color: #111318;
+  font-family: Inter, ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif;
+}
+
+#spotlight-root .gev-lookup-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+#spotlight-root .gev-lookup-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+#spotlight-root .gev-lookup-subtitle {
+  margin-top: 1px;
+  font-size: 11.5px;
+  color: #6b7280;
+}
+
+#spotlight-root .gev-lookup-head button {
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  border-radius: 8px;
+  background: #ffffff;
+  color: #374151;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+#spotlight-root .gev-lookup-head button:hover {
+  background: #111318;
+  border-color: #111318;
+  color: #ffffff;
+}
+
+#spotlight-root .gev-lookup-rows {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+#spotlight-root .gev-lookup-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+#spotlight-root .gev-lookup-row dt {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+#spotlight-root .gev-lookup-row dd {
+  margin: 0;
+  text-align: right;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #111318;
+}
+
+#spotlight-root .gev-lookup-note {
+  margin-top: 10px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.05);
+  font-size: 11px;
+  line-height: 1.45;
+  color: #6b7280;
+}
