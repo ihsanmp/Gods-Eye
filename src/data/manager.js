@@ -1953,20 +1953,51 @@ export class DataLayerManager {
     });
   }
 
+  /**
+   * Build the public view of one layer. The single shape both `getAll` and
+   * {@link getLayerView} hand out, so a caller that wants one layer sees
+   * exactly the same fields as a caller that wants all of them.
+   * @param {string} id - Layer id.
+   * @param {object} entry - Internal registry entry.
+   * @returns {object} Public layer view.
+   */
+  _layerView(id, entry) {
+    return {
+      id,
+      name: entry.module.name,
+      icon: entry.module.icon,
+      source: entry.module.source,
+      showInTogglePanel: entry.module.showInTogglePanel !== false,
+      enabled: entry.enabled,
+      lifecycleState: entry.lifecycleState,
+      lifecycleUncertain: entry.lifecycleUncertain,
+      stats: this._normalizedStats(entry),
+    };
+  }
+
+  /**
+   * Public view of ONE layer, without materializing the rest.
+   *
+   * `getAll()` allocates a view object per registered layer, each carrying a
+   * freshly normalized stats object. That is the right shape for the toggle
+   * panel, which draws every row, and the wrong shape for a poller that wants
+   * a single layer twice a second: the traffic sync chip was building fifteen-
+   * odd views and their stats every tick to read one `enabled` flag and one
+   * stats bag, then dropping the rest as garbage.
+   *
+   * @param {string} layerId - Layer id.
+   * @returns {object|null} The same view `getAll` would return for this layer,
+   *   or `null` if no such layer is registered.
+   */
+  getLayerView(layerId) {
+    const entry = this.layers.get(layerId);
+    return entry ? this._layerView(layerId, entry) : null;
+  }
+
   getAll() {
     const result = [];
     for (const [id, entry] of this.layers) {
-      result.push({
-        id,
-        name: entry.module.name,
-        icon: entry.module.icon,
-        source: entry.module.source,
-        showInTogglePanel: entry.module.showInTogglePanel !== false,
-        enabled: entry.enabled,
-        lifecycleState: entry.lifecycleState,
-        lifecycleUncertain: entry.lifecycleUncertain,
-        stats: this._normalizedStats(entry),
-      });
+      result.push(this._layerView(id, entry));
     }
     return result;
   }

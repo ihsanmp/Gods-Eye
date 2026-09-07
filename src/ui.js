@@ -4053,8 +4053,12 @@ export class StyleManager {
    */
   _updateTrafficSyncChip(forceShow = false, now = performance.now()) {
     if (!this._trafficSyncChip || !this._trafficSyncLabel || !this._trafficSyncProgress) return;
-    const layers = this._dataManager?.getAll?.();
-    const traffic = Array.isArray(layers) ? layers.find((layer) => layer.id === 'traffic') : null;
+    // One layer, looked up directly. This runs on a 500 ms ticker whether or
+    // not traffic is on, so the old getAll()+find - which built a view object
+    // and a normalized stats bag for every registered layer, then threw all but
+    // one away - was allocating garbage twice a second for the life of the
+    // session. getLayerView returns the identical shape for the one layer.
+    const traffic = this._dataManager?.getLayerView?.('traffic') || null;
     this._trafficSyncFeedbackState = reduceTrafficSyncFeedback(
       this._trafficSyncFeedbackState,
       { enabled: traffic?.enabled === true, stats: traffic?.stats || {}, forceShow },

@@ -212,17 +212,30 @@ export class IntelHUD {
    * cadences and are cleaned up in {@link destroy}.
    */
   _startTimers() {
+    // Every timer here bails while the HUD is hidden, which is now the state a
+    // fresh console STARTS in (GLOBAL_POST_DEFAULTS.hudVisible is false). The
+    // two cosmetic ones below used to tick regardless: a text write every
+    // second and an inline style write every 800 ms, aimed at elements inside a
+    // HUD nobody was looking at. Cheap each, but they never stopped, and the
+    // style write dirties the element for recalc. Neither is worth a watt on a
+    // machine with no discrete GPU.
+    //
+    // Gating them costs nothing in freshness because `show()` paints both
+    // immediately, the same way it already re-ran the camera and summary
+    // readouts - so a HUD switched on is current in the same frame, not up to
+    // one second stale.
+
     // Timestamp — every second
     this._timestampInterval = setInterval(() => {
-      const el = document.getElementById('hud-timestamp');
-      if (el) el.textContent = this._formatUTC();
+      if (!this._visible) return;
+      this._paintTimestamp();
     }, 1000);
 
     // REC blink — every 800ms
     this._recBlinkInterval = setInterval(() => {
+      if (!this._visible) return;
       this._recBlinkState = !this._recBlinkState;
-      const dot = document.getElementById('hud-rec-dot');
-      if (dot) dot.style.visibility = this._recBlinkState ? 'visible' : 'hidden';
+      this._paintRecDot();
     }, 800);
 
     // Camera-derived data — 4 updates/second (250ms)
@@ -236,6 +249,18 @@ export class IntelHUD {
       if (!this._visible) return;
       void this._updateSummary(true);
     }, HUD_SUMMARY_INTERVAL_MS);
+  }
+
+  /** Write the current UTC time into the HUD clock, if it is mounted. */
+  _paintTimestamp() {
+    const el = document.getElementById('hud-timestamp');
+    if (el) el.textContent = this._formatUTC();
+  }
+
+  /** Write the REC dot to match the current blink phase, if it is mounted. */
+  _paintRecDot() {
+    const dot = document.getElementById('hud-rec-dot');
+    if (dot) dot.style.visibility = this._recBlinkState ? 'visible' : 'hidden';
   }
 
   /**
@@ -752,6 +777,11 @@ export class IntelHUD {
   show() {
     this._visible = true;
     if (this._el) this._el.classList.add('active');
+    // The clock and REC dot are paused while hidden, so paint them here rather
+    // than letting the HUD appear with a stale second or a dot left mid-blink.
+    this._recBlinkState = true;
+    this._paintTimestamp();
+    this._paintRecDot();
     this._updateCameraData(); // immediate update
     this._markSummaryDirty();
     void this._updateSummary(false, true);
