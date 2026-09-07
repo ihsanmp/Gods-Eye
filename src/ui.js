@@ -445,7 +445,24 @@ const GLOBAL_POST_DEFAULTS = {
   bloom: { enabled: false, intensity: BLOOM_INTENSITY_DEFAULT },
   sharpen: { enabled: true, intensity: 49 },
   hudVariant: 'tactical',
-  hudVisible: true,
+  /*
+   * The console OPENS with the intel HUD off.
+   *
+   * This is the first-load baseline and it runs last in init (after
+   * _initHUDToggle), so it is what the fresh view actually shows - the earlier
+   * setMode('on') in the control wiring is finalised here. The HUD is the last
+   * of the old edge chrome, cyan monospace readouts down every side, from a
+   * tactical shell the search bar / fluid menu / panel cards have all moved
+   * past; it read as a second program laid over the new one.
+   *
+   * Off here means genuinely off, not display:none - the HUD gates its
+   * per-frame recompute on `_visible`, so this also stops the work, not just
+   * the pixels. Three things still turn it on, untouched: the Display panel's
+   * HUD button, a tactical style preset (which carries its own
+   * hudVisible:true), and a share link's saved HUD state, which lands on top
+   * of this baseline.
+   */
+  hudVisible: false,
   // Detection is ON for EVERY style on a first run, Normal included (owner
   // directive 2026-08-22: "detect should also be on by default"). It is the
   // same preset object the military styles and Contacts already apply, so there

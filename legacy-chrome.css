@@ -1,0 +1,31 @@
+/*
+ * The old chrome, retired.
+ *
+ * What is left of the original tactical-HUD shell around the edges of the
+ * screen. The rest of this console has moved to one visual language - a
+ * spotlight search bar, a fluid menu, and panels drawn as neutral cards - and
+ * these two pieces were the last that still read as a different program
+ * layered on top of it.
+ *
+ * Only decoration is retired here. Nothing in this file hides a control, a
+ * readout anyone acts on, or an attribution:
+ *
+ *   #title-bar        the wordmark and tagline
+ *   #style-indicator  a label repeating the visual preset, which the Visual
+ *                     Presets panel already shows and owns
+ *
+ * The intel HUD is NOT hidden from here. Its readouts are recomputed every
+ * frame, so display:none would have left the work running behind an invisible
+ * element; it is switched off through its own mode in ui.js instead, where
+ * "off" actually stops the updates. The Display panel's HUD button turns it
+ * back on.
+ *
+ * The bottom voice dock stays: it is a control, not chrome.
+ *
+ * To bring the old shell back, delete the <link> to this file in index.html.
+ */
+
+#title-bar,
+#style-indicator {
+  display: none !important;
+}
