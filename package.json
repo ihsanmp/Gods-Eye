@@ -55,7 +55,8 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "satellite.js": "^6.0.2",
-    "tailwind-merge": "^3.6.0"
+    "tailwind-merge": "^3.6.0",
+    "tz-lookup": "^6.1.25"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",

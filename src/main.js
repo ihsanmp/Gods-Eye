@@ -88,6 +88,14 @@ window.addEventListener('load', () => {
   import('./fluidMenuMount.tsx')
     .then(({ mountFluidMenu }) => mountFluidMenu())
     .catch((error) => console.warn('[fluid-menu] unavailable:', error));
+
+  // Top-right clock reading the time where the camera is looking. Lazy for the
+  // same reason as the menu - it carries a 72 KB timezone dataset that a
+  // session is no worse for loading after first paint - and it waits for the
+  // viewer itself, so mounting here does not race the globe.
+  import('./mapClockMount.tsx')
+    .then(({ mountMapClock }) => mountMapClock())
+    .catch((error) => console.warn('[map-clock] unavailable:', error));
 });
 
 /**

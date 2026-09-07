@@ -409,6 +409,10 @@ const RIGHT_STACK_OBSTACLE_SELECTOR = [
   '#cesium-credits .cesium-credit-textContainer',
   '#command-dock',
   '#gev-voice-control',
+  // The map clock sits in the top-right corner #style-indicator used to hold.
+  // It is filtered by the same runtime rectangle test as everything else here,
+  // so it reserves nothing on the mobile layout where it is not painted.
+  '#map-clock-root',
 ].join(', ');
 /** Display labels shown in the mini-status readout for each active style. */
 const STYLE_STATUS_LABELS = {

@@ -1,0 +1,114 @@
+/*
+ * The map clock - top right, reading the time where the camera is looking.
+ *
+ * Its own file for the same reason legacy-chrome.css and panel-skin.css are
+ * theirs: one concern, removable in one line from index.html. It cannot live in
+ * panel-skin.css, which deliberately sets paint and never layout, and it does
+ * not belong in style.css, which is the shell this UI has been moving away
+ * from.
+ *
+ * The corner is free: #style-indicator was the only fixed element anchored
+ * there, and legacy-chrome.css retired it along with the rest of the old
+ * chrome. The intel HUD's right edge is centred vertically (top: 50%), so it
+ * passes underneath rather than colliding, and the tactical variant hides its
+ * top bar outright.
+ *
+ * Glass, per the supplied design, but on this console's palette rather than the
+ * demo's pink-to-teal backdrop - the card sits over live satellite imagery,
+ * which is the background it actually has to stay legible against. Hence the
+ * dark tint under the blur: white glass over a bright coastline is unreadable.
+ */
+
+#map-clock-root {
+  position: fixed;
+  top: 22px;
+  right: 22px;
+  z-index: 120;
+  /*
+   * The card reads; it never takes a click. Passing pointer events through
+   * keeps the globe draggable under it - the corner is a place people throw the
+   * cursor to spin the camera, and a dead rectangle there would feel broken.
+   */
+  pointer-events: none;
+  user-select: none;
+}
+
+.gev-map-clock {
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(17, 19, 24, 0.52);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.45);
+  padding: 12px 20px;
+  min-width: 208px;
+  font-family: var(--gev-card-font, Inter, ui-sans-serif, system-ui, sans-serif);
+  text-align: center;
+}
+
+.gev-map-clock-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.gev-map-clock-date {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--gev-card-label, #d4d4d8);
+}
+
+.gev-map-clock-time {
+  /*
+   * Tabular figures are the whole reason this is readable: with proportional
+   * ones every tick of the seconds shifts the digits left and right, and a
+   * clock that jitters once a second in the corner of the eye is worse than no
+   * clock. Set here rather than through the Tailwind utility, because
+   * style.css's unlayered reset outranks the layered utilities in this app.
+   */
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+  font-size: 40px;
+  line-height: 1.05;
+  font-weight: 700;
+  color: #ffffff;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+}
+
+.gev-map-clock-zone {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--gev-card-muted, #8b8b93);
+}
+
+/*
+ * Clean view and recording mode clear the interface off the globe; the clock is
+ * interface. Matching their existing treatment (opacity + visibility + no
+ * pointer events) rather than display:none, so it fades with everything else
+ * instead of vanishing a frame early.
+ */
+body.ui-clean-view #map-clock-root,
+body.recording-mode #map-clock-root {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+@media (max-width: 760px) {
+  #map-clock-root {
+    top: 12px;
+    right: 12px;
+  }
+
+  .gev-map-clock {
+    padding: 9px 14px;
+    min-width: 0;
+  }
+
+  .gev-map-clock-time {
+    font-size: 30px;
+  }
+}
