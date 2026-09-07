@@ -519,23 +519,6 @@ test('the settled traffic chip shows exactly one percentage — the coverage it 
   assert.doesNotMatch(rendered, /100%/);
 });
 
-test('the chip renderer clears the progress slot instead of stranding the last value', () => {
-  const ui = readFileSync(new URL('./ui.js', import.meta.url), 'utf8');
-  const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
-  const start = ui.indexOf('  _updateTrafficSyncChip(');
-  assert.ok(start > 0, '_updateTrafficSyncChip is missing');
-  const body = ui.slice(start, ui.indexOf('\n  }', start));
-  // A truthiness guard here would leave the busy "..." sitting beside the
-  // settled label, which is the contradiction wearing a different hat.
-  assert.doesNotMatch(body, /if \(presentation\.progressText\s*\n?\s*&&/);
-  assert.match(
-    body,
-    /if \(this\._trafficSyncProgress\.textContent !== presentation\.progressText\) \{/,
-  );
-  // …and the emptied slot must collapse rather than leave a min-width stub.
-  assert.match(css, /#traffic-sync-progress:empty \{\s*display: none;\s*\}/);
-});
-
 test('work still in flight keeps its progress number beside a label that has none', () => {
   const state = reduceTrafficSyncFeedback(
     createTrafficSyncFeedbackState(),

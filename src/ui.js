@@ -82,12 +82,10 @@ import {
   canPresentDeferredStatusNotice,
   createGlobalStatusNotice,
   createLoadingFeedbackState,
-  createTrafficSyncFeedbackState,
   presentGlobalLoadingStatus,
   presentGlobalStatusNotice,
   presentLoadingFeedback,
   reduceLoadingFeedback,
-  reduceTrafficSyncFeedback,
 } from './loadingFeedback.js';
 import { setSplitFlapText } from './splitFlap.js';
 import {
@@ -342,8 +340,6 @@ const LEFT_STACK_OBSTACLE_SELECTOR = [
   '#title-bar',
   '#style-indicator',
   '#top-center-actions',
-  '#traffic-sync-chip',
-  '#cctv-sync-chip',
   '#intel-hud .hud-top-left',
   '#intel-hud .hud-top-right',
   '#intel-hud .hud-bottom-left',
@@ -393,8 +389,6 @@ const RIGHT_STACK_OBSTACLE_SELECTOR = [
   '#title-bar',
   '#style-indicator',
   '#top-center-actions',
-  '#traffic-sync-chip',
-  '#cctv-sync-chip',
   '#intel-hud .hud-top-left',
   '#intel-hud .hud-top-right',
   '#intel-hud .hud-bottom-left',
@@ -2304,8 +2298,6 @@ export class StyleManager {
     // Auto-expand guard: last active camera id seen while the layer was
     // enabled; routine state notifications with the same id never re-expand.
     this._lastSeenCctvActiveId = null;
-    this._cctvChipHideTimer = null;
-    this._cctvChipWasBusy = false;
     this._leftStackLayoutFrame = null;
     this._leftStackReconsiderAutoCollapse = false;
     this._leftStackResizeObserver = null;
@@ -2486,12 +2478,6 @@ export class StyleManager {
     this._resetGlobeBtn = document.getElementById('reset-globe-view');
     this._cockpitResetGlobeBtn = document.getElementById('cockpit-reset-globe');
     this._styleButtons = document.getElementById('style-buttons');
-    this._trafficSyncChip = document.getElementById('traffic-sync-chip');
-    this._trafficSyncLabel = document.getElementById('traffic-sync-label');
-    this._trafficSyncProgress = document.getElementById('traffic-sync-progress');
-    this._cctvSyncChip = document.getElementById('cctv-sync-chip');
-    this._cctvSyncLabel = document.getElementById('cctv-sync-label');
-    this._cctvSyncProgress = document.getElementById('cctv-sync-progress');
     this._toast = document.getElementById('toast');
     this._locationSearch = document.getElementById('location-search');
     this._searchToggle = document.getElementById('search-toggle');
@@ -2512,9 +2498,7 @@ export class StyleManager {
     // _activeLocationId instead; a search has no preset record, so this is the
     // only thing the mini-status can report for it.
     this._searchedLocationLabel = null;
-    this._trafficSyncFeedbackState = createTrafficSyncFeedbackState();
     this._trafficTransitionTimer = null;
-    this._lastTrafficChipUpdateAt = 0;
 
     // Orbit controller
     this.orbitController = new OrbitController(viewer);
@@ -2760,7 +2744,7 @@ export class StyleManager {
     this._initOrbit();
     this._initRecordingOverlay();
     this._startAnimationLoop();
-    this._startTrafficChipTicker();
+    this._startLoadingSafetyNetTicker();
     this._updateStyleMiniStatus();
     this._updateLocationMiniStatus();
 
@@ -4049,85 +4033,6 @@ export class StyleManager {
     });
   }
 
-  /**
-   * Updates the traffic sync status chip with loading phase label and progress.
-   * Auto-hides after 1.5s when loading completes; stays visible while busy.
-   * @param {boolean} [forceShow=false] - Force the chip visible regardless of busy state.
-   * @returns {void}
-   */
-  _updateTrafficSyncChip(forceShow = false, now = performance.now()) {
-    if (!this._trafficSyncChip || !this._trafficSyncLabel || !this._trafficSyncProgress) return;
-    // One layer, looked up directly. This runs on a 500 ms ticker whether or
-    // not traffic is on, so the old getAll()+find - which built a view object
-    // and a normalized stats bag for every registered layer, then threw all but
-    // one away - was allocating garbage twice a second for the life of the
-    // session. getLayerView returns the identical shape for the one layer.
-    const traffic = this._dataManager?.getLayerView?.('traffic') || null;
-    this._trafficSyncFeedbackState = reduceTrafficSyncFeedback(
-      this._trafficSyncFeedbackState,
-      { enabled: traffic?.enabled === true, stats: traffic?.stats || {}, forceShow },
-      now,
-    );
-    const presentation = this._trafficSyncFeedbackState;
-    // setSplitFlapText carries the same unchanged-text guard internally, and
-    // the flap keeps textContent equal to the settled label throughout, so
-    // this stays a no-op on the repeat ticks exactly as it did before.
-    if (presentation.label) setSplitFlapText(this._trafficSyncLabel, presentation.label);
-    // Written on every change INCLUDING the empty settled value — the reducer
-    // clears the progress number once the sync lands, and a truthiness guard
-    // here would strand the last "..." beside the settled label.
-    if (this._trafficSyncProgress.textContent !== presentation.progressText) {
-      this._trafficSyncProgress.textContent = presentation.progressText;
-    }
-    this._trafficSyncChip.classList.toggle('visible', presentation.visible);
-  }
-
-  /**
-   * Updates the CCTV loading chip (same pattern as the traffic sync chip)
-   * with staggered initial-load progress, e.g. "LOADING FRAMES 12/36".
-   * Shows a brief "camera grid ready" confirmation, then hides.
-   * @param {{active: boolean, loaded: number, total: number}|null|undefined} loading
-   *   Loading progress from the CCTV layer UI state.
-   * @param {boolean} enabled - Whether the CCTV layer is currently enabled.
-   * @returns {void}
-   */
-  _updateCctvSyncChip(loading, enabled) {
-    if (!this._cctvSyncChip || !this._cctvSyncLabel || !this._cctvSyncProgress) return;
-    const total = Number(loading?.total) || 0;
-    const loaded = Math.max(0, Math.min(Number(loading?.loaded) || 0, total));
-    const busy = !!enabled && !!loading?.active && total > 0;
-
-    if (busy) {
-      clearTimeout(this._cctvChipHideTimer);
-      this._cctvChipHideTimer = null;
-      this._cctvChipWasBusy = true;
-      setSplitFlapText(this._cctvSyncLabel, 'loading frames');
-      // The counter is left plain on purpose: it ticks every few frames
-      // during a grid load, and flapping it would read as a slot machine.
-      this._cctvSyncProgress.textContent = `${loaded}/${total}`;
-      this._cctvSyncChip.classList.add('visible');
-      return;
-    }
-
-    if (this._cctvChipWasBusy && enabled && total > 0) {
-      // Load just completed — flash the final count, then auto-hide.
-      this._cctvChipWasBusy = false;
-      setSplitFlapText(this._cctvSyncLabel, 'camera grid ready');
-      this._cctvSyncProgress.textContent = `${total}/${total}`;
-      this._cctvSyncChip.classList.add('visible');
-      clearTimeout(this._cctvChipHideTimer);
-      this._cctvChipHideTimer = window.setTimeout(() => {
-        this._cctvChipHideTimer = null;
-        this._cctvSyncChip.classList.remove('visible');
-      }, 1500);
-      return;
-    }
-
-    if (!this._cctvChipHideTimer) {
-      this._cctvChipWasBusy = false;
-      this._cctvSyncChip.classList.remove('visible');
-    }
-  }
 
   /**
    * Initializes panel collapse buttons and restores persisted collapsed state.
@@ -4555,7 +4460,6 @@ export class StyleManager {
     }
     this._dataManager = dataManager || null;
     this.hud.attachDataManager(this._dataManager);
-    this._updateTrafficSyncChip();
     if (this._dataManagerUnsubscribe) {
       this._dataManagerUnsubscribe();
       this._dataManagerUnsubscribe = null;
@@ -7468,7 +7372,6 @@ export class StyleManager {
     }
     this._lastSeenCctvActiveId = effectiveActiveId;
 
-    this._updateCctvSyncChip(state?.loading, enabled);
 
     if (this._cctvEnableBtn) {
       this._cctvEnableBtn.classList.toggle('active', enabled);
@@ -10306,7 +10209,7 @@ export class StyleManager {
    * holding continuous scene render for exactly that long. Re-armed by
    * _startTransition and by _setStageIntensity enabling an animated stage.
    * The traffic sync chip no longer rides this loop — it has its own 500 ms
-   * interval (see _startTrafficChipTicker).
+   * interval (see _startLoadingSafetyNetTicker).
    */
   _startAnimationLoop() {
     if (this._animFrameId) return; // already running
@@ -10359,16 +10262,17 @@ export class StyleManager {
   }
 
   /**
-   * 500 ms DOM ticker for the traffic sync chip (was per-frame). It also
-   * polls the loading chip as a safety net: a camera-driven layer can flip
-   * its own `stats.loading` without emitting a manager event, and that is
-   * the one loading start the event path cannot see.
+   * 500 ms safety-net poll for the global loading chip.
+   *
+   * It carried the traffic sync chip too, until that chip was removed; the poll
+   * itself has to stay, because it is not redundant with the event path. A
+   * camera-driven layer can flip its own `stats.loading` without emitting a
+   * manager event, and that is the one loading start no listener sees.
    */
-  _startTrafficChipTicker() {
-    if (this._trafficChipTicker) return;
-    this._trafficChipTicker = setInterval(() => {
+  _startLoadingSafetyNetTicker() {
+    if (this._loadingSafetyNetTicker) return;
+    this._loadingSafetyNetTicker = setInterval(() => {
       if (document.hidden) return;
-      this._updateTrafficSyncChip();
       this._updateGlobalLoadingFeedback();
     }, 500);
   }
@@ -10816,7 +10720,6 @@ export class StyleManager {
     clearTimeout(this._trafficTransitionTimer);
     trafficLayer.endWorldJump?.();
     resumeDetection();
-    this._updateTrafficSyncChip(true);
   }
 
   /**
@@ -11695,9 +11598,9 @@ export class StyleManager {
       this._animFrameId = null;
     }
     releaseContinuousRender('style-anim');
-    if (this._trafficChipTicker) {
-      clearInterval(this._trafficChipTicker);
-      this._trafficChipTicker = null;
+    if (this._loadingSafetyNetTicker) {
+      clearInterval(this._loadingSafetyNetTicker);
+      this._loadingSafetyNetTicker = null;
     }
     if (this._loadingFeedbackTicker) {
       clearInterval(this._loadingFeedbackTicker);

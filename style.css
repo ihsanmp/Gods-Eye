@@ -1407,8 +1407,6 @@ body.ui-clean-view #clean-view-exit {
 body.ui-clean-view #title-bar,
 body.ui-clean-view #style-indicator,
 body.ui-clean-view #global-loading-status,
-body.ui-clean-view #traffic-sync-chip,
-body.ui-clean-view #cctv-sync-chip,
 body.ui-clean-view #pp-toggles,
 body.ui-clean-view #param-slider-panel,
 body.ui-clean-view #control-panel,
@@ -1935,65 +1933,6 @@ body.ui-clean-view #scene-runtime.active {
 .share-icon {
   font-size: 16px;
   line-height: 1;
-}
-
-#traffic-sync-chip,
-#cctv-sync-chip {
-  position: fixed;
-  top: 112px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 101;
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 10px;
-  border-radius: 7px;
-  border: 1px solid rgba(0, 212, 255, 0.24);
-  background: rgba(3, 10, 18, 0.78);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  color: rgba(170, 252, 255, 0.92);
-  font-family: var(--font-mono);
-  font-size: 8px;
-  letter-spacing: 1.35px;
-  text-transform: uppercase;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.22s ease, transform 0.22s ease;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.34), 0 0 14px rgba(0, 212, 255, 0.08);
-}
-
-/* Stacked below the traffic chip so both can show at once */
-#cctv-sync-chip {
-  top: 146px;
-}
-
-#traffic-sync-chip.visible,
-#cctv-sync-chip.visible {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-}
-
-#traffic-sync-label,
-#cctv-sync-label {
-  color: rgba(184, 244, 255, 0.92);
-}
-
-#traffic-sync-progress,
-#cctv-sync-progress {
-  color: #00e1ff;
-  font-weight: 600;
-  letter-spacing: 1.6px;
-  min-width: 34px;
-  text-align: right;
-}
-
-/* The settled traffic chip carries no progress number — the label's coverage
-   figure is the honest one. Collapse the empty slot so the chip closes up
-   instead of trailing a 34px stub and its flex gap. */
-#traffic-sync-progress:empty {
-  display: none;
 }
 
 /* ── Split-flap chip text ─────────────────────────────────────────
@@ -3794,7 +3733,7 @@ body.cockpit-mode #view-switcher button {
 body.cockpit-mode :is(
   /* #location-bar is named explicitly now: it used to be hidden as a child of
      #command-dock, and moving it to the top centre took it out of that reach. */
-  #title-bar, #style-indicator, #location-bar, #traffic-sync-chip, #cctv-sync-chip,
+  #title-bar, #style-indicator, #location-bar,
   #command-dock,
   #military-awareness-panel, #military-awareness-direction-overlay,
   #cockpit-entry
@@ -6696,8 +6635,6 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
 body.recording-mode #title-bar,
 body.recording-mode #style-indicator,
 body.recording-mode #global-loading-status,
-body.recording-mode #traffic-sync-chip,
-body.recording-mode #cctv-sync-chip,
 body.recording-mode #pp-toggles,
 body.recording-mode #clean-view-exit,
 body.recording-mode #param-slider-panel,
