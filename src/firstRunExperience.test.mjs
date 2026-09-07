@@ -689,3 +689,69 @@ test('every layer a mission drives is already in the shipped set_layer_visibilit
     assert.ok(tool.includes(`'${layerId}'`), `${layerId} must already be an allowed enum value`);
   }
 });
+
+// ---------------------------------------------------------------------------
+// The console must not open wearing the interface it replaced
+// ---------------------------------------------------------------------------
+
+test('the rules retiring the old UI ship in a head stylesheet, not the React bundle', () => {
+  /*
+   * The bug this locks out: these rules lived in src/tailwind.css, which is
+   * imported by the React mounts. The panels and the LOCATION tray are plain
+   * markup in index.html, so they were painted at once and hidden only when
+   * that chunk arrived - and the fluid menu's mount waits for `window.load`,
+   * i.e. after every image and tile request settles. On a cold start the
+   * console opened showing the whole old interface over a black globe.
+   *
+   * A <link> in <head> is render-blocking, so moving them there makes the rules
+   * part of the first style resolution and no such frame can exist. The test is
+   * about WHERE they live, because that is the property that fixed it.
+   */
+  const indexHtml = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const legacyCss = fs.readFileSync(new URL('../legacy-chrome.css', import.meta.url), 'utf8');
+  const tailwindCss = fs.readFileSync(new URL('./tailwind.css', import.meta.url), 'utf8');
+
+  assert.match(indexHtml, /<link rel="stylesheet" href="\/legacy-chrome\.css" \/>/,
+    'legacy-chrome.css must be linked from the document head');
+
+  assert.match(legacyCss, /#location-bar\s*\{\s*display: none !important;/,
+    'the old LOCATION tray is retired in the head stylesheet');
+  assert.match(legacyCss, /#pp-toggles\.collapsed\s*\{\s*display: none !important;/,
+    'the collapsed panel chips are retired in the head stylesheet');
+
+  // The React-side sheet must not take either job back.
+  assert.doesNotMatch(tailwindCss, /#location-bar/,
+    'tailwind.css must not hide the LOCATION tray - it loads with the React chunk');
+  assert.doesNotMatch(tailwindCss, /\[data-panel-id\]\.collapsed/,
+    'tailwind.css must not hide the panel chips - it loads with the React chunk');
+});
+
+test('a failed mount gives the old control back rather than hiding both', () => {
+  /*
+   * Hiding a CONTROL from the head stylesheet is only safe while its
+   * replacement actually arrives. If the spotlight or the menu fails to mount,
+   * an unguarded rule would leave a console with no search bar and no way to
+   * open a panel - strictly worse than the flash being fixed.
+   *
+   * So each rule is guarded on a body class, and main.js sets that class from
+   * the import's catch. Both halves have to stay in step, which is why they are
+   * asserted together.
+   */
+  const legacyCss = fs.readFileSync(new URL('../legacy-chrome.css', import.meta.url), 'utf8');
+  const mainJs = fs.readFileSync(new URL('./main.js', import.meta.url), 'utf8');
+
+  for (const marker of ['gev-spotlight-unavailable', 'gev-fluid-menu-unavailable']) {
+    assert.ok(legacyCss.includes(`body:not(.${marker})`),
+      `${marker} must guard the rule it releases`);
+    assert.ok(mainJs.includes(`'${marker}'`),
+      `${marker} must be set by main.js when that mount fails`);
+  }
+
+  // The guard is worthless if the catch does not actually mark the body.
+  assert.match(mainJs, /const legacyFallback = \(marker\) => \(error\) => \{[\s\S]*?classList\.add\(marker\)/,
+    'the fallback handler must add the marker class to the body');
+  assert.match(mainJs, /\.catch\(legacyFallback\('gev-spotlight-unavailable'\)\)/,
+    'the spotlight import must use the fallback handler');
+  assert.match(mainJs, /\.catch\(legacyFallback\('gev-fluid-menu-unavailable'\)\)/,
+    'the fluid menu import must use the fallback handler');
+});

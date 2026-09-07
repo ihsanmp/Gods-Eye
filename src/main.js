@@ -78,16 +78,29 @@ initLogoGaze();
 // React spotlight overlay (Ctrl/Cmd-K, or clicking the search bar). Loaded
 // lazily so React, framer-motion and lucide stay off the startup critical path
 // of a session that never opens it.
+/*
+ * legacy-chrome.css hides the old LOCATION tray and the seven panel chips from
+ * the first style resolution, so the console never opens wearing the old
+ * interface. That is only safe while the replacements actually arrive: if a
+ * mount fails, marking the body here releases the `body:not(...)` guard on
+ * those rules and the old control comes straight back, rather than leaving a
+ * console with no search bar and no way to open a panel.
+ */
+const legacyFallback = (marker) => (error) => {
+  document.body.classList.add(marker);
+  console.warn(`[${marker}] mount failed, restoring the old control:`, error);
+};
+
 import('./spotlightMount.tsx')
   .then(({ mountSpotlight }) => mountSpotlight())
-  .catch((error) => console.warn('[spotlight] unavailable:', error));
+  .catch(legacyFallback('gev-spotlight-unavailable'));
 
 // One fluid menu in place of the seven scattered panel chips. Mounted after the
 // app so the panels it toggles already exist in the DOM.
 window.addEventListener('load', () => {
   import('./fluidMenuMount.tsx')
     .then(({ mountFluidMenu }) => mountFluidMenu())
-    .catch((error) => console.warn('[fluid-menu] unavailable:', error));
+    .catch(legacyFallback('gev-fluid-menu-unavailable'));
 
   // Top-right clock reading the time where the camera is looking. Lazy for the
   // same reason as the menu - it carries a 72 KB timezone dataset that a

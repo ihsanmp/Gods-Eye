@@ -7,12 +7,19 @@
  * these two pieces were the last that still read as a different program
  * layered on top of it.
  *
- * Only decoration is retired here. Nothing in this file hides a control, a
- * readout anyone acts on, or an attribution:
+ * Two kinds of rule live here, and the difference matters.
+ *
+ * DECORATION, retired outright - nothing anyone acts on, and no attribution:
  *
  *   #title-bar        the wordmark and tagline
  *   #style-indicator  a label repeating the visual preset, which the Visual
  *                     Presets panel already shows and owns
+ *
+ * CONTROLS, retired only while their replacement is running - the LOCATION tray
+ * and the seven collapsed panel chips, at the foot of this file. Those are real
+ * entry points, so they are hidden behind a `body:not(...)` guard that main.js
+ * releases if the spotlight or the fluid menu fails to mount. See the note down
+ * there for why they moved out of the React bundle.
  *
  * The intel HUD is NOT hidden from here. Its readouts are recomputed every
  * frame, so display:none would have left the work running behind an invisible
@@ -27,5 +34,55 @@
 
 #title-bar,
 #style-indicator {
+  display: none !important;
+}
+
+/* ---------------------------------------------------------------------------
+ * The old entry points, retired here rather than in the React bundle.
+ *
+ * These two blocks used to live in src/tailwind.css, which is imported by the
+ * React mounts - so the browser only received them once that chunk had loaded.
+ * The panels and the LOCATION tray are plain markup in index.html, so they were
+ * painted immediately and then hidden some seconds later: on a cold start the
+ * console opened showing the whole old interface, with the globe still black
+ * and the live feeds still loading. Moving them into this file, which is a
+ * <link> in <head>, makes the rules part of the first style resolution - there
+ * is no frame in which the old UI is visible.
+ *
+ * This does now hide controls, which the note at the top of this file says the
+ * decoration rules do not. That is deliberate and it is why the fallback guard
+ * below exists: each one is hidden ONLY while its replacement is actually
+ * running. main.js marks the body when a mount fails, and the old control comes
+ * straight back rather than leaving the console with no way in.
+ * ------------------------------------------------------------------------- */
+
+/*
+ * The old LOCATION tray, replaced by the spotlight search bar. Kept in the DOM
+ * because the rest of ui.js still reads its elements for the live location
+ * readout, the POI row and the city pills - removing the markup would mean
+ * unpicking all of that.
+ */
+body:not(.gev-spotlight-unavailable) #location-bar {
+  display: none !important;
+}
+
+/*
+ * The seven chips the fluid menu replaces.
+ *
+ * Each panel is its own collapsed chip when shut, scattered along the left
+ * stack, the right rail and the bottom dock. Hiding them ONLY while collapsed
+ * is what consolidates the entry points without touching the panels: open one
+ * from the menu and it appears exactly where it always did.
+ *
+ * VISUAL PRESETS is addressed by id because it is the one panel of the seven
+ * carrying no data-panel-id attribute - it is a dock tray, written before that
+ * convention - so keying it off [data-panel-id] like its siblings matched
+ * nothing and left its chip in the dock in every state.
+ */
+body:not(.gev-fluid-menu-unavailable) #left-panel-stack > [data-panel-id].collapsed,
+body:not(.gev-fluid-menu-unavailable) #right-context-rail > [data-panel-id].collapsed,
+body:not(.gev-fluid-menu-unavailable) #command-dock > [data-panel-id].collapsed,
+body:not(.gev-fluid-menu-unavailable) #command-dock > #control-panel.collapsed,
+body:not(.gev-fluid-menu-unavailable) #pp-toggles.collapsed {
   display: none !important;
 }

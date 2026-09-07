@@ -136,13 +136,6 @@
   z-index: 150;
 }
 
-/* The old LOCATION tray is replaced by the spotlight. Kept in the DOM, hidden,
-   because the rest of ui.js still reads its elements for the live location
-   readout, the POI row and the city pills - removing the markup would mean
-   unpicking all of that, and hiding it is reversible in one line. */
-#location-bar {
-  display: none !important;
-}
 
 /* ============================================================
    FLUID MENU - one launcher for the seven panels
@@ -202,27 +195,6 @@
   border-radius: 9999px;
 }
 
-/*
- * The seven chips this menu replaces.
- *
- * Each panel is its own collapsed chip when shut, scattered along the left
- * stack, the right rail and the bottom dock. Hiding them ONLY while collapsed
- * is what consolidates the entry points without touching the panels: open one
- * from the menu and it appears exactly where it always did.
- */
-#left-panel-stack > [data-panel-id].collapsed,
-#right-context-rail > [data-panel-id].collapsed,
-#command-dock > [data-panel-id].collapsed,
-/*
- * VISUAL PRESETS is addressed by id, because it is the one panel of the seven
- * that carries no data-panel-id attribute - it is a dock tray, written before
- * that convention. Keying it off [data-panel-id] like its siblings matched
- * nothing at all, so its chip stayed in the dock in every state.
- */
-#command-dock > #control-panel.collapsed,
-#pp-toggles.collapsed {
-  display: none !important;
-}
 
 /* ============================================================
    MENU CARD - what an icon opens, in the shape of the reference
