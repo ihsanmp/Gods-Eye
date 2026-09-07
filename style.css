@@ -6151,6 +6151,12 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
   background:
     radial-gradient(circle at 20% 20%, rgba(0, 244, 255, 0.09), transparent 44%),
     linear-gradient(180deg, rgba(8, 14, 19, 0.88), rgba(4, 7, 11, 0.96));
+  /* The wrap owns the 16:9 box; the frame and the video both fill it, stacked,
+     so only one is ever seen at a time. They used to size themselves - two
+     16:9 elements in normal flow - and when the video played beside the empty
+     (but still laid-out) still image the wrap grew to TWICE 16:9, leaving a
+     half-panel of black below the picture once the CCTV view was widened. */
+  aspect-ratio: 16 / 9;
   min-height: 150px;
   /* .cctv-panel-inner is a scrolling column flex container, so the default
      flex-shrink:1 squeezed this wrap down to its 150px floor while the 16:9
@@ -6205,16 +6211,14 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
 }
 
 #cctv-frame {
+  /* Fills the wrap rather than sizing itself. `contain` still guarantees a
+     source that is not 16:9 (a TfL frame is 352x288) is letterboxed, not
+     cropped - providers burn their timestamp into a corner and cropping eats
+     exactly that. */
+  position: absolute;
+  inset: 0;
   width: 100%;
-  /* A fixed 16:9 box with the frame CONTAINED inside it. Providers burn their
-     timestamp into a corner (TfL top-left, Austin bottom-left) and the old
-     150px-tall box was ~2.2:1, so object-fit: cover ate ~18px off the top and
-     bottom — exactly where those stamps live (field test 2026-07-31).
-     Sources are not all 16:9 either (a TfL frame measures 352x288), so
-     `contain` is what actually guarantees nothing is cut; the ratio just keeps
-     the panel height stable as you switch cameras. */
-  aspect-ratio: 16 / 9;
-  height: auto;
+  height: 100%;
   object-fit: contain;
   display: block;
   opacity: 0;
@@ -9666,12 +9670,12 @@ body > #location-bar .location-search-wrap {
  * burn their timestamp into a corner, and cropping eats exactly that.
  */
 #cctv-video {
+  position: absolute;
+  inset: 0;
   width: 100%;
-  aspect-ratio: 16 / 9;
-  height: auto;
+  height: 100%;
   object-fit: contain;
   display: block;
-  border-radius: 8px;
   background: #05070b;
 }
 
