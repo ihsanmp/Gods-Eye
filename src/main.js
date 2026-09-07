@@ -40,6 +40,39 @@ import { initFirstRunExperience } from './firstRunExperience.js';
  */
 const STARTUP_SCREEN_SPACE_ERROR = 6;
 
+/**
+ * Read the real GPU string, and say whether it is integrated.
+ *
+ * The quality preset is a stated intent; this is the hardware underneath it.
+ * A full-screen 3D globe is fill-rate and memory-bandwidth bound, and an
+ * integrated GPU shares both its bandwidth and its power/thermal budget with
+ * the CPU beside it - so 4x MSAA at 60 fps, which a discrete card shrugs off,
+ * is exactly what makes an iGPU laptop run hot, loud, and throttled.
+ *
+ * WEBGL_debug_renderer_info gives the unmasked renderer, e.g.
+ * "ANGLE (Intel, Intel(R) Arc(TM) Graphics ... D3D11)". A discrete part names
+ * itself (NVIDIA / GeForce / RTX, or AMD's discrete Radeon RX); the integrated
+ * families are Intel (UHD, Iris, Arc-on-die), AMD Vega/RDNA iGPUs, Apple, and
+ * the software fallbacks. Unknown is treated as NOT integrated, so a GPU we
+ * cannot read is never quietly throttled.
+ *
+ * @param {WebGLRenderingContext} gl
+ * @returns {{ renderer: string, integrated: boolean }}
+ */
+function probeGpu(gl) {
+  let renderer = '';
+  try {
+    const ext = gl?.getExtension?.('WEBGL_debug_renderer_info');
+    if (ext) renderer = String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) || '');
+  } catch { /* some contexts block the extension; treat as unknown */ }
+
+  const r = renderer.toLowerCase();
+  const discrete = /nvidia|geforce|rtx|gtx|quadro|radeon rx|arc a\d/.test(r);
+  const integrated = !discrete && /intel|uhd|iris|arc|apple|adreno|mali|vega|radeon\(tm\) graphics|llvmpipe|swiftshader|microsoft basic/.test(r);
+  return { renderer, integrated };
+}
+
+
 initLogoGaze();
 
 // React spotlight overlay (Ctrl/Cmd-K, or clicking the search bar). Loaded
@@ -208,12 +241,28 @@ async function init() {
     const devicePixels = window.devicePixelRatio || 1;
     viewer.resolutionScale = Math.min(devicePixels, quality.pixelRatioCap) / devicePixels;
     viewer.scene.globe.tileCacheSize = quality.tileCache;
+
     // The two GPU levers the measurement turned up. msaaSamples is read live by
     // the renderer, and targetFrameRate throttles the render loop - harmless in
     // idle (render-on-demand) mode, a near-halving of GPU while a layer holds
     // the scene in continuous mode.
-    viewer.scene.msaaSamples = quality.msaa;
-    viewer.targetFrameRate = quality.targetFps;
+    //
+    // On an INTEGRATED GPU these are clamped below the preset, because that is
+    // where 4x MSAA at 60 fps actually hurts: the iGPU shares memory bandwidth
+    // and the thermal budget with the CPU, so the heavy combo throttles the
+    // whole machine rather than just the frame. Measured target here is the
+    // Intel Arc iGPU of a Core Ultra 7 155H with no discrete card. The clamp
+    // only ever LOWERS from the preset - a machine set to performance is left
+    // alone - and the preset stays the ceiling the operator asked for.
+    const gpu = probeGpu(viewer.scene.context._gl || viewer.scene.context.gl);
+    const msaa = gpu.integrated ? Math.min(quality.msaa, 2) : quality.msaa;
+    const targetFps = gpu.integrated ? Math.min(quality.targetFps, 30) : quality.targetFps;
+    viewer.scene.msaaSamples = msaa;
+    viewer.targetFrameRate = targetFps;
+    if (gpu.integrated) {
+      // eslint-disable-next-line no-console
+      console.info(`[gev] integrated GPU detected (${gpu.renderer || 'unknown'}); MSAA<=${msaa}, ${targetFps} fps`);
+    }
 
     // Progressive LOD. The quality preset's screen-space error is a STEADY-STATE
     // target: applying it from frame zero multiplies the tiles that must arrive
