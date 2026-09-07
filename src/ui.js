@@ -440,6 +440,26 @@ const STYLE_STATUS_LABELS = {
  */
 const MILITARY_DETECTION_PRESET = Object.freeze({ mode: 'dense', densityPct: 75 });
 
+/*
+ * The stop the console OPENS on - a second named concept, not a second copy.
+ *
+ * The tactical look above is Dense and stays Dense: every military style and
+ * Contacts still apply that one object, so "tactical" cannot fork. What forked
+ * deliberately is the FIRST SCREEN, which now opens one stop down (see the long
+ * note on detectionMode in the baseline for why, and for the measurement that
+ * says it is a clutter choice rather than a speed-up).
+ *
+ * Both objects name their profile once and let detectionPolicy supply the
+ * matching stop, so neither can drift onto a density its own mode would not
+ * derive back to. Frozen, and declared ahead of GLOBAL_POST_DEFAULTS because
+ * that baseline reads from it - `const` has no hoisted value, so the other
+ * order is a startup TDZ crash.
+ */
+const FIRST_RUN_DETECTION = Object.freeze({
+  mode: 'balanced',
+  densityPct: defaultDensityForProfile('balanced'),
+});
+
 /** Baseline post-processing settings applied on first load (before share-link restore). */
 const GLOBAL_POST_DEFAULTS = {
   bloom: { enabled: false, intensity: BLOOM_INTENSITY_DEFAULT },
@@ -474,8 +494,38 @@ const GLOBAL_POST_DEFAULTS = {
   // flag means the OPERATOR hand-edited detection, and a factory default is not
   // that. Turning detection off by hand therefore still sets the flag and still
   // suppresses the military-style auto-enable for the rest of the session.
-  detectionMode: MILITARY_DETECTION_PRESET.mode.toUpperCase(),
-  detectionDensity: MILITARY_DETECTION_PRESET.densityPct,
+  /*
+   * BALANCED, not DENSE, and only here.
+   *
+   * This is a default-clutter choice, NOT a measured speed-up, and the
+   * measurement is why the distinction is written down. Benchmarked on the Arc
+   * iGPU of a Core Ultra 7 155H by rendering with gl.finish() so the GPU is
+   * actually waited on, over Jakarta at 3 km with 11,654 live aircraft in view:
+   *
+   *   BALANCED  median 2.4 ms   p90 62.2   max 83.7
+   *   DENSE     median 1.7 ms   p90  2.8   max 50.1
+   *
+   * DENSE came out no worse - cheaper, on that run - so detection DENSITY does
+   * not drive frame cost. Earlier readings that said otherwise were an artefact:
+   * one measured the one-off rebuild right after toggling detection on, and
+   * another compared the two modes with no layers enabled and the camera 4,200
+   * km up, where neither mode had anything to draw. The real spikes, 50-84 ms,
+   * appear at BOTH densities and are periodic work (label solving, feed
+   * updates), which is where a stutter hunt should start - not here.
+   *
+   * So this opens one stop down for a quieter first screen, and detection stays
+   * ON at first run, which is the part of the directive that mattered. Both
+   * fields read FIRST_RUN_DETECTION, which names 'balanced' once and asks
+   * detectionPolicy for the stop that goes with it - no percentage is typed
+   * here, so the mode and the density cannot drift apart.
+   *
+   * MILITARY_DETECTION_PRESET is deliberately left alone: it is shared with the
+   * military style presets and Contacts, where the dense panoptic look is the
+   * point. Choosing NVG, FLIR or CRT still brings DENSE with it, and the
+   * Display panel's density slider still reaches it in one drag.
+   */
+  detectionMode: FIRST_RUN_DETECTION.mode.toUpperCase(),
+  detectionDensity: FIRST_RUN_DETECTION.densityPct,
   detectionAllocation: 'ELASTIC',
   detectionFadePct: 7,
   detectionOutsideOpacityPct: 1,

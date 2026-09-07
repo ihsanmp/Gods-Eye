@@ -203,27 +203,58 @@ test('an explicit OUTSIDE opacity still wins over the new default', () => {
 // 3. Detection — on for every style on a first run, Normal included
 // ---------------------------------------------------------------------------
 
-test('first run opens with detection on, in every style, using the one tactical preset', () => {
+test('first run opens with detection on, one stop below the one tactical preset', () => {
   // Normal used to start OFF while only CRT/NVG/FLIR auto-applied the preset.
-  // It is now the baseline for all of them, reusing the SAME frozen object, so
-  // "the tactical look" cannot fork into two definitions.
+  // Detection is now on for all of them on a first run — that part of the
+  // directive is unchanged and is what the OFF assertion below still guards.
+  //
+  // What changed (2026-09-07): the FIRST SCREEN opens one stop down, at
+  // Balanced, so a fresh console is quieter. That is a clutter choice and not a
+  // speed-up — benchmarked on the 155H's Arc iGPU with gl.finish()-forced
+  // renders, Dense was no more expensive than Balanced — and src/ui.js records
+  // the numbers next to the baseline so nobody re-derives a performance story
+  // from this default.
+  //
+  // So there are now two named concepts, each still defined exactly once:
+  // the tactical look (Dense, shared by every military style and Contacts) and
+  // the opening stop (Balanced). Two named objects are not the drift this test
+  // was written against; two typed copies of the same one would be.
   assert.match(uiSource, /const MILITARY_DETECTION_PRESET = Object\.freeze\(\{ mode: 'dense', densityPct: 75 \}\);/,
     'the tactical look is still Dense @ 75%');
+  assert.match(
+    uiSource,
+    /const FIRST_RUN_DETECTION = Object\.freeze\(\{\s*mode: 'balanced',\s*densityPct: defaultDensityForProfile\('balanced'\),\s*\}\);/,
+    'the opening stop names its profile once and takes the density from detectionPolicy',
+  );
+
   const baseline = uiBlock('const GLOBAL_POST_DEFAULTS = {', '\n};');
-  assert.match(baseline, /detectionMode: MILITARY_DETECTION_PRESET\.mode\.toUpperCase\(\),/,
-    'the first-load baseline reads the preset rather than restating it');
-  assert.match(baseline, /detectionDensity: MILITARY_DETECTION_PRESET\.densityPct,/,
-    'density comes from the same object, so the two cannot drift');
+  assert.match(baseline, /detectionMode: FIRST_RUN_DETECTION\.mode\.toUpperCase\(\),/,
+    'the first-load baseline reads the opening stop rather than restating it');
+  assert.match(baseline, /detectionDensity: FIRST_RUN_DETECTION\.densityPct,/,
+    'density comes from the same object, so mode and density cannot drift apart');
   assert.doesNotMatch(baseline, /detectionMode: 'OFF'/,
     'the retired OFF baseline is gone, not shadowed');
+  assert.doesNotMatch(baseline, /detectionDensity: \d/,
+    'no percentage is typed into the baseline — it is derived, so it stays in step');
 
-  // `const` has no hoisted value: the baseline can only READ the preset if the
-  // preset is declared first. Getting this backwards is a startup TDZ crash,
-  // which no other test in the suite would reach.
+  // Neither object may be spelled out a second time: a literal Dense-at-75 or a
+  // bare Balanced-at-50 pair anywhere else is exactly the fork this guards.
+  assert.equal(
+    (uiSource.match(/Object\.freeze\(\{ mode: 'dense', densityPct: 75 \}\)/g) || []).length, 1,
+    'the tactical preset is written down once',
+  );
+
+  // `const` has no hoisted value: the baseline can only READ these if they are
+  // declared first. Getting this backwards is a startup TDZ crash, which no
+  // other test in the suite would reach.
+  const baselineAt = uiSource.indexOf('const GLOBAL_POST_DEFAULTS =');
   assert.ok(
-    uiSource.indexOf('const MILITARY_DETECTION_PRESET =')
-      < uiSource.indexOf('const GLOBAL_POST_DEFAULTS ='),
-    'MILITARY_DETECTION_PRESET must be declared before the baseline that reads it',
+    uiSource.indexOf('const MILITARY_DETECTION_PRESET =') < baselineAt,
+    'MILITARY_DETECTION_PRESET must be declared before the baseline',
+  );
+  assert.ok(
+    uiSource.indexOf('const FIRST_RUN_DETECTION =') < baselineAt,
+    'FIRST_RUN_DETECTION must be declared before the baseline that reads it',
   );
 });
 
