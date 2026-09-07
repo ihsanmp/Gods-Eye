@@ -161,6 +161,15 @@ function RouteBar({ destination, onClose }: RouteBarProps) {
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
+
+    // If the full panel is already open, it owns these nodes and is showing
+    // them. Collapse it before borrowing, so the bar does not strip a visible
+    // panel bare - one routing surface at a time, decided at takeover.
+    const routePanel = document.getElementById('route-panel');
+    if (routePanel && !routePanel.classList.contains('collapsed')) {
+      (window as any).__godsEyeView?.styleManager?.setPanelCollapsed?.('route-panel', true, { explicit: true });
+    }
+
     const moved: Array<{ node: HTMLElement; parent: Node; next: Node | null }> = [];
     for (const id of ['route-status', 'route-result']) {
       const node = panelEl<HTMLElement>(id);
@@ -168,10 +177,31 @@ function RouteBar({ destination, onClose }: RouteBarProps) {
       moved.push({ node, parent: node.parentNode, next: node.nextSibling });
       host.appendChild(node);
     }
+
+    /*
+     * The status and result nodes are ONE set, shared with the full Route
+     * panel. If that panel is opened while the bar holds them - from the fluid
+     * menu's "Buka panel penuh", the other door to the same routing - the panel
+     * would render without a status line or a result, because both are sitting
+     * in the bar. Two surfaces cannot show one node.
+     *
+     * So the bar yields when the panel opens: closing returns the nodes to the
+     * panel (the cleanup below), and the panel, which reads them live, fills
+     * in. The bar and the full panel are two ways to do the same thing; only
+     * one holds the nodes at a time.
+     */
+    const observer = routePanel
+      ? new MutationObserver(() => {
+        if (!routePanel.classList.contains('collapsed')) onClose();
+      })
+      : null;
+    observer?.observe(routePanel as Element, { attributes: true, attributeFilter: ['class'] });
+
     return () => {
+      observer?.disconnect();
       for (const { node, parent, next } of moved) parent.insertBefore(node, next);
     };
-  }, []);
+  }, [onClose]);
 
   const swap = () => {
     const heldOrigin = originPointRef.current;
