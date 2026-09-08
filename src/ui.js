@@ -77,17 +77,7 @@ import aisLiveVesselsLayer from './data/aisLiveVessels.js';
 import militaryAwarenessLayer from './data/militaryAwareness.js';
 import militaryInstallationsLayer from './data/militaryInstallations.js';
 import rocketLaunchesLayer from './data/rocketLaunches.js';
-import {
-  aggregateLayerLoading,
-  canPresentDeferredStatusNotice,
-  createGlobalStatusNotice,
-  createLoadingFeedbackState,
-  presentGlobalLoadingStatus,
-  presentGlobalStatusNotice,
-  presentLoadingFeedback,
-  reduceLoadingFeedback,
-} from './loadingFeedback.js';
-import { setSplitFlapText } from './splitFlap.js';
+import { LOADING_FAILURE_DWELL_MS, canPresentDeferredStatusNotice } from './loadingFeedback.js';
 import {
   cockpitEntryAllowed,
   contextAllowedLayerIds,
@@ -2259,12 +2249,8 @@ export class StyleManager {
     this._preRecordingHudState = null;
     this._panelZCounter = PANEL_Z_BASE + 10;
     this._animFrameId = null;
-    this._lastLoadingFeedbackUpdateAt = 0;
-    this._loadingFeedbackState = createLoadingFeedbackState();
-    this._loadingFeedbackEvent = null;
-    this._loadingFeedbackTicker = null;
-    this._globalStatusNotice = null;
     this._shareTrackingAcquiringKey = null;
+    this._globalStatusBannerTimer = null;
     this._shareTrackingNoticeGeneration = 0;
     this._globeResetPromise = null;
     this._globeResetHandler = null;
@@ -2314,7 +2300,6 @@ export class StyleManager {
     this._rightStackPreferredPanelId = null;
     this._adaptivePanelSettleTimer = null;
     this._windowResizeHandler = null;
-    this._loadingVisibilityHandler = null;
     this._cctvRequestFocusHandler = null;
     this._removeCctvRequestFocusListener = null;
     this._worldRequestFocusHandler = null;
@@ -2472,13 +2457,11 @@ export class StyleManager {
     this._cctvSummary = document.getElementById('cctv-summary');
     this._shareBtn = document.getElementById('share-btn');
     this._clearSelectedLayersBtn = document.getElementById('clear-selected-layers');
-    this._globalLoadingStatus = document.getElementById('global-loading-status');
-    this._globalLoadingLabel = document.getElementById('global-loading-label');
-    this._globalLoadingDetail = document.getElementById('global-loading-detail');
     this._resetGlobeBtn = document.getElementById('reset-globe-view');
     this._cockpitResetGlobeBtn = document.getElementById('cockpit-reset-globe');
     this._styleButtons = document.getElementById('style-buttons');
     this._toast = document.getElementById('toast');
+    this._globalStatusBanner = document.getElementById('global-status-banner');
     this._locationSearch = document.getElementById('location-search');
     this._searchToggle = document.getElementById('search-toggle');
     this._locationPills = document.getElementById('location-pills');
@@ -2744,7 +2727,6 @@ export class StyleManager {
     this._initOrbit();
     this._initRecordingOverlay();
     this._startAnimationLoop();
-    this._startLoadingSafetyNetTicker();
     this._updateStyleMiniStatus();
     this._updateLocationMiniStatus();
 
@@ -2826,14 +2808,6 @@ export class StyleManager {
       this._scheduleLeftPanelLayout({ reconsiderAutoCollapse: true });
     };
     window.addEventListener('resize', this._windowResizeHandler);
-    // The loading-chip ticker is stopped while the tab is hidden (it can do no
-    // useful work off-screen and must not hold a 60ms timer there). Resample on
-    // return so the time-driven reducer catches up on real elapsed time — and
-    // re-arms its own ticker if the batch is still running.
-    this._loadingVisibilityHandler = () => {
-      if (!document.hidden) this._updateGlobalLoadingFeedback();
-    };
-    document.addEventListener('visibilitychange', this._loadingVisibilityHandler);
     this._cctvRequestFocusHandler = (event) => routeCctvFocusRequest(
       event,
       (activate, focus) => this._runExplicitCctvFocus(activate, focus),
@@ -4469,11 +4443,8 @@ export class StyleManager {
         if (String(change?.type || '').startsWith('visibility')) {
           this._handleContextLayerChange(change);
         }
-        this._loadingFeedbackEvent = change;
-        this._updateGlobalLoadingFeedback(performance.now());
       });
     }
-    this._updateGlobalLoadingFeedback(performance.now());
     if (typeof this._dataManager?.subscribeVisibilityRequests === 'function') {
       this._dataManagerVisibilityRequestUnsubscribe = this._dataManager.subscribeVisibilityRequests((change) => {
         if (shouldCaptureContextSession(change)) {
@@ -4643,24 +4614,26 @@ export class StyleManager {
   _handleShareTrackingRestoreStatus(result) {
     if (!result || this._disposed) return;
     const trackingKey = `${result.layerId || ''}:${result.targetId ?? ''}`;
+    /*
+     * The ACQUIRING progress notice is gone with the status banner it lived in.
+     * The FAILURES below are not: they are the only thing that tells anyone a
+     * shared link did not restore, so they moved to the toast rather than
+     * disappearing with the banner. Only the "still working on it" half was
+     * dropped, which is the chrome that was removed on purpose.
+     *
+     * The generation counter still advances here. It is what stops a stale
+     * terminal result from overwriting a newer target's message, and that
+     * arbitration is unchanged by where the message is finally shown.
+     */
     if (result.classification === 'pending') {
       this._shareTrackingNoticeGeneration += 1;
       this._shareTrackingAcquiringKey = trackingKey;
-      this._showGlobalStatusNotice('ACQUIRING', {
-        state: 'acquiring',
-        detail: `SHARED ${String(result.label || 'SUBJECT').toUpperCase()}`,
-        persistent: true,
-      });
       return;
     }
     const ownsAcquiringNotice = this._shareTrackingAcquiringKey === trackingKey;
     if (ownsAcquiringNotice) {
       this._shareTrackingNoticeGeneration += 1;
       this._shareTrackingAcquiringKey = null;
-      if (this._globalStatusNotice?.state === 'acquiring') {
-        this._globalStatusNotice = null;
-        this._updateGlobalLoadingFeedback();
-      }
     }
     if (result.classification === 'followed' || result.classification === 'cancelled') return;
     // A stale terminal result must never replace a newer target's acquisition.
@@ -10145,63 +10118,6 @@ export class StyleManager {
     this._startAnimationLoop();
   }
 
-  /**
-   * Sample the manager's layer set and paint the global loading chip.
-   * Driven by manager events AND by a ticker, because the underlying state
-   * machine is TIME-driven (reveal delay, long-load threshold, terminal
-   * dwell) — see _armLoadingFeedbackTicker.
-   * @param {number} [now] - performance.now() sample.
-   * @returns {void}
-   */
-  _updateGlobalLoadingFeedback(now = performance.now()) {
-    if (!this._globalLoadingStatus) return;
-    const summary = aggregateLayerLoading(this._dataManager?.getAll?.() || []);
-    this._loadingFeedbackState = reduceLoadingFeedback(
-      this._loadingFeedbackState,
-      summary,
-      now,
-      this._loadingFeedbackEvent,
-    );
-    this._loadingFeedbackEvent = null;
-    const presentation = presentGlobalLoadingStatus(
-      this._globalStatusNotice,
-      this._loadingFeedbackState,
-      summary,
-      now,
-    );
-    if (this._globalStatusNotice?.persistent !== true
-        && Number.isFinite(this._globalStatusNotice?.hideAt)
-        && now >= this._globalStatusNotice.hideAt) {
-      this._globalStatusNotice = null;
-    }
-    // Loading phases and universal notices both have time-driven transitions.
-    // Compute this after arbitration: a queued finite notice starts its dwell
-    // only on its first visible frame, then keeps the ticker alive to expiry.
-    const noticeNeedsTicker = Number.isFinite(this._globalStatusNotice?.hideAt);
-    if (this._loadingFeedbackState?.phase !== 'idle' || noticeNeedsTicker) {
-      this._armLoadingFeedbackTicker();
-    }
-    this._globalLoadingStatus.hidden = !presentation;
-    if (!presentation) {
-      delete this._globalLoadingStatus.dataset.state;
-      return;
-    }
-    this._globalLoadingStatus.dataset.state = presentation.state;
-    // Split-flap the LABEL only ("LOADING LIVE DATA" -> "LOAD COMPLETE").
-    // setSplitFlapText is a no-op when the text is unchanged, which matters
-    // here: this runs on every 60 ms and 500 ms tick. The detail line is the
-    // live layer roster inside an ellipsised, width-capped span — flapping a
-    // list that churns as layers join would be noise, not delight.
-    setSplitFlapText(this._globalLoadingLabel, presentation.label);
-    this._globalLoadingDetail.textContent = presentation.detail;
-  }
-
-  /** Show a message in the universal top-center status banner. */
-  _showGlobalStatusNotice(message, options = {}) {
-    const now = performance.now();
-    this._globalStatusNotice = createGlobalStatusNotice(message, now, options);
-    this._updateGlobalLoadingFeedback(now);
-  }
 
   /**
    * Style animation loop — self-stopping (perf wave 2). Runs only while a
@@ -10261,64 +10177,6 @@ export class StyleManager {
     this._animFrameId = requestAnimationFrame(update);
   }
 
-  /**
-   * 500 ms safety-net poll for the global loading chip.
-   *
-   * It carried the traffic sync chip too, until that chip was removed; the poll
-   * itself has to stay, because it is not redundant with the event path. A
-   * camera-driven layer can flip its own `stats.loading` without emitting a
-   * manager event, and that is the one loading start no listener sees.
-   */
-  _startLoadingSafetyNetTicker() {
-    if (this._loadingSafetyNetTicker) return;
-    this._loadingSafetyNetTicker = setInterval(() => {
-      if (document.hidden) return;
-      this._updateGlobalLoadingFeedback();
-    }, 500);
-  }
-
-  /**
-   * Self-stopping 60 ms ticker for the global loading chip.
-   *
-   * The chip used to ride the style rAF loop, which perf wave 2 made
-   * self-stopping — leaving the chip frozen mid-state whenever no crossfade
-   * or animated shader was running (it would never reveal, never cross the
-   * long-load threshold, and never dwell out). Its reducer
-   * (src/loadingFeedback.js) is time-driven, so it needs real ticks; it is
-   * also pure DOM, so it takes NO governor hold and requests no render.
-   * Armed by _updateGlobalLoadingFeedback whenever loading leaves idle or a
-   * universal notice begins, and stops once both have settled.
-   * (rebase 2026-08-16: main's loading chip vs wave 2's stopped loop)
-   * @returns {void}
-   */
-  _armLoadingFeedbackTicker() {
-    // Never arm behind a hidden tab: the reducer cannot usefully advance a
-    // chip nobody can see, and the old `return` INSIDE the interval left the
-    // 60ms timer scheduled for the entire hidden period (a batch completing
-    // while hidden could never clear it — the idle check sat behind the
-    // hidden guard). visibilitychange resamples and re-arms on return.
-    if (this._loadingFeedbackTicker || document.hidden) return;
-    this._loadingFeedbackTicker = setInterval(() => {
-      if (document.hidden) {
-        this._stopLoadingFeedbackTicker();
-        return;
-      }
-      const now = performance.now();
-      this._lastLoadingFeedbackUpdateAt = now;
-      this._updateGlobalLoadingFeedback(now);
-      const noticeNeedsTicker = Number.isFinite(this._globalStatusNotice?.hideAt);
-      if (this._loadingFeedbackState?.phase === 'idle' && !noticeNeedsTicker) {
-        this._stopLoadingFeedbackTicker();
-      }
-    }, 60);
-  }
-
-  /** Stop the loading-chip ticker if it is running. Idempotent. */
-  _stopLoadingFeedbackTicker() {
-    if (!this._loadingFeedbackTicker) return;
-    clearInterval(this._loadingFeedbackTicker);
-    this._loadingFeedbackTicker = null;
-  }
 
   // ── Location Bar ─────────────────────────────
 
@@ -11135,6 +10993,47 @@ export class StyleManager {
   }
 
   /**
+   * Show a failure in the top-centre banner.
+   *
+   * This is the surviving half of the old global loading chip. That element
+   * reported live progress as well - "LOADING LIVE DATA" and the roster of
+   * layers still working - which is the part that sat behind the search bar for
+   * the whole session and has been removed. Failures kept their home here
+   * rather than moving to the bottom toast, which is a deliberate choice: a
+   * shared link that could not be restored deserves the more prominent spot and
+   * a dwell long enough to read, and the toast's two seconds is neither.
+   *
+   * What went with the progress readout is the machinery it needed - the
+   * time-driven reducer, the 60 ms and 500 ms tickers, and the arbitration
+   * between a notice and a live loading phase. With nothing to arbitrate
+   * against, one timeout is the whole lifecycle.
+   *
+   * @param {string} message - Failure text.
+   * @returns {void}
+   */
+  _showGlobalStatusNotice(message) {
+    if (!this._globalStatusBanner) return;
+    const label = String(message || '').trim();
+    if (!label) return;
+    this._globalStatusBanner.textContent = label;
+    this._globalStatusBanner.hidden = false;
+    clearTimeout(this._globalStatusBannerTimer);
+    this._globalStatusBannerTimer = window.setTimeout(() => {
+      this._globalStatusBannerTimer = null;
+      this._hideGlobalStatusNotice();
+    }, LOADING_FAILURE_DWELL_MS);
+  }
+
+  /** Clear the failure banner and its dwell. Idempotent; safe after dispose. */
+  _hideGlobalStatusNotice() {
+    clearTimeout(this._globalStatusBannerTimer);
+    this._globalStatusBannerTimer = null;
+    if (!this._globalStatusBanner) return;
+    this._globalStatusBanner.hidden = true;
+    this._globalStatusBanner.textContent = '';
+  }
+
+  /**
    * Displays a temporary toast notification for 2 seconds.
    * @param {string} message - Text to show in the toast.
    * @returns {void}
@@ -11478,8 +11377,7 @@ export class StyleManager {
     if (this._disposed) return;
     this._shareTrackingNoticeGeneration += 1;
     this._shareTrackingAcquiringKey = null;
-    this._globalStatusNotice = null;
-    if (this._globalLoadingStatus) this._globalLoadingStatus.hidden = true;
+    this._hideGlobalStatusNotice();
     this._disposed = true;
     // Camera listener, so it outlives the panel unless removed here.
     this._countryPillsRemover?.();
@@ -11578,11 +11476,6 @@ export class StyleManager {
       window.removeEventListener('resize', this._windowResizeHandler);
       this._windowResizeHandler = null;
     }
-    if (this._loadingVisibilityHandler) {
-      document.removeEventListener('visibilitychange', this._loadingVisibilityHandler);
-      this._loadingVisibilityHandler = null;
-    }
-    this._stopLoadingFeedbackTicker();
     if (this._globalKeydownHandler) {
       document.removeEventListener('keydown', this._globalKeydownHandler);
       this._globalKeydownHandler = null;
@@ -11598,14 +11491,6 @@ export class StyleManager {
       this._animFrameId = null;
     }
     releaseContinuousRender('style-anim');
-    if (this._loadingSafetyNetTicker) {
-      clearInterval(this._loadingSafetyNetTicker);
-      this._loadingSafetyNetTicker = null;
-    }
-    if (this._loadingFeedbackTicker) {
-      clearInterval(this._loadingFeedbackTicker);
-      this._loadingFeedbackTicker = null;
-    }
     if (this._leftStackLayoutFrame !== null) {
       cancelAnimationFrame(this._leftStackLayoutFrame);
       this._leftStackLayoutFrame = null;

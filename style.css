@@ -1406,7 +1406,7 @@ body.ui-clean-view #clean-view-exit {
 
 body.ui-clean-view #title-bar,
 body.ui-clean-view #style-indicator,
-body.ui-clean-view #global-loading-status,
+body.ui-clean-view #global-status-banner,
 body.ui-clean-view #pp-toggles,
 body.ui-clean-view #param-slider-panel,
 body.ui-clean-view #control-panel,
@@ -1871,64 +1871,39 @@ body.ui-clean-view #scene-runtime.active {
   opacity: 0.5;
 }
 
-/* ── Top-center Globe Actions ────────────────── */
+/* ── Top-center failure banner ────────────────
+   All that remains of the old loading chip. It no longer reports progress —
+   no "LOADING LIVE DATA", no layer roster — so it is invisible in normal use
+   and appears only when a shared link fails to restore. Kept top-centre rather
+   than folded into the bottom toast because that failure is worth reading. */
 
-#global-loading-status {
+#global-status-banner {
   position: fixed;
   top: 74px;
   left: 50%;
   z-index: 102;
   display: inline-flex;
   align-items: center;
-  gap: 10px;
   max-width: calc(100vw - 32px);
   padding: 6px 10px;
   border-radius: 7px;
-  border: 1px solid rgba(0, 212, 255, 0.24);
+  border: 1px solid rgba(255, 98, 82, 0.55);
   background: rgba(3, 10, 18, 0.78);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  color: rgba(170, 252, 255, 0.92);
+  color: #ff9b8e;
   font-family: var(--font-mono);
   font-size: 8px;
   letter-spacing: 1.35px;
   text-transform: uppercase;
   transform: translateX(-50%);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.34), 0 0 14px rgba(0, 212, 255, 0.08);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.34), 0 0 14px rgba(0, 0, 0, 0.2);
   pointer-events: none;
 }
-#global-loading-status[hidden] { display: none; }
-#global-loading-label {
-  color: rgba(184, 244, 255, 0.92);
-}
-#global-loading-detail {
-  min-width: 34px;
-  max-width: min(220px, 38vw);
-  overflow: hidden;
-  color: #00e1ff;
-  font-weight: 600;
-  letter-spacing: 1.6px;
-  text-align: right;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-#global-loading-status:is([data-state='complete'], [data-state='cancelled'], [data-state='error']) {
-  justify-content: center;
-  text-align: center;
-}
-#global-loading-status:is([data-state='complete'], [data-state='cancelled'], [data-state='error']) #global-loading-detail {
-  display: none;
-}
-#global-loading-status[data-state='error'] { border-color: rgba(255, 98, 82, 0.55); color: #ff9b8e; }
-#global-loading-status[data-state='error'] #global-loading-label,
-#global-loading-status[data-state='error'] #global-loading-detail { color: #ff9b8e; }
-#global-loading-status[data-state='cancelled'] { color: #ffd488; }
-#global-loading-status[data-state='cancelled'] #global-loading-label,
-#global-loading-status[data-state='cancelled'] #global-loading-detail { color: #ffd488; }
-#global-loading-status[data-state='acquiring'] {
-  border-color: rgba(0, 212, 255, 0.42);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.34), 0 0 18px rgba(0, 212, 255, 0.12);
-}
+
+#global-status-banner[hidden] { display: none; }
+
+/* ── Top-center Globe Actions ────────────────── */
 
 .share-icon {
   font-size: 16px;
@@ -6634,7 +6609,7 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
 /* ── Recording Mode ─────────────────────────── */
 body.recording-mode #title-bar,
 body.recording-mode #style-indicator,
-body.recording-mode #global-loading-status,
+body.recording-mode #global-status-banner,
 body.recording-mode #pp-toggles,
 body.recording-mode #clean-view-exit,
 body.recording-mode #param-slider-panel,

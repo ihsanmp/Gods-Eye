@@ -65,8 +65,10 @@ test('share-follow failures use the universal top-center status instead of the b
   assert.doesNotMatch(handler, /this\._showToast\(message\)/);
   assert.doesNotMatch(handler, /pushCockpitSignal/);
   assert.match(handler, /result\.classification === 'pending'/);
-  assert.match(handler, /state: 'acquiring'/);
-  assert.match(handler, /persistent: true/);
+  // The ACQUIRING progress notice went with the loading readout: the banner is
+  // for failures now, and "still working on it" was exactly the chrome removed.
+  assert.doesNotMatch(handler, /state: 'acquiring'/);
+  assert.doesNotMatch(handler, /persistent: true/);
   assert.match(handler, /this\._shareTrackingNoticeGeneration \+= 1/);
   assert.match(handler, /canPresentDeferredStatusNotice\(/);
   assert.match(handler, /if \(this\._shareTrackingAcquiringKey\) return/);
@@ -165,9 +167,18 @@ test('universal notice lifecycle clears on dispose and uses the one top-center l
   const disposeEnd = ui.indexOf('\n  }\n', disposeStart);
   const dispose = ui.slice(disposeStart, disposeEnd);
 
-  assert.match(dispose, /this\._globalStatusNotice = null;/);
+  // The banner clears itself AND its dwell timeout on dispose - a 5 s timer
+  // firing into a disposed panel would unhide an element nothing owns.
+  assert.match(dispose, /this\._hideGlobalStatusNotice\(\);/);
   assert.match(dispose, /this\._shareTrackingNoticeGeneration \+= 1;/);
-  assert.match(html, /<div id="global-loading-status" role="status" aria-live="polite" aria-atomic="true" hidden>/);
+  assert.match(html, /<div id="global-status-banner" role="status" aria-live="polite" aria-atomic="true" hidden><\/div>/);
+  // It ships EMPTY. The old element carried "LOADING LIVE DATA" and a detail
+  // span in the markup, so the readout was on screen before any script ran.
+  // (Asserted against the markup, not the file: the comment above the element
+  // quotes the retired label on purpose.)
+  assert.doesNotMatch(html, /id="global-loading-status"/);
+  assert.doesNotMatch(html, /id="global-loading-label"/);
+  assert.doesNotMatch(html, /id="global-loading-detail"/);
 });
 
 test('normalizes lifecycle and refresh loading without owning manager state', () => {
@@ -196,18 +207,6 @@ test('reveals sustained loading and then a bounded completion state', () => {
   assert.equal(presentLoadingFeedback(visible, summary, 300).label, 'LOADING LIVE DATA');
   const complete = reduceLoadingFeedback(visible, aggregateLayerLoading([]), 350);
   assert.equal(presentLoadingFeedback(complete, aggregateLayerLoading([]), 350).label, 'LOAD COMPLETE');
-});
-
-test('terminal loading feedback centers its label without an empty detail slot', () => {
-  const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
-  assert.match(
-    css,
-    /#global-loading-status:is\(\[data-state='complete'\], \[data-state='cancelled'\], \[data-state='error'\]\)\s*\{[\s\S]*?justify-content:\s*center;[\s\S]*?text-align:\s*center;/,
-  );
-  assert.match(
-    css,
-    /#global-loading-status:is\(\[data-state='complete'\], \[data-state='cancelled'\], \[data-state='error'\]\) #global-loading-detail\s*\{\s*display:\s*none;/,
-  );
 });
 
 test('distinguishes accepted-data refresh from initial loading', () => {
@@ -591,69 +590,3 @@ test('aggregates Mapped Installations refresh beside CCTV without changing eithe
 // StyleManager class (a full viewer to instantiate), so — as with the panel
 // stack layout contract — the ticker's lifecycle is pinned against ui.js
 // source. (perf rebase 2026-08-17)
-test('the loading ticker never runs hidden and stops after loading and notices settle', () => {
-  const ui = readFileSync(new URL('./ui.js', import.meta.url), 'utf8');
-  // Scope every assertion to _armLoadingFeedbackTicker's own body. The
-  // neighbouring _startTrafficChipTicker is a deliberately PERMANENT 500ms
-  // safety-net poll, so its `if (document.hidden) return;` is correct there
-  // and must not be confused with this self-stopping ticker's leak.
-  const armBody = ui.slice(ui.indexOf('_armLoadingFeedbackTicker() {'));
-  assert.ok(armBody.startsWith('_armLoadingFeedbackTicker() {'), 'ticker function not found in ui.js');
-  const arm = armBody.slice(0, armBody.indexOf('\n  }\n') + 5);
-
-  // 1. The ARM guard itself refuses while hidden. Previously the only hidden
-  //    check sat INSIDE the interval body, so a batch that completed while
-  //    hidden left the 60ms timer scheduled for the whole hidden period: the
-  //    idle check that clears it was unreachable behind the hidden `return`.
-  assert.match(
-    arm,
-    /if \(this\._loadingFeedbackTicker \|\| document\.hidden\) return;/,
-    'the ticker must not arm while the document is hidden',
-  );
-
-  // 2. Going hidden STOPS the interval rather than idling inside it.
-  assert.match(
-    arm,
-    /if \(document\.hidden\) \{\s*this\._stopLoadingFeedbackTicker\(\);\s*return;\s*\}/,
-    'a hidden tick must clear the interval, not just skip the work',
-  );
-  assert.doesNotMatch(
-    arm,
-    /setInterval\(\(\) => \{\s*if \(document\.hidden\) return;/,
-    'the bare hidden `return` inside this interval is the leak — it must be gone',
-  );
-
-  // 3. Reaching idle stops it after any time-driven notice has completed.
-  //    Persistent ACQUIRING notices remain visible without a 60ms timer.
-  assert.match(
-    arm,
-    /const noticeNeedsTicker = Number\.isFinite\(this\._globalStatusNotice\?\.hideAt\);[\s\S]*?if \(this\._loadingFeedbackState\?\.phase === 'idle' && !noticeNeedsTicker\) \{\s*this\._stopLoadingFeedbackTicker\(\);\s*\}/,
-    'an idle phase with no expiring notice must stop the ticker',
-  );
-  assert.match(
-    ui,
-    /_stopLoadingFeedbackTicker\(\)\s*\{[\s\S]*?clearInterval\(this\._loadingFeedbackTicker\);[\s\S]*?this\._loadingFeedbackTicker = null;/,
-    'the shared stopper must actually clear and null the handle',
-  );
-
-  // 4. Returning to visible resamples, so a batch that finished while hidden
-  //    is reconciled and a still-running one re-arms its ticker. The handler
-  //    must live on the class that OWNS _updateGlobalLoadingFeedback
-  //    (StyleManager) — wiring it into a neighbouring controller instead
-  //    throws on every visibilitychange — and must be torn down with the rest.
-  assert.match(
-    ui,
-    /this\._loadingVisibilityHandler = \(\) => \{\s*if \(!document\.hidden\) this\._updateGlobalLoadingFeedback\(\);\s*\};\s*document\.addEventListener\('visibilitychange', this\._loadingVisibilityHandler\);/,
-    'visibilitychange must resample the chip on return',
-  );
-  const styleManager = ui.slice(ui.indexOf('export class StyleManager'));
-  assert.ok(
-    styleManager.includes('this._loadingVisibilityHandler'),
-    'the resample handler must be owned by StyleManager, which defines _updateGlobalLoadingFeedback',
-  );
-  assert.match(
-    ui,
-    /document\.removeEventListener\('visibilitychange', this\._loadingVisibilityHandler\);/,
-    'the resample handler must be removed on teardown',
-  );
-});

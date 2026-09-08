@@ -80,10 +80,14 @@
       </div>
     </div>
   </div>
-  <div id="global-loading-status" role="status" aria-live="polite" aria-atomic="true" hidden>
-    <span id="global-loading-label">LOADING LIVE DATA</span>
-    <span id="global-loading-detail"></span>
-  </div>
+
+  <!-- Failures only. This used to double as the live loading readout
+       ("LOADING LIVE DATA" with the layer roster beside it), which sat behind
+       the search bar the whole time the console was working; that half is gone.
+       What is left is the one place a share link that could not be restored
+       says so, which is deliberately here and not the bottom toast: it is more
+       prominent and it holds long enough to read. Empty and hidden until then. -->
+  <div id="global-status-banner" role="status" aria-live="polite" aria-atomic="true" hidden></div>
 
   <!-- Toast notification -->
   <div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
