@@ -77,7 +77,7 @@ import aisLiveVesselsLayer from './data/aisLiveVessels.js';
 import militaryAwarenessLayer from './data/militaryAwareness.js';
 import militaryInstallationsLayer from './data/militaryInstallations.js';
 import rocketLaunchesLayer from './data/rocketLaunches.js';
-import { LOADING_FAILURE_DWELL_MS, canPresentDeferredStatusNotice } from './loadingFeedback.js';
+import { LOADING_FAILURE_DWELL_MS, canPresentDeferredStatusNotice } from './statusNotice.js';
 import {
   cockpitEntryAllowed,
   contextAllowedLayerIds,

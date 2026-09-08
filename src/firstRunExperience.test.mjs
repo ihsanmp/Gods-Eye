@@ -435,15 +435,17 @@ test('the tile is the FULLY CONFIGURED experience: quakes and fires together', (
   assert.deepEqual(environmental.layerIds, ['earthquakes', 'local-firms']);
 
   // Keyless, the honest surface is the LAYER ROW ("KEY REQUIRED"), which the
-  // FIRMS layer already reports. The misleading part is the GLOBAL chip folding
-  // that row into LOAD FAILED — a defect in the shared state machine, ledgered
-  // post-launch, and the note must stay where the next editor will read it
-  // rather than being re-discovered as a launcher bug.
+  // FIRMS layer already reports. The GLOBAL chip used to fold that row into
+  // LOAD FAILED — a ledgered defect — and it was settled by removing the chip
+  // and its aggregating state machine outright. The note must stay where the
+  // next editor will read it, so a keyless FIRMS row is never re-discovered as
+  // a launcher bug.
   const module = fs.readFileSync(new URL('./firstRunExperience.js', import.meta.url), 'utf8');
   const table = module.slice(module.indexOf('  environmental: Object.freeze({'), module.indexOf('  explore:'));
   assert.match(table, /KEY REQUIRED/);
-  assert.match(table, /src\/loadingFeedback\.js/);
-  assert.match(table, /LEDGERED post-launch/);
+  assert.match(table, /no aggregation left to mislabel/);
+  // The module it pointed at is gone; the note must not send anyone hunting it.
+  assert.doesNotMatch(table, /src\/loadingFeedback\.js/);
 });
 
 test('every visitor gets the same tile — there is no degraded keyless variant', async () => {
