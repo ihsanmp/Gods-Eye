@@ -8501,6 +8501,11 @@ export default defineConfig(({ mode }) => {
       // 'photoreal' (Google 3D Tiles, billed per session). Not a secret — it
       // only names a stack the client already knows about.
       'import.meta.env.GEV_MAP_STACK': JSON.stringify(env.GEV_MAP_STACK),
+      // Share of full resolution an integrated GPU renders, 40-100. Reading this
+      // without listing it here is the whole hazard: the client compiles fine,
+      // `import.meta.env.GEV_GPU_BUDGET` is simply `undefined` forever, and the
+      // setting looks like it exists while doing nothing at all.
+      'import.meta.env.GEV_GPU_BUDGET': JSON.stringify(env.GEV_GPU_BUDGET),
     },
     build: {
       // The Cesium engine bundle is inherently large; raise the warning ceiling
