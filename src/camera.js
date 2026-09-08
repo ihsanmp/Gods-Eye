@@ -71,17 +71,57 @@ export function flyToIndonesia(viewer) {
     },
   });
 
-  // Cinematic fly-in after a brief pause: Monas, central Jakarta.
-  setTimeout(() => {
-    viewer.camera.flyTo({
-      destination: Cesium.Cartesian3.fromDegrees(106.8272, -6.1754, 2200),
-      orientation: {
-        heading: Cesium.Math.toRadians(15),
-        pitch: Cesium.Math.toRadians(-35),
-        roll: 0.0,
-      },
-      duration: 4.0,
-      easingFunction: Cesium.EasingFunction.CUBIC_IN_OUT,
-    });
-  }, 500);
+  /*
+   * Cinematic fly-in after a brief pause: Monas, central Jakarta.
+   *
+   * Two seconds, halved from four (owner request, 2026-09-08). This descent is
+   * the heaviest moment the console has: it falls from 4,200 km to 2,200 m and
+   * crosses every level of detail on the way down, drawing tiles at each one
+   * while holding the render governor in continuous mode.
+   *
+   * Halving it does NOT halve the work - the same LOD levels are crossed either
+   * way - so on its own it makes the peak TALLER rather than smaller, which is
+   * what a 100% GPU reading after the change showed. What keeps that peak down
+   * is the caller: this returns a promise that settles when the flight is over,
+   * and main.js holds the globe at its coarse startup detail until then. The
+   * descent is fast AND cheap only because those two things are paired.
+   *
+   * The promise settles on completion or cancellation, and a timer guarantees
+   * it settles regardless - a flight that somehow reported neither would
+   * otherwise leave the globe coarse for the rest of the session.
+   *
+   * @param {Cesium.Viewer} viewer
+   * @returns {Promise<void>} Settles once the opening flight is done.
+   */
+  return new Promise((resolve) => {
+    const durationSec = 2.0;
+    const pauseMs = 500;
+    let settled = false;
+    const settle = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+    // Belt to the braces below: pause + duration + a second of slack.
+    const fallback = setTimeout(settle, pauseMs + durationSec * 1000 + 1000);
+    const finish = () => {
+      clearTimeout(fallback);
+      settle();
+    };
+
+    setTimeout(() => {
+      viewer.camera.flyTo({
+        destination: Cesium.Cartesian3.fromDegrees(106.8272, -6.1754, 2200),
+        orientation: {
+          heading: Cesium.Math.toRadians(15),
+          pitch: Cesium.Math.toRadians(-35),
+          roll: 0.0,
+        },
+        duration: durationSec,
+        easingFunction: Cesium.EasingFunction.CUBIC_IN_OUT,
+        complete: finish,
+        cancel: finish,
+      });
+    }, pauseMs);
+  });
 }

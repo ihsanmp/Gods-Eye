@@ -343,13 +343,37 @@ async function init() {
     // the tiles actually in view.
     viewer.scene.globe.maximumScreenSpaceError = Math.max(STARTUP_SCREEN_SPACE_ERROR, screenSpaceError);
     viewer.scene.globe.preloadSiblings = false;
+
+    /*
+     * Two gates, and the second one is why the opening flight is affordable.
+     *
+     * Draining the tile queue is not enough on its own. The opening descent
+     * falls through every LOD level in two seconds, and the queue can reach
+     * zero at any point along the way; tightening there would sharpen the globe
+     * MID-FLIGHT, at the exact moment the GPU is already drawing the most it
+     * ever will. That is a measured symptom, not a theory - the 3D engine sat
+     * at 100% through launch.
+     *
+     * So detail waits for the flight to be over as well. Coarse is the right
+     * setting while the camera is moving fast: nobody can resolve fine tiles
+     * through a descent, and the frames it saves are the frames that were
+     * pegging the chip.
+     */
+    let openingFlightSettled = false;
+    let queuedTiles = Number.POSITIVE_INFINITY;
     const applySteadyStateQuality = (queued) => {
-      if (queued > 0) return;
+      if (Number.isFinite(queued)) queuedTiles = queued;
+      if (!openingFlightSettled || queuedTiles > 0) return;
       viewer.scene.globe.maximumScreenSpaceError = screenSpaceError;
       viewer.scene.globe.preloadSiblings = true;
       viewer.scene.globe.tileLoadProgressEvent.removeEventListener(applySteadyStateQuality);
     };
     viewer.scene.globe.tileLoadProgressEvent.addEventListener(applySteadyStateQuality);
+    /** Open the detail gate once the opening flight is done (or never ran). */
+    const releaseOpeningFlightGate = () => {
+      openingFlightSettled = true;
+      applySteadyStateQuality(queuedTiles);
+    };
 
     // Register per-layer data attribution into the "Data attribution" popover.
     // Required by each source's license (ODbL, CC BY-NC-SA, NASA FIRMS, etc.);
@@ -425,9 +449,13 @@ async function init() {
     // If no share link state, open where this console actually works.
     if (!styleManager.hasShareState) {
       loaderStatus.textContent = 'Menuju Indonesia...';
-      flyToIndonesia(viewer);
+      // The globe stays at its coarse startup detail until this settles — see
+      // the two gates above. A share link does not fly, so it opens the gate at
+      // once and keeps the behaviour it always had.
+      void flyToIndonesia(viewer).then(releaseOpeningFlightGate);
     } else {
       loaderStatus.textContent = 'Restoring shared view...';
+      releaseOpeningFlightGate();
     }
 
     // Initialize data layer manager
