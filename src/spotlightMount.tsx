@@ -493,11 +493,35 @@ function SpotlightHost() {
     // Fly to the chosen row's OWN coordinates rather than re-geocoding its
     // text, so the camera lands where the row said it would.
     const wide = /city|town|village|municipality|county|state|region/i.test(row.osmType || '');
-    viewer.camera.flyTo({
-      destination: Cesium.Cartesian3.fromDegrees(row.lon, row.lat, wide ? 30000 : 2500),
-      orientation: { heading: 0, pitch: Cesium.Math.toRadians(-60), roll: 0 },
-      duration: 2.4
-    });
+    /*
+     * Frame the PLACE, not the camera.
+     *
+     * `flyTo`'s `destination` is where the CAMERA goes, not what it looks at.
+     * Putting it at the place's own coordinates and then tilting the camera
+     * meant the camera hovered directly ABOVE the place and looked past it:
+     * measured at 2,500 m and -60 degrees, the centre of the view landed 1,453
+     * metres north of the searched place, which pushed the place itself to the
+     * bottom edge of the screen. Searching Plaza Ambarrukmo showed Selokan
+     * Mataram, a kilometre and a half up the road, with the pin stranded at the
+     * margin — and the pin was never wrong, the aim was.
+     *
+     * flyToBoundingSphere positions the camera by heading/pitch/RANGE from the
+     * target instead, so the place ends up in the middle of the view at any
+     * tilt. The range is the old altitude: the eye stays about as far away as
+     * it was, it is simply pointed at the right thing now.
+     */
+    const target = Cesium.Cartesian3.fromDegrees(row.lon, row.lat);
+    viewer.camera.flyToBoundingSphere(
+      new Cesium.BoundingSphere(target, wide ? 6000 : 250),
+      {
+        offset: new Cesium.HeadingPitchRange(
+          0,
+          Cesium.Math.toRadians(-60),
+          wide ? 30000 : 2500
+        ),
+        duration: 2.4
+      }
+    );
     void markSearchResult(row);
     setChosen(row);
   }, [markSearchResult]);
