@@ -78,6 +78,7 @@ import militaryAwarenessLayer from './data/militaryAwareness.js';
 import militaryInstallationsLayer from './data/militaryInstallations.js';
 import rocketLaunchesLayer from './data/rocketLaunches.js';
 import { LOADING_FAILURE_DWELL_MS, canPresentDeferredStatusNotice } from './statusNotice.js';
+import { shouldSkipExpensiveEffects } from './gpuProfile.js';
 import {
   CCTV_RANGE_DEFAULT,
   atMaxRange,
@@ -3935,7 +3936,25 @@ export class StyleManager {
       this._applySharpenIntensity(sharpenPct / 100);
     }
     if (typeof defaults.sharpen?.enabled === 'boolean') {
-      this._setSharpenEnabled(defaults.sharpen.enabled);
+      /*
+       * Sharpen is OFF by default on an integrated GPU.
+       *
+       * It is an unsharp mask, and an unsharp mask is not a cheap effect: the
+       * shader takes NINE texture samples per pixel, over the whole screen,
+       * every frame. At the two megapixels this console targets and 30 fps that
+       * is on the order of half a billion texture fetches a second, spent on an
+       * edge-contrast lift most people would not notice was missing. On a
+       * discrete card it disappears into the budget; on a laptop iGPU sharing
+       * bandwidth and a thermal envelope with the CPU — more so with Windows in
+       * its balanced power mode — it is one of the largest single things on the
+       * frame.
+       *
+       * This is a DEFAULT, not a lock: the Display panel's sharpen toggle turns
+       * it straight back on, and a share link carrying sharpen state still wins,
+       * because that state lands after this baseline.
+       */
+      const wantSharpen = defaults.sharpen.enabled && !shouldSkipExpensiveEffects();
+      this._setSharpenEnabled(wantSharpen);
     }
 
     if (defaults.hudVariant) {

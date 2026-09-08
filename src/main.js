@@ -32,6 +32,7 @@ import {
 } from './renderGovernor.js';
 import { installScopeMask } from './scopeMask.js';
 import { initFirstRunExperience } from './firstRunExperience.js';
+import { probeGpu, setGpuProfile } from './gpuProfile.js';
 
 /**
  * Tile screen-space error used until the first tile queue drains. Coarser than
@@ -39,38 +40,6 @@ import { initFirstRunExperience } from './firstRunExperience.js';
  * then sharpens to the configured target. See the progressive-LOD block below.
  */
 const STARTUP_SCREEN_SPACE_ERROR = 6;
-
-/**
- * Read the real GPU string, and say whether it is integrated.
- *
- * The quality preset is a stated intent; this is the hardware underneath it.
- * A full-screen 3D globe is fill-rate and memory-bandwidth bound, and an
- * integrated GPU shares both its bandwidth and its power/thermal budget with
- * the CPU beside it - so 4x MSAA at 60 fps, which a discrete card shrugs off,
- * is exactly what makes an iGPU laptop run hot, loud, and throttled.
- *
- * WEBGL_debug_renderer_info gives the unmasked renderer, e.g.
- * "ANGLE (Intel, Intel(R) Arc(TM) Graphics ... D3D11)". A discrete part names
- * itself (NVIDIA / GeForce / RTX, or AMD's discrete Radeon RX); the integrated
- * families are Intel (UHD, Iris, Arc-on-die), AMD Vega/RDNA iGPUs, Apple, and
- * the software fallbacks. Unknown is treated as NOT integrated, so a GPU we
- * cannot read is never quietly throttled.
- *
- * @param {WebGLRenderingContext} gl
- * @returns {{ renderer: string, integrated: boolean }}
- */
-function probeGpu(gl) {
-  let renderer = '';
-  try {
-    const ext = gl?.getExtension?.('WEBGL_debug_renderer_info');
-    if (ext) renderer = String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) || '');
-  } catch { /* some contexts block the extension; treat as unknown */ }
-
-  const r = renderer.toLowerCase();
-  const discrete = /nvidia|geforce|rtx|gtx|quadro|radeon rx|arc a\d/.test(r);
-  const integrated = !discrete && /intel|uhd|iris|arc|apple|adreno|mali|vega|radeon\(tm\) graphics|llvmpipe|swiftshader|microsoft basic/.test(r);
-  return { renderer, integrated };
-}
 
 
 initLogoGaze();
@@ -275,7 +244,20 @@ async function init() {
     // only ever LOWERS from the preset - a machine set to performance is left
     // alone - and the preset stays the ceiling the operator asked for.
     const gpu = probeGpu(viewer.scene.context._gl || viewer.scene.context.gl);
-    const msaa = gpu.integrated ? Math.min(quality.msaa, 2) : quality.msaa;
+    setGpuProfile(gpu);
+    /*
+     * MSAA OFF on an integrated GPU, not merely halved.
+     *
+     * The first pass clamped 4x to 2x and the machine was still saturated.
+     * Multisampling multiplies the work of every covered pixel in the geometry
+     * pass, and a globe covers the entire screen — there is no small part of
+     * the frame for it to be cheap on. What it buys is smoother edges on
+     * coastlines and label boxes, which is a real but small gain against a chip
+     * that cannot finish the frame at all.
+     *
+     * A discrete card keeps whatever the preset asked for.
+     */
+    const msaa = gpu.integrated ? 1 : quality.msaa;
     const targetFps = gpu.integrated ? Math.min(quality.targetFps, 30) : quality.targetFps;
     viewer.scene.msaaSamples = msaa;
     viewer.targetFrameRate = targetFps;
@@ -372,7 +354,7 @@ async function init() {
       // eslint-disable-next-line no-console
       console.info(
         `[gev] integrated GPU detected (${gpu.renderer || 'unknown'}); `
-        + `MSAA<=${msaa}, ${targetFps} fps, ${gpuBudget}% pixel budget `
+        + `MSAA ${msaa === 1 ? "off" : msaa}, sharpen off, ${targetFps} fps, ${gpuBudget}% pixel budget `
         + `(resolutionScale ${viewer.resolutionScale.toFixed(3)}), SSE>=${screenSpaceError}, cache<=${tileCache}. `
         // The number that actually decides whether this chip copes. A ratio
         // hides it: 70% of a 3K panel and 70% of a 1080p one are very

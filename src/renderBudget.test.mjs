@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { getGpuProfile, probeGpu, setGpuProfile, shouldSkipExpensiveEffects } from './gpuProfile.js';
 
 const main = readFileSync(new URL('./main.js', import.meta.url), 'utf8');
 
@@ -72,7 +73,10 @@ test('tile detail and cache are clamped on an iGPU, and only ever downward', () 
     'screen-space error is FLOORED upward (coarser) on an iGPU');
   assert.match(main, /Math\.min\(quality\.tileCache, 200\)/,
     'the tile cache is capped downward on an iGPU');
-  assert.match(main, /Math\.min\(quality\.msaa, 2\)/);
+  // MSAA is OFF, not halved. Clamping 4x to 2x left the machine saturated, and
+  // multisampling multiplies the work of every covered pixel — on a globe that
+  // is the whole screen, so there is no cheap part of the frame for it.
+  assert.match(main, /const msaa = gpu\.integrated \? 1 : quality\.msaa;/);
   assert.match(main, /Math\.min\(quality\.targetFps, 30\)/);
 
   // The clamped values must be what actually reaches the globe. Reading
@@ -85,16 +89,65 @@ test('tile detail and cache are clamped on an iGPU, and only ever downward', () 
     'the unclamped preset value must not be assigned to the globe');
 });
 
-test('a GPU that cannot be read is never quietly throttled', () => {
-  // probeGpu treats an unknown renderer as NOT integrated, so a machine whose
-  // driver blocks WEBGL_debug_renderer_info keeps the quality it asked for
-  // rather than being silently downgraded on a guess.
-  assert.match(main, /const integrated = !discrete &&/,
-    'integrated is derived from NOT discrete, so an unknown string falls through as discrete');
-  // Discrete parts are matched first and win over the integrated families —
-  // "Radeon RX" must not be read as the "radeon(tm) graphics" iGPU beside it.
-  const discreteLine = main.slice(main.indexOf('const discrete ='), main.indexOf('const integrated ='));
-  for (const part of ['nvidia', 'geforce', 'rtx', 'radeon rx']) {
-    assert.ok(discreteLine.includes(part), `${part} must count as discrete`);
+// The probe is its own module now, so these call it rather than reading main.js
+// for the shape of it. It moved because ui.js needs the same answer when it
+// applies the post-processing defaults, long after the viewer was built.
+
+const fakeGl = (renderer) => ({
+  getExtension: (name) => (name === 'WEBGL_debug_renderer_info'
+    ? { UNMASKED_RENDERER_WEBGL: 37446 }
+    : null),
+  getParameter: () => renderer,
+});
+
+test('the target hardware is recognised, and discrete cards are left alone', () => {
+  assert.equal(
+    probeGpu(fakeGl('ANGLE (Intel, Intel(R) Arc(TM) Graphics (0x00007D55) Direct3D11 vs_5_0 ps_5_0, D3D11)')).integrated,
+    true,
+    'the Core Ultra 7 155H iGPU this was tuned for',
+  );
+  for (const r of ['Intel(R) UHD Graphics 620', 'Apple M2', 'Mali-G78', 'AMD Radeon(TM) Graphics']) {
+    assert.equal(probeGpu(fakeGl(r)).integrated, true, r);
   }
+  // Discrete is matched FIRST and wins, so "Radeon RX" is never read as the
+  // "Radeon(TM) Graphics" iGPU whose name it resembles.
+  for (const r of ['NVIDIA GeForce RTX 4070', 'AMD Radeon RX 7900 XTX', 'Quadro P2000']) {
+    assert.equal(probeGpu(fakeGl(r)).integrated, false, r);
+  }
+});
+
+test('a GPU that cannot be read is never quietly throttled', () => {
+  // A driver that blocks WEBGL_debug_renderer_info, or no context at all, keeps
+  // the quality it was asked for rather than being downgraded on a guess.
+  assert.equal(probeGpu({ getExtension: () => null }).integrated, false);
+  assert.equal(probeGpu(null).integrated, false);
+  assert.equal(probeGpu(undefined).integrated, false);
+  assert.equal(probeGpu({ getExtension: () => { throw new Error('blocked'); } }).integrated, false);
+});
+
+test('effects are skipped only once the probe has actually run', () => {
+  // Read before the viewer exists, this must be false: nothing may be disabled
+  // on a default, only on a reading.
+  assert.equal(shouldSkipExpensiveEffects(), false, 'unprobed means no downgrade');
+  setGpuProfile(probeGpu(fakeGl('NVIDIA GeForce RTX 4070')));
+  assert.equal(shouldSkipExpensiveEffects(), false);
+  setGpuProfile(probeGpu(fakeGl('Intel(R) Arc(TM) Graphics')));
+  assert.equal(shouldSkipExpensiveEffects(), true);
+});
+
+test('the sharpen default is skipped on an iGPU, and is a default not a lock', () => {
+  /*
+   * Sharpen is a nine-tap unsharp mask over the whole screen, every frame — of
+   * the order of half a billion texture fetches a second at two megapixels and
+   * 30 fps. That is a large slice of an iGPU's frame for an edge-contrast lift.
+   *
+   * It must remain reversible: the Display panel's toggle and a share link's
+   * saved state both land after this baseline.
+   */
+  const ui = readFileSync(new URL('./ui.js', import.meta.url), 'utf8');
+  assert.match(ui, /const wantSharpen = defaults\.sharpen\.enabled && !shouldSkipExpensiveEffects\(\);/);
+  assert.match(ui, /this\._setSharpenEnabled\(wantSharpen\);/);
+  // The stored default stays true, so a discrete machine is unaffected and the
+  // toggle still has something to restore to.
+  assert.match(ui, /sharpen: \{ enabled: true, intensity: 49 \}/);
 });
