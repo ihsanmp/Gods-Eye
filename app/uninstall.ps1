@@ -61,4 +61,7 @@ if ($RemoveProfile) {
 }
 
 Write-Host ''
-Write-Host 'Selesai. Kode sumber di D:\gods-eye-view tidak disentuh.' -ForegroundColor Green
+# Derived, not hardcoded: the previous message named one machine's D:\ path,
+# which was wrong for every other checkout and named the pre-rename folder too.
+$Root = Split-Path -Parent $AppDir
+Write-Host "Selesai. Kode sumber di $Root tidak disentuh." -ForegroundColor Green

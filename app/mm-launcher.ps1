@@ -140,7 +140,7 @@ function New-Splash {
     }
 
     $title = New-Object System.Windows.Forms.Label
-    $title.Text = "GOD'S EYE VIEW"
+    $title.Text = "MAP MONITORING"
     $title.Font = New-Object System.Drawing.Font('Segoe UI', 13, [System.Drawing.FontStyle]::Bold)
     $title.ForeColor = [System.Drawing.ColorTranslator]::FromHtml('#DCE7EA')
     $title.Location = New-Object System.Drawing.Point(96, 40)

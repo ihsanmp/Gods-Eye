@@ -108,7 +108,7 @@ function describeError(error) {
 }
 
 /**
- * GOD'S EYE VIEW — Main Entry Point
+ * MAP MONITORING — Main Entry Point
  * Initializes CesiumJS with Google Photorealistic 3D Tiles,
  * style system, intelligence HUD, location presets, and share links.
  */
@@ -656,7 +656,7 @@ async function init() {
     window.__mapMonitoring.voiceCommands = initVoiceCommands({ viewer, styleManager, dataManager, sceneDirector, annotations });
 
   } catch (error) {
-    console.error("God's Eye View initialization failed:", error);
+    console.error('Map Monitoring initialization failed:', error);
     loaderStatus.textContent = `Error: ${describeError(error)}`;
     loaderStatus.style.color = '#ff4444';
   }

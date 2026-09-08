@@ -1,7 +1,7 @@
 /**
  * @module cctv
  *
- * CCTV camera data layer for God's Eye View.
+ * CCTV camera data layer for Map Monitoring.
  *
  * Architecture:
  * - Camera catalog: built from seed definitions (CAMERA_SEEDS) merged with live
