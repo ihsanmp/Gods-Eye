@@ -79,6 +79,7 @@ import militaryInstallationsLayer from './data/militaryInstallations.js';
 import rocketLaunchesLayer from './data/rocketLaunches.js';
 import { LOADING_FAILURE_DWELL_MS, canPresentDeferredStatusNotice } from './statusNotice.js';
 import { shouldSkipExpensiveEffects } from './gpuProfile.js';
+import { describeWeatherCode } from './weatherWords.js';
 import {
   CCTV_RANGE_DEFAULT,
   atMaxRange,
@@ -217,27 +218,6 @@ function greatCircleMetres(lat1, lon1, lat2, lon2) {
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
 }
 
-/**
- * WMO weather code in words.
- *
- * Grouped rather than enumerated: the forecast distinguishes light from dense
- * drizzle, and for "what is it doing where I am going" that difference does not
- * change anything the operator would do.
- */
-function describeWeatherCode(code) {
-  const value = Number(code);
-  if (!Number.isFinite(value)) return 'Tidak diketahui';
-  if (value === 0) return 'Cerah';
-  if (value <= 2) return 'Cerah berawan';
-  if (value === 3) return 'Berawan';
-  if (value <= 48) return 'Berkabut';
-  if (value <= 57) return 'Gerimis';
-  if (value <= 67) return 'Hujan';
-  if (value <= 77) return 'Salju';
-  if (value <= 82) return 'Hujan deras';
-  if (value <= 86) return 'Hujan salju';
-  return 'Badai petir';
-}
 
 /**
  * Widths the CCTV panel can take, in pixels. The first is the rail's own width,

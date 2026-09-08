@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { AppleSpotlight } from '@/components/ui/apple-spotlight';
 import { lookupIdentifier, type LookupResult } from '@/lib/idLookup';
+import { summarizeWeather } from '@/weatherWords.js';
 import '@/tailwind.css';
 
 /**
@@ -126,6 +127,55 @@ function fillPanelField(id: string, text: string, point?: { lat: number; lon: nu
     delete input.dataset.pickedLat;
     delete input.dataset.pickedLon;
   }
+}
+
+/**
+ * The weather where the pin is.
+ *
+ * The Route panel has answered this for a DESTINATION for a while; the same
+ * reading is useful the moment a place is picked, before anyone decides to go
+ * there. Same endpoint, same words — describeWeatherCode lives in
+ * weatherWords.js precisely so these two cannot drift into saying "Hujan" and
+ * "Rain" about the same sky.
+ *
+ * It renders nothing at all until there is a real reading. A card that says
+ * "memuat…" and then "tidak tersedia" is worse than one that never appeared:
+ * this sits beside the place name, and an empty row there reads as a fault in
+ * the search rather than a quiet forecast service.
+ */
+function PlaceWeather({ lat, lon }: { lat: number; lon: number }) {
+  const [summary, setSummary] = useState<{ headline: string; detail: string } | null>(null);
+
+  useEffect(() => {
+    // A new place must never be labelled with the last one's weather, so the
+    // reading is dropped the instant the coordinates change.
+    setSummary(null);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return undefined;
+    const abort = new AbortController();
+    (async () => {
+      try {
+        const response = await fetch(
+          `/api/weather-effects?latitude=${lat}&longitude=${lon}`,
+          { signal: abort.signal }
+        );
+        if (!response.ok) return;
+        const payload = await response.json();
+        if (abort.signal.aborted) return;
+        setSummary(summarizeWeather(payload?.weather));
+      } catch {
+        // Offline, rate-limited, or superseded: the row simply stays away.
+      }
+    })();
+    return () => abort.abort();
+  }, [lat, lon]);
+
+  if (!summary) return null;
+  return (
+    <span className="gev-chosen-weather">
+      <span className="gev-chosen-weather-now">{summary.headline}</span>
+      {summary.detail ? <span className="gev-chosen-weather-detail">{summary.detail}</span> : null}
+    </span>
+  );
 }
 
 interface RouteBarProps {
@@ -576,6 +626,7 @@ function SpotlightHost() {
            */
           <div className="gev-chosen">
             <span className="gev-chosen-name">{chosen.label.split(',')[0].trim()}</span>
+            <PlaceWeather lat={chosen.lat} lon={chosen.lon} />
             <button type="button" className="gev-chosen-go" onClick={() => setRouteOpen(true)}>
               RUTE KE SINI
             </button>

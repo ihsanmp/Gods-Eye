@@ -440,6 +440,30 @@
   font-weight: 600;
 }
 
+/* The conditions at the pin. Sits between the name and the buttons, and takes
+   only the width it needs — the name keeps the slack, because the name is what
+   a long row should ellipsise. The row is absent entirely when there is no
+   reading, so this never reserves space for nothing. */
+#spotlight-root .gev-chosen-weather {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+#spotlight-root .gev-chosen-weather-now {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+#spotlight-root .gev-chosen-weather-detail {
+  font-size: 11px;
+  color: #5b5f66;
+  font-variant-numeric: tabular-nums;
+}
+
 #spotlight-root .gev-routebar-row {
   display: flex;
   align-items: center;
