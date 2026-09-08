@@ -696,6 +696,16 @@
         <button id="cctv-projection-btn" class="scene-btn">PROJECTION ON</button>
         <span id="cctv-quality-chip">CAL · --</span>
       </div>
+      <!-- How far the camera's cone is thrown across the map. This is the
+           projection on the globe, not the video panel above it — ADJUST could
+           already do it by dragging a handle in the world, but that means
+           entering a calibration mode to answer "make this bigger". -->
+      <div class="cctv-controls cctv-zoom-row" role="group" aria-label="Ukuran proyeksi CCTV di peta">
+        <button id="cctv-range-out" type="button" class="scene-btn" title="Perkecil proyeksi di peta" aria-label="Perkecil proyeksi CCTV di peta">&#8722;</button>
+        <span id="cctv-range-label" aria-live="polite">JANGKAUAN 100%</span>
+        <button id="cctv-range-in" type="button" class="scene-btn" title="Perbesar proyeksi di peta" aria-label="Perbesar proyeksi CCTV di peta">+</button>
+        <button id="cctv-range-reset" type="button" class="scene-btn" title="Kembalikan jangkauan ke ukuran asal">RESET</button>
+      </div>
       <div class="cctv-calibration-block">
         <div class="cctv-calibration-header">
           <div class="cctv-summary-label">CALIBRATION</div>

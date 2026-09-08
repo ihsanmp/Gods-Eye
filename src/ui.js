@@ -79,6 +79,14 @@ import militaryInstallationsLayer from './data/militaryInstallations.js';
 import rocketLaunchesLayer from './data/rocketLaunches.js';
 import { LOADING_FAILURE_DWELL_MS, canPresentDeferredStatusNotice } from './statusNotice.js';
 import {
+  CCTV_RANGE_DEFAULT,
+  atMaxRange,
+  atMinRange,
+  nextRangeStep,
+  normalizeRangeScale,
+  rangeLabel,
+} from './cctvRangePolicy.js';
+import {
   cockpitEntryAllowed,
   contextAllowedLayerIds,
   contextLayerEnableBlockReason,
@@ -236,6 +244,12 @@ function describeWeatherCode(code) {
  */
 const CCTV_ZOOM_STEPS = Object.freeze([330, 430, 560, 720, 920]);
 const CCTV_ZOOM_STORAGE_KEY = 'godsEyeView.cctv.panelWidth.v1';
+
+/*
+ * How far the camera's cone is thrown across the MAP - a different thing from
+ * the panel width above, which is how big the video box is. The stepping rules
+ * live in cctvRangePolicy.js so they can be tested without a DOM.
+ */
 
 /** Duration (ms) for shader intensity crossfade between style presets. */
 const TRANSITION_DURATION_MS = 500;
@@ -6929,6 +6943,7 @@ export class StyleManager {
     if (!this._cctvPanel) return;
 
     this._initCctvZoom();
+    this._initCctvProjectionRange();
 
     this._cctvEnableBtn?.addEventListener('click', async () => {
       await this._toggleCctvEnabled();
@@ -7462,6 +7477,7 @@ export class StyleManager {
     }
 
     this._syncCctvSourceBadge(activeCamera, enabled);
+    this._syncCctvProjectionRangeLabel();
     this._typeCctvSummary(state?.summary || 'Enable CCTV to start camera-linked intelligence summaries.');
   }
 
@@ -7503,6 +7519,75 @@ export class StyleManager {
     // off the left edge, so the clamp is re-applied on resize.
     window.addEventListener('resize', () => this._applyCctvZoom());
     this._applyCctvZoom();
+  }
+
+  /**
+   * Wire the map-projection size buttons.
+   *
+   * These edit the ACTIVE camera's `rangeScale`, the same value ADJUST's range
+   * handle drags, through the layer's ordinary calibration patch. Nothing here
+   * enters calibration mode: a patch edits the live pose only, and provenance
+   * still moves exclusively on SAVE CAL — so resizing the cone to see it better
+   * never marks a camera as human-calibrated.
+   *
+   * @returns {void}
+   */
+  _initCctvProjectionRange() {
+    const out = document.getElementById('cctv-range-out');
+    const inn = document.getElementById('cctv-range-in');
+    const reset = document.getElementById('cctv-range-reset');
+    if (!out || !inn || !reset) return;
+    out.addEventListener('click', () => this._stepCctvProjectionRange(-1));
+    inn.addEventListener('click', () => this._stepCctvProjectionRange(1));
+    reset.addEventListener('click', () => this._setCctvProjectionRange(CCTV_RANGE_DEFAULT));
+  }
+
+  /** The active camera's current range multiplier, or the surveyed default. */
+  _currentCctvRangeScale() {
+    return normalizeRangeScale(this._cctvState?.activeCamera?.calibration?.rangeScale);
+  }
+
+  /**
+   * Move one stop along the range steps, from wherever the camera actually is.
+   * @param {number} delta - -1 to shrink, +1 to enlarge.
+   * @returns {void}
+   */
+  _stepCctvProjectionRange(delta) {
+    const next = nextRangeStep(this._currentCctvRangeScale(), delta);
+    if (next === null) return;
+    this._setCctvProjectionRange(next);
+  }
+
+  /**
+   * Send a range multiplier to the active camera.
+   * @param {number} rangeScale - Multiplier on the camera's surveyed range.
+   * @returns {void}
+   */
+  _setCctvProjectionRange(rangeScale) {
+    const cameraId = this._activeCctvCameraId();
+    if (!cameraId || !this._dataManager) return;
+    this._dataManager.setLayerParams('cctv', {
+      selectedCameraId: cameraId,
+      calibration: { cameraId, patch: { rangeScale } },
+    }, { origin: 'user' });
+    this._syncCctvProjectionRangeLabel(rangeScale);
+  }
+
+  /**
+   * Put the current multiplier on the readout, and grey the ends.
+   * @param {number} [scale] - Override; defaults to the active camera's value.
+   * @returns {void}
+   */
+  _syncCctvProjectionRangeLabel(scale = this._currentCctvRangeScale()) {
+    const label = document.getElementById('cctv-range-label');
+    if (label) label.textContent = rangeLabel(scale);
+    // The layer clamps anything past the ends, so a live button there would do
+    // nothing when pressed. Both predicates compare with a tolerance — see the
+    // note on EPSILON in cctvRangePolicy.js.
+    const out = document.getElementById('cctv-range-out');
+    const inn = document.getElementById('cctv-range-in');
+    if (out) out.disabled = atMinRange(scale);
+    if (inn) inn.disabled = atMaxRange(scale);
   }
 
   /** Put the chosen width on the panel, clamped to what the window can show. */

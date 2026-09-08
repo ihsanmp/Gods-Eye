@@ -82,9 +82,17 @@ const PANELS: PanelEntry[] = [
     id: 'cctv-panel',
     label: 'CCTV',
     description: 'Pilih kamera lalu lintas dan arahkan kamera.',
+    // The range buttons are mirrored because resizing the cone is something you
+    // do WHILE looking at the map, and sending someone to the full panel to do
+    // it defeats the point.
     controls:
-      '#cctv-enable-btn, #cctv-nearest-btn, #cctv-prev-btn, #cctv-camera-select, #cctv-next-btn, #cctv-focus-btn, #cctv-coverage-btn, #cctv-auto-hop-btn, #cctv-projection-btn',
-    labels: { 'cctv-camera-select': 'Kamera' },
+      '#cctv-enable-btn, #cctv-nearest-btn, #cctv-prev-btn, #cctv-camera-select, #cctv-next-btn, #cctv-focus-btn, #cctv-coverage-btn, #cctv-auto-hop-btn, #cctv-projection-btn, #cctv-range-out, #cctv-range-in, #cctv-range-reset',
+    labels: {
+      'cctv-camera-select': 'Kamera',
+      'cctv-range-out': 'Perkecil proyeksi',
+      'cctv-range-in': 'Perbesar proyeksi',
+      'cctv-range-reset': 'Jangkauan asal'
+    },
     note: 'Siaran videonya tampil di panel penuh.',
     icon: <Cctv size={24} strokeWidth={1.5} />
   },
