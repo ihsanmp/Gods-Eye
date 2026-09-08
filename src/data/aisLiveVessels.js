@@ -1471,10 +1471,10 @@ function bindVesselInteraction(viewer, handler, keyTarget) {
 
     // An own-layer record without a live map key is a strict no-op (FB-1
     // residual). Trails carry no layer identity and hug their contacts, so any
-    // `gev-trail:*` pick is also a no-op. Every other non-vessel pick — sibling
+    // `mm-trail:*` pick is also a no-op. Every other non-vessel pick — sibling
     // unowned scene picks dismiss the current vessel inspection.
     if (ownRecordPick && (!pickedId || !record)) return;
-    if (pickedId && !record && String(pickedId).startsWith('gev-trail:')) return;
+    if (pickedId && !record && String(pickedId).startsWith('mm-trail:')) return;
 
     // A sibling layer already owns this click. Preserve the current vessel
     // selection and do not compete with its camera command.

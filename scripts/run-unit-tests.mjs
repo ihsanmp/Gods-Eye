@@ -78,16 +78,16 @@ export function runUnitTests() {
   // The GC-bracketed budgets are calibrated on Node 24 and are meaningless on
   // other allocators. A contributor's suite must stay green on any supported
   // engine (package.json permits >=24), so uncalibrated runtimes skip the
-  // probes with a warning. Set GEV_REQUIRE_ALLOCATION_GATE=1 (pinned CI /
+  // probes with a warning. Set MM_REQUIRE_ALLOCATION_GATE=1 (pinned CI /
   // release batteries) to make an uncalibrated runtime a hard failure.
   if (!isCalibratedAllocationRuntime()) {
-    if (process.env.GEV_REQUIRE_ALLOCATION_GATE === '1') {
+    if (process.env.MM_REQUIRE_ALLOCATION_GATE === '1') {
       assertNode24AllocationRuntime();
     }
     console.warn(
       `[unit] SKIPPED ${ALLOCATION_TEST_FILES.length} allocation microbenchmarks: `
       + `budgets are calibrated for Node 24, running ${process.versions.node}. `
-      + 'Run under Node 24 (or set GEV_REQUIRE_ALLOCATION_GATE=1 to fail instead).',
+      + 'Run under Node 24 (or set MM_REQUIRE_ALLOCATION_GATE=1 to fail instead).',
     );
     return 0;
   }

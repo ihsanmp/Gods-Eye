@@ -171,9 +171,9 @@ function PlaceWeather({ lat, lon }: { lat: number; lon: number }) {
 
   if (!summary) return null;
   return (
-    <span className="gev-chosen-weather">
-      <span className="gev-chosen-weather-now">{summary.headline}</span>
-      {summary.detail ? <span className="gev-chosen-weather-detail">{summary.detail}</span> : null}
+    <span className="mm-chosen-weather">
+      <span className="mm-chosen-weather-now">{summary.headline}</span>
+      {summary.detail ? <span className="mm-chosen-weather-detail">{summary.detail}</span> : null}
     </span>
   );
 }
@@ -216,7 +216,7 @@ function RouteBar({ destination, onClose }: RouteBarProps) {
     // panel bare - one routing surface at a time, decided at takeover.
     const routePanel = document.getElementById('route-panel');
     if (routePanel && !routePanel.classList.contains('collapsed')) {
-      (window as any).__godsEyeView?.styleManager?.setPanelCollapsed?.('route-panel', true, { explicit: true });
+      (window as any).__mapMonitoring?.styleManager?.setPanelCollapsed?.('route-panel', true, { explicit: true });
     }
 
     const moved: Array<{ node: HTMLElement; parent: Node; next: Node | null }> = [];
@@ -268,9 +268,9 @@ function RouteBar({ destination, onClose }: RouteBarProps) {
   };
 
   return (
-    <div className="gev-routebar">
-      <div className="gev-routebar-row">
-        <span className="gev-routebar-tag">DARI</span>
+    <div className="mm-routebar">
+      <div className="mm-routebar-row">
+        <span className="mm-routebar-tag">DARI</span>
         <input
           value={origin}
           placeholder="Titik awal, atau pakai GPS"
@@ -294,8 +294,8 @@ function RouteBar({ destination, onClose }: RouteBarProps) {
         <button type="button" title="Tukar asal dan tujuan" onClick={swap}>&#8645;</button>
       </div>
 
-      <div className="gev-routebar-row">
-        <span className="gev-routebar-tag">KE</span>
+      <div className="mm-routebar-row">
+        <span className="mm-routebar-tag">KE</span>
         <input
           value={dest}
           placeholder="Tujuan"
@@ -309,12 +309,12 @@ function RouteBar({ destination, onClose }: RouteBarProps) {
         cars, so offering three choices and defaulting to one of them was three
         buttons of noise in a five-button row.
       */}
-      <div className="gev-routebar-row gev-routebar-actions">
-        <button type="button" className="gev-routebar-go" onClick={run}>CARI RUTE</button>
+      <div className="mm-routebar-row mm-routebar-actions">
+        <button type="button" className="mm-routebar-go" onClick={run}>CARI RUTE</button>
         <button type="button" onClick={onClose}>TUTUP</button>
       </div>
 
-      <div className="gev-routebar-output" ref={hostRef} />
+      <div className="mm-routebar-output" ref={hostRef} />
     </div>
   );
 }
@@ -329,23 +329,23 @@ function RouteBar({ destination, onClose }: RouteBarProps) {
  */
 function LookupCard({ result, onClose }: { result: LookupResult; onClose: () => void }) {
   return (
-    <div className="gev-lookup">
-      <div className="gev-lookup-head">
+    <div className="mm-lookup">
+      <div className="mm-lookup-head">
         <div>
-          <div className="gev-lookup-title">{result.title}</div>
-          <div className="gev-lookup-subtitle">{result.subtitle}</div>
+          <div className="mm-lookup-title">{result.title}</div>
+          <div className="mm-lookup-subtitle">{result.subtitle}</div>
         </div>
         <button type="button" onClick={onClose} aria-label="Tutup">TUTUP</button>
       </div>
-      <dl className="gev-lookup-rows">
+      <dl className="mm-lookup-rows">
         {result.rows.map((row) => (
-          <div className="gev-lookup-row" key={row.label}>
+          <div className="mm-lookup-row" key={row.label}>
             <dt>{row.label}</dt>
             <dd>{row.value}</dd>
           </div>
         ))}
       </dl>
-      {result.note ? <div className="gev-lookup-note">{result.note}</div> : null}
+      {result.note ? <div className="mm-lookup-note">{result.note}</div> : null}
     </div>
   );
 }
@@ -377,7 +377,7 @@ function SpotlightHost() {
   const abortRef = useRef<AbortController | null>(null);
 
   const search = useCallback(async (text: string) => {
-    const viewer = (window as any).__godsEyeView?.viewer;
+    const viewer = (window as any).__mapMonitoring?.viewer;
     abortRef.current?.abort();
     abortRef.current = new AbortController();
     const bias = viewportBias(viewer);
@@ -500,7 +500,7 @@ function SpotlightHost() {
    * through on the way to the one that mattered.
    */
   const markSearchResult = useCallback(async (row: GeocodeRow) => {
-    const api = (window as any).__godsEyeView?.annotations;
+    const api = (window as any).__mapMonitoring?.annotations;
     if (!api?.annotate) return;
     const previous = searchMarkRef.current;
     searchMarkRef.current = null;
@@ -528,7 +528,7 @@ function SpotlightHost() {
   }, []);
 
   const flyToRow = useCallback((row: GeocodeRow | undefined) => {
-    const viewer = (window as any).__godsEyeView?.viewer;
+    const viewer = (window as any).__mapMonitoring?.viewer;
     if (!row || !viewer) return;
     // Fly to the chosen row's OWN coordinates rather than re-geocoding its
     // text, so the camera lands where the row said it would.
@@ -568,7 +568,7 @@ function SpotlightHost() {
 
   /** Take the pin back and forget the place, leaving the bar as it started. */
   const clearChosen = useCallback(() => {
-    const api = (window as any).__godsEyeView?.annotations;
+    const api = (window as any).__mapMonitoring?.annotations;
     const id = searchMarkRef.current;
     searchMarkRef.current = null;
     if (id && api?.removeById) api.removeById(id);
@@ -624,10 +624,10 @@ function SpotlightHost() {
            * deliberately left out - this console answers different questions
            * about a destination, and it answers them once a route exists.
            */
-          <div className="gev-chosen">
-            <span className="gev-chosen-name">{chosen.label.split(',')[0].trim()}</span>
+          <div className="mm-chosen">
+            <span className="mm-chosen-name">{chosen.label.split(',')[0].trim()}</span>
             <PlaceWeather lat={chosen.lat} lon={chosen.lon} />
-            <button type="button" className="gev-chosen-go" onClick={() => setRouteOpen(true)}>
+            <button type="button" className="mm-chosen-go" onClick={() => setRouteOpen(true)}>
               RUTE KE SINI
             </button>
             <button type="button" onClick={clearChosen}>HAPUS PENANDA</button>

@@ -148,7 +148,7 @@ function record(name, ok, detail) {
 
 async function observeTrackedHostPaint(page, timeoutMs = 5000) {
   return page.evaluate((boundedTimeoutMs) => new Promise((resolve) => {
-    const viewer = window.__godsEyeView?.viewer;
+    const viewer = window.__mapMonitoring?.viewer;
     const scene = viewer?.scene;
     const history = [];
     const startedAt = performance.now();
@@ -574,7 +574,7 @@ async function main() {
     console.log('Loading app...');
     await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.waitForFunction(
-      () => window.__godsEyeView && window.__godsEyeView.viewer && window.__godsEyeView.dataManager,
+      () => window.__mapMonitoring && window.__mapMonitoring.viewer && window.__mapMonitoring.dataManager,
       { timeout: 60000, polling: 200 }
     );
     console.log('  App globals ready.');
@@ -589,7 +589,7 @@ async function main() {
       // ~90° course spike into the sampled series — a measurement flake, not
       // a product regression.)
       window.__findTrackedModel = function (icao) {
-        const v = window.__godsEyeView.viewer;
+        const v = window.__mapMonitoring.viewer;
         const out = [];
         const walk = (coll) => {
           const n = coll.length;
@@ -625,7 +625,7 @@ async function main() {
       // Invert _modelMatrix (pitch=roll=0): local x in ENU = (cos h, −sin h, 0)
       // → h = atan2(−x·north, x·east); world course = h − headingOffsetDeg.
       window.__courseFromModelMatrix = function (mm, headingOffsetDeg) {
-        const v = window.__godsEyeView.viewer;
+        const v = window.__mapMonitoring.viewer;
         const C3 = v.camera.position.constructor;
         const Carto = v.camera.positionCartographic.constructor;
         const carto = Carto.fromCartesian(new C3(mm[12], mm[13], mm[14]));
@@ -646,8 +646,8 @@ async function main() {
       // preUpdate/preRender listeners and reads the rendered model matrix, but
       // does not depend on ambient render-loop scheduling for sample count.
       window.__sampleModelCourse = async function (icao, headingOffsetDeg, windowMs, stepMs = 100) {
-        const v = window.__godsEyeView.viewer;
-        const tileset = window.__godsEyeView.tileset;
+        const v = window.__mapMonitoring.viewer;
+        const tileset = window.__mapMonitoring.tileset;
         const out = [];
         const start = performance.now();
         const priorDefaultLoop = v.useDefaultRenderLoop;
@@ -690,8 +690,8 @@ async function main() {
     // the oldest (history appends only monotonically-newer fix times).
     console.log('Priming turning history through the render delay (30 s / 15 s)...');
     const primed = await page.evaluate(async () => {
-      const dm = window.__godsEyeView.dataManager;
-      const v = window.__godsEyeView.viewer;
+      const dm = window.__mapMonitoring.dataManager;
+      const v = window.__mapMonitoring.viewer;
       window.__TURN.timeOffsetSec = -32;
       await dm.setEnabled('flights', true);
       await dm.setEnabled('military', true);
@@ -721,7 +721,7 @@ async function main() {
     // ========================================================================
     console.log('\nPhase 1 — flights layer (airplane.glb, heading offset 180°)');
     await page.evaluate((icao) => {
-      window.__godsEyeView.dataManager.layers.get('flights').module.trackById(icao);
+      window.__mapMonitoring.dataManager.layers.get('flights').module.trackById(icao);
     }, TURN.flights[0].icao);
 
     const flModelUp = await page.waitForFunction((icao) => {
@@ -778,19 +778,19 @@ async function main() {
     // ---- Screenshots: two zoom levels × two orbit angles --------------------
     console.log('\n  Screenshots (turning plane tracked in 3D) → qa-shots/b3/');
     await page.evaluate(() => {
-      window.__godsEyeView.styleManager._setDetectionMode('DENSE');
+      window.__mapMonitoring.styleManager._setDetectionMode('DENSE');
     });
     await sleep(800);
     const shots = [
       ['flights-far-orbitA.png', async () => { /* default follow framing */ }],
-      ['flights-far-orbitB.png', () => page.evaluate(() => { window.__godsEyeView.viewer.camera.rotateRight(1.9); })],
+      ['flights-far-orbitB.png', () => page.evaluate(() => { window.__mapMonitoring.viewer.camera.rotateRight(1.9); })],
       ['flights-near-orbitA.png', () => page.evaluate(() => {
-        const cam = window.__godsEyeView.viewer.camera;
+        const cam = window.__mapMonitoring.viewer.camera;
         // Synthetic cruise frame settles ~5.6 km out; leave ~430 m so model,
         // readout anchor, tracking line, and trail can be judged close-up.
         cam.rotateRight(-1.9); cam.zoomIn(5200);
       })],
-      ['flights-near-orbitB.png', () => page.evaluate(() => { window.__godsEyeView.viewer.camera.rotateLeft(1.2); })],
+      ['flights-near-orbitB.png', () => page.evaluate(() => { window.__mapMonitoring.viewer.camera.rotateLeft(1.2); })],
     ];
     for (const [name, move] of shots) {
       try { await move(); } catch (e) { console.log(`    (camera move for ${name} failed: ${e.message})`); }
@@ -799,7 +799,7 @@ async function main() {
       console.log(`    saved ${name}`);
     }
     await page.evaluate(() => {
-      window.__godsEyeView.styleManager._setDetectionMode('OFF');
+      window.__mapMonitoring.styleManager._setDetectionMode('OFF');
     });
 
     // ========================================================================
@@ -807,7 +807,7 @@ async function main() {
     // ========================================================================
     console.log('\nPhase 2 — military layer (jet.glb, heading offset 180°)');
     await page.evaluate((hex) => {
-      window.__godsEyeView.dataManager.layers.get('military').module.trackById(hex);
+      window.__mapMonitoring.dataManager.layers.get('military').module.trackById(hex);
     }, TURN.military[0].hex);
 
     const milModelUp = await page.waitForFunction((hex) => {
@@ -836,19 +836,19 @@ async function main() {
         }
       }
       await page.evaluate(() => {
-        window.__godsEyeView.styleManager._setDetectionMode('DENSE');
+        window.__mapMonitoring.styleManager._setDetectionMode('DENSE');
       });
       await sleep(800);
       for (const [name, move] of [
         ['military-orbitA.png', async () => { }],
-        ['military-orbitB.png', () => page.evaluate(() => { window.__godsEyeView.viewer.camera.rotateRight(1.6); })],
+        ['military-orbitB.png', () => page.evaluate(() => { window.__mapMonitoring.viewer.camera.rotateRight(1.6); })],
         ['military-near-orbitA.png', () => page.evaluate(() => {
-          const cam = window.__godsEyeView.viewer.camera;
+          const cam = window.__mapMonitoring.viewer.camera;
           // 12,000 ft synthetic frame settles ~6.3 km out; leave ~630 m.
           cam.rotateLeft(1.6); cam.zoomIn(5700);
         })],
         ['military-near-orbitB.png', () => page.evaluate(() => {
-          window.__godsEyeView.viewer.camera.rotateRight(1.2);
+          window.__mapMonitoring.viewer.camera.rotateRight(1.2);
         })],
       ]) {
         try { await move(); } catch (e) { console.log(`    (camera move for ${name} failed: ${e.message})`); }
@@ -857,7 +857,7 @@ async function main() {
         console.log(`    saved ${name}`);
       }
       await page.evaluate(() => {
-        window.__godsEyeView.styleManager._setDetectionMode('OFF');
+        window.__mapMonitoring.styleManager._setDetectionMode('OFF');
       });
     }
 
@@ -873,7 +873,7 @@ async function main() {
 
     const trackFlightsAndWaitModel = async (icao, label) => {
       await page.evaluate((id) => {
-        window.__godsEyeView.dataManager.layers.get('flights').module.trackById(id);
+        window.__mapMonitoring.dataManager.layers.get('flights').module.trackById(id);
       }, icao);
       const up = await page.waitForFunction((id) => {
         const m = window.__findTrackedModel(id);
@@ -914,7 +914,7 @@ async function main() {
       });
       for (const [name, move] of [
         ['slowturn-far.png', async () => { /* default follow framing */ }],
-        ['slowturn-near.png', () => page.evaluate(() => { window.__godsEyeView.viewer.camera.zoomIn(2500); })],
+        ['slowturn-near.png', () => page.evaluate(() => { window.__mapMonitoring.viewer.camera.zoomIn(2500); })],
       ]) {
         try { await move(); } catch (e) { console.log(`    (camera move for ${name} failed: ${e.message})`); }
         await sleep(1200);
@@ -931,7 +931,7 @@ async function main() {
     console.log('\nPhase 5 — 65 kt helicopter: tracked↔fleet course handoff (click / click-away)');
     await page.evaluate(() => {
       window.__findModelByIcao = function (icao) {
-        const v = window.__godsEyeView.viewer;
+        const v = window.__mapMonitoring.viewer;
         const out = [];
         const walk = (coll) => {
           const n = coll.length;
@@ -955,18 +955,18 @@ async function main() {
     // the untrack, so the screen rotation IS what the user sees flip (or not).
     await page.evaluate(async () => {
       window.__TURN.heli65.active = true;
-      const fl = window.__godsEyeView.dataManager.layers.get('flights').module;
+      const fl = window.__mapMonitoring.dataManager.layers.get('flights').module;
       fl.setParams({ models3d: false });
-      await fl.update(window.__godsEyeView.viewer); // ingest the first heli fix
+      await fl.update(window.__mapMonitoring.viewer); // ingest the first heli fix
     });
     await sleep(4000); // several fleet ticks establish the heli's fleet course
     await page.evaluate((icao) => {
-      window.__godsEyeView.dataManager.layers.get('flights').module.trackById(icao);
+      window.__mapMonitoring.dataManager.layers.get('flights').module.trackById(icao);
     }, TURN.heli65.icao);
     const heliTracked = await page.waitForFunction((icao) => {
-      const fl = window.__godsEyeView.dataManager.layers.get('flights').module;
+      const fl = window.__mapMonitoring.dataManager.layers.get('flights').module;
       const ti = fl.getTrackedInfo();
-      return !!(ti && ti.icao24 === icao && window.__godsEyeView.viewer.trackedEntity);
+      return !!(ti && ti.icao24 === icao && window.__mapMonitoring.viewer.trackedEntity);
     }, { timeout: 15000, polling: 250 }, TURN.heli65.icao).then(() => true).catch(() => false);
     record('heli65: tracking engaged (2D billboard mode)', heliTracked,
       heliTracked ? 'tracked' : 'tracking never engaged');
@@ -983,8 +983,8 @@ async function main() {
       // rotation after. The release-in-place keeps the camera static, so
       // rotation deltas across the boundary are course deltas.
       const c1 = await page.evaluate(async ({ icao, actionAtMs, windowMs }) => {
-        const v = window.__godsEyeView.viewer;
-        const fl = window.__godsEyeView.dataManager.layers.get('flights').module;
+        const v = window.__mapMonitoring.viewer;
+        const fl = window.__mapMonitoring.dataManager.layers.get('flights').module;
         const findFleetBillboard = (id) => {
           const out = [];
           const walk = (coll) => {
@@ -1034,11 +1034,11 @@ async function main() {
       // both carry id=icao, and the model matrix gives the WORLD course, so
       // the re-track camera flight cannot contaminate the series.
       await page.evaluate(() => {
-        window.__godsEyeView.dataManager.layers.get('flights').module.setParams({ models3d: true });
+        window.__mapMonitoring.dataManager.layers.get('flights').module.setParams({ models3d: true });
       });
       const fleetModelUp = await page.evaluate(async (icao) => {
-        const v = window.__godsEyeView.viewer;
-        const tileset = window.__godsEyeView.tileset;
+        const v = window.__mapMonitoring.viewer;
+        const tileset = window.__mapMonitoring.tileset;
         const priorDefaultLoop = v.useDefaultRenderLoop;
         const priorTilesetShow = tileset?.show;
         v.useDefaultRenderLoop = false;
@@ -1061,8 +1061,8 @@ async function main() {
         record('heli65 C2 (click): fleet model rendered before re-track', false, 'fleet model never became ready');
       } else {
         const c2 = await page.evaluate(async ({ icao, offsetDeg, actionAtMs, windowMs }) => {
-          const v = window.__godsEyeView.viewer;
-          const fl = window.__godsEyeView.dataManager.layers.get('flights').module;
+          const v = window.__mapMonitoring.viewer;
+          const fl = window.__mapMonitoring.dataManager.layers.get('flights').module;
           const out = [];
           const start = performance.now();
           let actionTMs = null;
@@ -1085,7 +1085,7 @@ async function main() {
       }
 
       await page.evaluate(() => {
-        window.__godsEyeView.dataManager.layers.get('flights').module.stopTracking();
+        window.__mapMonitoring.dataManager.layers.get('flights').module.stopTracking();
       });
     }
 

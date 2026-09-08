@@ -123,7 +123,7 @@ export const CITY_POIS = {
 /**
  * Absolute full-earth camera preset for the zoom_to_globe voice tool. The height
  * must stay inside the app's 'global' view-scale band (>12,000 km — classifyViewScale
- * in gevActions.js) so downstream context/screenshot policy treats it as a globe view,
+ * in voiceActions.js) so downstream context/screenshot policy treats it as a globe view,
  * and under the fly_to_location rangeM ceiling (20,000 km).
  */
 export const GLOBE_VIEW = Object.freeze({
@@ -473,7 +473,7 @@ export async function searchAndFlyTo(viewer, query, options = {}) {
     // city, every state, every country, parks and streets — frames untouched.
     //
     // EXCEPT when the caller asked for an overview outright ("show me an overview
-    // of Hawaii", voice `viewMode: 'overview'` — gevActions.js). That is an explicit
+    // of Hawaii", voice `viewMode: 'overview'` — voiceActions.js). That is an explicit
     // request for the whole administrative area, so the sanity gate stands down:
     // it exists to guess what an ambiguous place name meant, and there is nothing
     // left to guess once the user has said.

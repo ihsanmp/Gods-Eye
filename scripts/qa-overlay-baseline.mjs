@@ -14,7 +14,7 @@
  *   node scripts/qa-overlay-baseline.mjs --json overlay-baseline.json
  *   node scripts/qa-overlay-baseline.mjs --screenshots-dir overlay-shots
  *   node scripts/qa-overlay-baseline.mjs --hardware-gpu --headful
- *   node scripts/qa-overlay-baseline.mjs --dist-dir gev-dist
+ *   node scripts/qa-overlay-baseline.mjs --dist-dir mm-dist
  */
 
 import fs from 'node:fs';
@@ -345,11 +345,11 @@ async function installPageInstrumentation(page) {
 async function waitForApp(page) {
   await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await page.waitForFunction(
-    () => Boolean(window.__godsEyeView?.viewer && window.__godsEyeView?.dataManager),
+    () => Boolean(window.__mapMonitoring?.viewer && window.__mapMonitoring?.dataManager),
     { timeout: 60_000 },
   );
   await page.evaluate(() => {
-    const viewer = window.__godsEyeView.viewer;
+    const viewer = window.__mapMonitoring.viewer;
     try { viewer.camera.cancelFlight(); } catch { /* no flight */ }
     try { viewer.scene.tweens?.removeAll?.(); } catch { /* no tween collection */ }
   });
@@ -359,7 +359,7 @@ async function waitForApp(page) {
 async function setCamera(page, camera) {
   if (!camera) return;
   await page.evaluate(([lon, lat, height, heading, pitch]) => {
-    const viewer = window.__godsEyeView.viewer;
+    const viewer = window.__mapMonitoring.viewer;
     const ellipsoid = viewer.scene.globe.ellipsoid;
     viewer.camera.cancelFlight?.();
     viewer.scene.tweens?.removeAll?.();
@@ -377,7 +377,7 @@ async function setCamera(page, camera) {
 
 async function readLayerState(page, layerId) {
   return page.evaluate((id) => {
-    const manager = window.__godsEyeView.dataManager;
+    const manager = window.__mapMonitoring.dataManager;
     const entry = manager.layers.get(id);
     if (!entry) return null;
     let stats = {};
@@ -394,7 +394,7 @@ async function waitForLayer(page, layerId) {
   if (!dataBearing.has(layerId)) return readLayerState(page, layerId);
   try {
     await page.waitForFunction((id) => {
-      const entry = window.__godsEyeView?.dataManager?.layers?.get(id);
+      const entry = window.__mapMonitoring?.dataManager?.layers?.get(id);
       if (!entry?.enabled || !entry.initialized) return false;
       let stats;
       try { stats = entry.module.getStats?.() || {}; } catch { return false; }
@@ -411,7 +411,7 @@ async function waitForLayer(page, layerId) {
 
 async function readEntityInventory(page) {
   return page.evaluate(() => {
-    const viewer = window.__godsEyeView.viewer;
+    const viewer = window.__mapMonitoring.viewer;
     const time = viewer.clock.currentTime;
     const collections = [];
     const totals = {
@@ -518,7 +518,7 @@ async function activateLayers(page, layerIds) {
   for (const layerId of layerIds) {
     const before = await readEntityInventory(page);
     const toggleResult = await page.evaluate(async (id) => {
-      const manager = window.__godsEyeView.dataManager;
+      const manager = window.__mapMonitoring.dataManager;
       if (!manager.layers.has(id)) return { error: `unregistered layer: ${id}` };
       if (!manager.isEnabled(id)) await manager.toggle(id);
       return { enabled: manager.isEnabled(id) };
@@ -538,7 +538,7 @@ async function activateLayers(page, layerIds) {
 
 async function prepareCctv(page, heightM) {
   const camera = await page.evaluate((height) => {
-    const layer = window.__godsEyeView.dataManager.layers.get('cctv')?.module;
+    const layer = window.__mapMonitoring.dataManager.layers.get('cctv')?.module;
     const state = layer?.getUIState?.();
     const record = state?.cameras?.find((candidate) => Number.isFinite(candidate.lon) && Number.isFinite(candidate.lat));
     if (!record) return null;
@@ -552,7 +552,7 @@ async function prepareCctv(page, heightM) {
 
 async function prepareFirms(page) {
   const result = await page.evaluate(() => {
-    const layer = window.__godsEyeView.dataManager.layers.get('local-firms')?.module;
+    const layer = window.__mapMonitoring.dataManager.layers.get('local-firms')?.module;
     const stats = layer?.getStats?.() || {};
     const fire = layer?.getStrongestFire?.();
     return { stats, fire };
@@ -575,7 +575,7 @@ async function prepareDetection(page, densityPct) {
   if (!sourceStates.some((state) => (state?.stats?.count || 0) > 0)) {
     return 'Detection sources exposed no observations';
   }
-  const control = await page.evaluate((density) => window.__godsEyeView.styleManager.setDetection({
+  const control = await page.evaluate((density) => window.__mapMonitoring.styleManager.setDetection({
     enabled: true,
     densityPct: density,
   }), densityPct);
@@ -586,7 +586,7 @@ async function prepareDetection(page, densityPct) {
 
 async function prepareTrackedFlight(page, cockpit) {
   if (cockpit) {
-    const contacts = await page.evaluate(() => window.__godsEyeView.styleManager.setContextMode(
+    const contacts = await page.evaluate(() => window.__mapMonitoring.styleManager.setContextMode(
       'contacts',
       { origin: 'user' },
     ));
@@ -595,7 +595,7 @@ async function prepareTrackedFlight(page, cockpit) {
     }
   }
   const tracked = await page.evaluate(() => {
-    const entry = window.__godsEyeView.dataManager.layers.get('flights');
+    const entry = window.__mapMonitoring.dataManager.layers.get('flights');
     const layer = entry?.module;
     const candidates = layer?.getAllPositions?.(500) || [];
     const airborne = candidates.find((candidate) => Number(candidate.altitudeM) > 1_000) || candidates[0];
@@ -605,7 +605,7 @@ async function prepareTrackedFlight(page, cockpit) {
   });
   if (!tracked.ok) return `Civil tracking unavailable (${tracked.reason})`;
   try {
-    await page.waitForFunction(() => Boolean(window.__godsEyeView.viewer.trackedEntity?.position), { timeout: 10_000 });
+    await page.waitForFunction(() => Boolean(window.__mapMonitoring.viewer.trackedEntity?.position), { timeout: 10_000 });
   } catch {
     return 'Civil tracking did not create a tracked entity';
   }
@@ -638,7 +638,7 @@ async function prepareMission(page) {
   });
   if (!selected) return 'Mission roster did not expose a selectable mission';
   try {
-    await page.waitForFunction(() => String(window.__godsEyeView.viewer.selectedEntity?.id || '').startsWith('rocket-launch:'), { timeout: 10_000 });
+    await page.waitForFunction(() => String(window.__mapMonitoring.viewer.selectedEntity?.id || '').startsWith('rocket-launch:'), { timeout: 10_000 });
   } catch {
     return 'Mission selection did not reach the Cesium selected entity';
   }
@@ -678,7 +678,7 @@ async function readCanvasSummary(page) {
 
 async function samplePhase(page, moving) {
   const raw = await page.evaluate(async ({ durationMs, movingCamera }) => {
-    const viewer = window.__godsEyeView.viewer;
+    const viewer = window.__mapMonitoring.viewer;
     const instrumentation = window.__overlayBaselineInstrumentation;
     instrumentation?.reset?.();
     const intervals = [];
@@ -700,8 +700,8 @@ async function samplePhase(page, moving) {
       requestAnimationFrame(step);
     });
     const canvasMetrics = instrumentation?.snapshot?.() || [];
-    const detectionDiagnostics = window.__godsEyeView.styleManager?.getDetectionDiagnostics?.() || null;
-    const manager = window.__godsEyeView.dataManager;
+    const detectionDiagnostics = window.__mapMonitoring.styleManager?.getDetectionDiagnostics?.() || null;
+    const manager = window.__mapMonitoring.dataManager;
     const cctvEntry = manager.layers.get('cctv');
     const cctvState = cctvEntry?.initialized ? cctvEntry.module.getUIState?.() : null;
     const firmsEntry = manager.layers.get('local-firms');

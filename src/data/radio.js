@@ -2563,7 +2563,7 @@ function installInteraction() {
     _playFallbackFocus = null;
     selectRadioStation(stationId, { autoplay: true, origin: 'user' });
     if (typeof document !== 'undefined') {
-      document.dispatchEvent(new CustomEvent('gev:radio-selected', { detail: { stationId } }));
+      document.dispatchEvent(new CustomEvent('mm:radio-selected', { detail: { stationId } }));
     }
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
   // Polling remains bounded during flights, but a stationary camera no longer

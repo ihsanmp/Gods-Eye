@@ -56,14 +56,14 @@ test('a tracking layer subject becomes the selected entity context', () => {
 test('selecting a tracking subject stays off the overlay-click event lane', () => {
   withWindow((host) => {
     const seen = [];
-    host.addEventListener('gev:entity-selected', () => seen.push('selected'));
-    host.addEventListener('gev:entity-selection-cleared', () => seen.push('cleared'));
+    host.addEventListener('mm:entity-selected', () => seen.push('selected'));
+    host.addEventListener('mm:entity-selection-cleared', () => seen.push('cleared'));
     selectTrackedSubjectContext(flightSubject('aaa001'));
     clearTrackedSubjectContext('flights');
     assert.deepEqual(
       seen,
       [],
-      'aircraft already publish gev:awareness-subject-* — a second lane would make two surfaces fight over one subject',
+      'aircraft already publish mm:awareness-subject-* — a second lane would make two surfaces fight over one subject',
     );
   });
 });

@@ -297,7 +297,7 @@ test('real civil track path creates no native label and publishes every cached h
   const realFetch = globalThis.fetch;
   globalThis.window = new EventTarget();
   const selectionEvents = [];
-  globalThis.window.addEventListener('gev:awareness-subject-selected', (event) => {
+  globalThis.window.addEventListener('mm:awareness-subject-selected', (event) => {
     selectionEvents.push(event.detail);
   });
   globalThis.fetch = async () => ({ ok: false });
@@ -589,7 +589,7 @@ test('civil label chain: identity stays icao24 while the label moves', () => {
 
 // The `labelsFor` sweep above reads only the RETURNED label surfaces. The
 // selection EVENT is a separate publication path (`_publishTrackedSelection`
-// → `gev:awareness-subject-selected`), consumed by Context/awareness, and it
+// → `mm:awareness-subject-selected`), consumed by Context/awareness, and it
 // regressed to a raw `callsign || icao24` while every returned surface stayed
 // green. Observe the event itself so the chain cannot rot on that seam again.
 /** Capture the awareness selection event emitted for one seeded contact. */
@@ -598,7 +598,7 @@ function selectionEventFor({ callsign, registration }) {
   globalThis.window = new EventTarget();
   const events = [];
   globalThis.window.addEventListener(
-    'gev:awareness-subject-selected',
+    'mm:awareness-subject-selected',
     (event) => events.push(event.detail),
   );
   try {

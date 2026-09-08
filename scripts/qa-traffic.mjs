@@ -77,7 +77,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 /** Enable traffic + teleport, then poll the layer until settled. */
 async function settleTraffic(page, view, { minCount = 1, timeoutS = 30 } = {}) {
   return page.evaluate(async (v, minC, tS) => {
-    const gev = window.__godsEyeView;
+    const gev = window.__mapMonitoring;
     const dm = gev.dataManager;
     await dm.setEnabled('traffic', true);
     const mod = dm.layers.get('traffic').module;
@@ -149,7 +149,7 @@ async function main() {
     console.log('Loading app...');
     await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.waitForFunction(
-      () => window.__godsEyeView?.viewer && window.__godsEyeView?.dataManager,
+      () => window.__mapMonitoring?.viewer && window.__mapMonitoring?.dataManager,
       { timeout: 60000 },
     );
     await sleep(1500);
@@ -183,7 +183,7 @@ async function main() {
     console.log('\n(iv) uncoveredRoads param — hide vs sim...');
     if ((mumbai.flowBuckets?.sim || 0) > 0) {
       const hid = await page.evaluate(async () => {
-        const gev = window.__godsEyeView;
+        const gev = window.__mapMonitoring;
         const mod = gev.dataManager.layers.get('traffic').module;
         const before = mod.getStats().lastUpdate;
         mod.setParams({ uncoveredRoads: 'hide' });
@@ -267,7 +267,7 @@ async function main() {
     });
     await page.reload({ waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.waitForFunction(
-      () => window.__godsEyeView?.viewer && window.__godsEyeView?.dataManager,
+      () => window.__mapMonitoring?.viewer && window.__mapMonitoring?.dataManager,
       { timeout: 60000 },
     );
     await sleep(1500);

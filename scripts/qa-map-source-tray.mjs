@@ -99,7 +99,7 @@ try {
     request.continue();
   });
   await page.goto(appUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 });
-  await page.waitForFunction(() => window.__godsEyeView?.styleManager, { timeout: 60_000 });
+  await page.waitForFunction(() => window.__mapMonitoring?.styleManager, { timeout: 60_000 });
   await page.waitForFunction(
     () => document.getElementById('loading-screen')?.classList.contains('hidden'),
     { timeout: 60_000 },
@@ -180,7 +180,7 @@ try {
 
   if (forceKeyless) {
     await page.evaluate(() => {
-      const styleManager = window.__godsEyeView.styleManager;
+      const styleManager = window.__mapMonitoring.styleManager;
       window.__qaIonTokenBackup = styleManager.mapStackController.cesiumToken;
       styleManager.mapStackController.cesiumToken = '';
       styleManager._initMapStackControl();
@@ -196,8 +196,8 @@ try {
     // Cesium creates the imagery provider asynchronously. Wait for controller
     // truth instead of assuming a keyed switch can settle in one animation.
     await page.waitForFunction(
-      () => window.__godsEyeView.styleManager.mapStackController.getActiveId() === 'bing-aerial'
-        || Boolean(window.__godsEyeView.styleManager.mapStackController.getState()?.lastError),
+      () => window.__mapMonitoring.styleManager.mapStackController.getActiveId() === 'bing-aerial'
+        || Boolean(window.__mapMonitoring.styleManager.mapStackController.getState()?.lastError),
       { timeout: 20_000 },
     ).catch(() => {});
   }
@@ -234,7 +234,7 @@ try {
     // Hand the real token back so every later assertion runs against the same
     // configuration in both invocations.
     await page.evaluate(() => {
-      const styleManager = window.__godsEyeView.styleManager;
+      const styleManager = window.__mapMonitoring.styleManager;
       styleManager.mapStackController.cesiumToken = window.__qaIonTokenBackup || '';
       delete window.__qaIonTokenBackup;
       styleManager._initMapStackControl();
@@ -242,7 +242,7 @@ try {
   }
 
   const switching = await page.evaluate(async () => {
-    const styleManager = window.__godsEyeView.styleManager;
+    const styleManager = window.__mapMonitoring.styleManager;
     const controller = styleManager.mapStackController;
     const originalSetStack = controller.setStack.bind(controller);
     const before = controller.getActiveId();
@@ -280,7 +280,7 @@ try {
   );
 
   const acquiringLifecycle = await page.evaluate(async () => {
-    const styleManager = window.__godsEyeView.styleManager;
+    const styleManager = window.__mapMonitoring.styleManager;
     const status = document.getElementById('global-loading-status');
     const snapshot = () => ({
       hidden: status.hidden,
@@ -341,7 +341,7 @@ try {
   );
 
   const acquiringFailureArbitration = await page.evaluate(async () => {
-    const styleManager = window.__godsEyeView.styleManager;
+    const styleManager = window.__mapMonitoring.styleManager;
     const dataManager = styleManager._dataManager;
     const status = document.getElementById('global-loading-status');
     const originalGetAll = dataManager.getAll;
@@ -468,7 +468,7 @@ try {
     };
   });
   const clickTileThenLeave = async (stackId) => {
-    await page.evaluate(() => window.__godsEyeView.styleManager
+    await page.evaluate(() => window.__mapMonitoring.styleManager
       .setPanelCollapsed('control-panel', false, { explicit: true }));
     await new Promise((resolve) => setTimeout(resolve, 240));
     await page.click(`[data-stack-id="${stackId}"]`);
@@ -486,7 +486,7 @@ try {
   // mouse-away that dismisses after a click, opposite outcome — so a fix that
   // simply deleted the focus guard would fail here.
   await setControlPanelPinned(false);
-  await page.evaluate(() => window.__godsEyeView.styleManager
+  await page.evaluate(() => window.__mapMonitoring.styleManager
     .setPanelCollapsed('control-panel', true, { explicit: true }));
   await new Promise((resolve) => setTimeout(resolve, 200));
   await page.focus('#control-panel-toggle');
@@ -525,11 +525,11 @@ try {
   const pinnedForHold = await setControlPanelPinned(true);
   const pinnedHold = await clickTileThenLeave('photoreal');
   await setControlPanelPinned(false);
-  await page.evaluate(() => window.__godsEyeView.styleManager
+  await page.evaluate(() => window.__mapMonitoring.styleManager
     ._setMapStack('photoreal', { syncShare: false }));
   // Hand the tray back OPEN and unpinned — the responsive block below starts by
   // clicking the pin control, which is only hittable while the tray is showing.
-  await page.evaluate(() => window.__godsEyeView.styleManager
+  await page.evaluate(() => window.__mapMonitoring.styleManager
     .setPanelCollapsed('control-panel', false, { explicit: true }));
   await new Promise((resolve) => setTimeout(resolve, 240));
   check(
@@ -613,18 +613,18 @@ try {
       waitUntil: 'domcontentloaded',
       timeout: 60_000,
     });
-    await page.waitForFunction(() => window.__godsEyeView?.styleManager, { timeout: 60_000 });
+    await page.waitForFunction(() => window.__mapMonitoring?.styleManager, { timeout: 60_000 });
     await page.waitForFunction(
       () => document.getElementById('loading-screen')?.classList.contains('hidden'),
       { timeout: 60_000 },
     );
     await page.waitForFunction(
-      () => window.__godsEyeView.styleManager.mapStackController.getState()?.status !== 'switching',
+      () => window.__mapMonitoring.styleManager.mapStackController.getState()?.status !== 'switching',
       { timeout: 20_000 },
     ).catch(() => {});
     const restored = await page.evaluate(() => ({
-      activeId: window.__godsEyeView.styleManager.mapStackController.getActiveId(),
-      lastError: window.__godsEyeView.styleManager.mapStackController.getState()?.lastError || null,
+      activeId: window.__mapMonitoring.styleManager.mapStackController.getActiveId(),
+      lastError: window.__mapMonitoring.styleManager.mapStackController.getState()?.lastError || null,
       status: document.getElementById('map-stack-status').textContent.trim(),
       pressed: [...document.querySelectorAll('.map-stack-chip')]
         .filter((chip) => chip.getAttribute('aria-pressed') === 'true')

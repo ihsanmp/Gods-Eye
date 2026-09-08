@@ -62,7 +62,7 @@
  * readout, the POI row and the city pills - removing the markup would mean
  * unpicking all of that.
  */
-body:not(.gev-spotlight-unavailable) #location-bar {
+body:not(.mm-spotlight-unavailable) #location-bar {
   display: none !important;
 }
 
@@ -79,10 +79,10 @@ body:not(.gev-spotlight-unavailable) #location-bar {
  * convention - so keying it off [data-panel-id] like its siblings matched
  * nothing and left its chip in the dock in every state.
  */
-body:not(.gev-fluid-menu-unavailable) #left-panel-stack > [data-panel-id].collapsed,
-body:not(.gev-fluid-menu-unavailable) #right-context-rail > [data-panel-id].collapsed,
-body:not(.gev-fluid-menu-unavailable) #command-dock > [data-panel-id].collapsed,
-body:not(.gev-fluid-menu-unavailable) #command-dock > #control-panel.collapsed,
-body:not(.gev-fluid-menu-unavailable) #pp-toggles.collapsed {
+body:not(.mm-fluid-menu-unavailable) #left-panel-stack > [data-panel-id].collapsed,
+body:not(.mm-fluid-menu-unavailable) #right-context-rail > [data-panel-id].collapsed,
+body:not(.mm-fluid-menu-unavailable) #command-dock > [data-panel-id].collapsed,
+body:not(.mm-fluid-menu-unavailable) #command-dock > #control-panel.collapsed,
+body:not(.mm-fluid-menu-unavailable) #pp-toggles.collapsed {
   display: none !important;
 }

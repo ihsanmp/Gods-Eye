@@ -387,7 +387,7 @@ function _publishTrackedSelection(icao24, origin = 'programmatic') {
   const info = _flightData.get(icao24);
   if (!bb?.position || !info) return false;
   if (_trackedEntity) _trackedEntity.gevSelectionOrigin = origin;
-  _emitAwarenessEvent('gev:awareness-subject-selected', {
+  _emitAwarenessEvent('mm:awareness-subject-selected', {
     layerId: 'flights',
     id: icao24,
     // Canonical display chain (callsign → registration → hex). Publishing a
@@ -894,12 +894,12 @@ let _enrichAmbientBudget = ENRICH_AMBIENT_BUDGET_CEIL;
 let _enrichAmbientRefillAnchorMs = 0;
 
 /** QA seam: headless harnesses (scripts/qa-enrich-ambient.mjs) shrink the
- *  bucket knobs via window.__GEV_ENRICH_AMBIENT_QA = {ceil, refillTokens,
+ *  bucket knobs via window.__MM_ENRICH_AMBIENT_QA = {ceil, refillTokens,
  *  windowMs} — they cannot wait out a real 5-minute window. Read lazily each
  *  refill so a pre-boot override (or a mid-run windowMs swap) applies.
  *  Production never sets this; the constants above are the defaults. */
 function _ambientBudgetKnobs() {
-  const o = (typeof window !== 'undefined' && window.__GEV_ENRICH_AMBIENT_QA) || null;
+  const o = (typeof window !== 'undefined' && window.__MM_ENRICH_AMBIENT_QA) || null;
   return {
     ceil: Number.isFinite(o?.ceil) && o.ceil > 0 ? o.ceil : ENRICH_AMBIENT_BUDGET_CEIL,
     refillTokens: Number.isFinite(o?.refillTokens) && o.refillTokens > 0 ? o.refillTokens : ENRICH_AMBIENT_REFILL_TOKENS,
@@ -2986,9 +2986,9 @@ function _startTrail(icao24) {
   // 12 Hz icon instead of lagging ~1 s behind it.
   if (!_trailHeadEntity && _viewer) {
     _trailHeadEntity = _viewer.entities.add({
-      // 'gev-trail' namespace (round 6): claimed by trailRenderer's pick
+      // 'mm-trail' namespace (round 6): claimed by trailRenderer's pick
       // owner so a click on the head segment never reads as empty space.
-      id: `gev-trail:fl-head-${++_trailHeadSeq}`,
+      id: `mm-trail:fl-head-${++_trailHeadSeq}`,
       show: !_cockpitContactMode,
       polyline: {
         positions: new Cesium.CallbackProperty(() => {
@@ -3201,7 +3201,7 @@ function _clearTracking(skipViewerUntrack = false, {
   _trackedIcao = null;
   _applyFleetBillboardPresentation(clearedIcao, _billboards.get(clearedIcao));
   clearTrackedSubjectContext('flights');
-  _emitAwarenessEvent('gev:awareness-subject-cleared', {
+  _emitAwarenessEvent('mm:awareness-subject-cleared', {
     layerId: 'flights',
     id: clearedIcao,
     origin,
@@ -3944,7 +3944,7 @@ const flightsLayer = {
     _cockpitNearContacts = new Set();
     if (!_cockpitModeListener) {
       _cockpitModeListener = (event) => _applyCockpitState(event?.detail);
-      window.addEventListener('gev:cockpit-mode-changed', _cockpitModeListener);
+      window.addEventListener('mm:cockpit-mode-changed', _cockpitModeListener);
     }
     // Fresh session — full bucket, anchor re-seeded on the first sweep.
     _enrichAmbientBudget = _ambientBudgetKnobs().ceil;
@@ -4660,7 +4660,7 @@ const flightsLayer = {
     }
     document.removeEventListener('keydown', _onKeyDown);
     if (_cockpitModeListener) {
-      window.removeEventListener('gev:cockpit-mode-changed', _cockpitModeListener);
+      window.removeEventListener('mm:cockpit-mode-changed', _cockpitModeListener);
       _cockpitModeListener = null;
     }
     unregisterPickOwner('flights');

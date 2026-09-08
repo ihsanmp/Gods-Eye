@@ -31,11 +31,11 @@ try {
   const page = await browser.newPage();
   await page.setViewport({ width: 1440, height: 860 });
   await page.goto(url, { waitUntil: 'domcontentloaded' });
-  await page.waitForFunction(() => !!window.__godsEyeView?.viewer, { timeout: 90_000 });
+  await page.waitForFunction(() => !!window.__mapMonitoring?.viewer, { timeout: 90_000 });
   await new Promise((r) => setTimeout(r, 12_000));
 
   await page.evaluate(async () => {
-    const gev = window.__godsEyeView;
+    const gev = window.__mapMonitoring;
     gev.viewer.camera.cancelFlight();
     const ell = gev.viewer.scene.globe.ellipsoid;
     gev.viewer.camera.setView({
@@ -57,14 +57,14 @@ try {
 
   const measure = async (label, enabled) => {
     await page.evaluate(async (id, on) => {
-      const gev = window.__godsEyeView;
+      const gev = window.__mapMonitoring;
       await gev.dataManager.setEnabled(id, on, { origin: 'user' });
     }, LAYER_ID, enabled);
     await new Promise((r) => setTimeout(r, enabled ? 6_000 : 3_000)); // load/teardown + settle
 
     // 1. PARKED timed renders.
     const parked = await page.evaluate(() => {
-      const v = window.__godsEyeView.viewer;
+      const v = window.__mapMonitoring.viewer;
       const durations = [];
       for (let i = 0; i < 40; i++) {
         const t0 = performance.now();
@@ -78,7 +78,7 @@ try {
     const cycles = [];
     for (let cycle = 0; cycle < 3; cycle++) {
       const frames = await page.evaluate(async (step) => {
-        const v = window.__godsEyeView.viewer;
+        const v = window.__mapMonitoring.viewer;
         const ell = v.scene.globe.ellipsoid;
         v.camera.setView({
           destination: ell.cartographicToCartesian({

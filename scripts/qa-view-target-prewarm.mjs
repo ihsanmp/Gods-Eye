@@ -85,7 +85,7 @@ let rejections = [];
 try {
   await page.setViewport({ width: 1440, height: 900, deviceScaleFactor: 1 });
   await page.goto(appUrl, { waitUntil: 'domcontentloaded', timeout: 90_000 });
-  await page.waitForFunction(() => window.__godsEyeView?.viewer, { timeout: 90_000 });
+  await page.waitForFunction(() => window.__mapMonitoring?.viewer, { timeout: 90_000 });
   await page.waitForFunction(
     () => document.getElementById('loading-screen')?.classList.contains('hidden'),
     { timeout: 90_000 },
@@ -99,7 +99,7 @@ try {
   const legReports = [];
   for (const leg of FLIGHT_LEGS) {
     const report = await page.evaluate(async (spec) => {
-      const { viewer } = window.__godsEyeView;
+      const { viewer } = window.__mapMonitoring;
       // No window.Cesium global (qa-cctv-v2 / qa-height-datum precedent) —
       // borrow Cartesian3's statics off a live camera-position instance.
       const Cartesian3 = viewer.camera.position.constructor;
@@ -146,7 +146,7 @@ try {
   // Everything downstream — the moveEnd prewarm inside requestIdleCallback and
   // the HUD summary interval — is the real shipped code.
   const injection = await page.evaluate(async () => {
-    const { viewer, styleManager } = window.__godsEyeView;
+    const { viewer, styleManager } = window.__mapMonitoring;
     const Cartesian3 = viewer.camera.position.constructor;
     const shapes = [
       // Throws inside Cesium's normalize.
@@ -237,7 +237,7 @@ try {
   const pageErrorsBeforeBoundary = pageErrors.length;
   const rejectionsBeforeBoundary = await page.evaluate(() => window.__qaPrewarmRejections.length);
   const boundary = await page.evaluate((marker) => {
-    const hud = window.__godsEyeView.styleManager.hud;
+    const hud = window.__mapMonitoring.styleManager.hud;
     window.__qaPriorSummaryContext = hud._summaryContext;
     window.__qaStubCalls = 0;
     hud._summaryContext = async () => {
@@ -258,7 +258,7 @@ try {
   }, boundaryMarker);
   await new Promise((resolve) => setTimeout(resolve, 1_500));
   const boundaryStubCalls = await page.evaluate(() => {
-    const hud = window.__godsEyeView.styleManager.hud;
+    const hud = window.__mapMonitoring.styleManager.hud;
     hud._summaryContext = window.__qaPriorSummaryContext;
     return window.__qaStubCalls;
   });

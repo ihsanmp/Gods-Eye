@@ -131,11 +131,11 @@ function fakeDocument() {
 }
 
 function findAnnotationGroup(document) {
-  const layer = document.body.children.find((child) => child.classList.contains('gev-screen-whiteboard'));
-  const svg = layer.children.find((child) => child.classList.contains('gev-screen-whiteboard-svg'));
+  const layer = document.body.children.find((child) => child.classList.contains('mm-screen-whiteboard'));
+  const svg = layer.children.find((child) => child.classList.contains('mm-screen-whiteboard-svg'));
   return {
     svg,
-    group: svg.children.find((child) => child.classList.contains('gev-anno')),
+    group: svg.children.find((child) => child.classList.contains('mm-anno')),
   };
 }
 
@@ -183,7 +183,7 @@ test('outline upgrade preserves the existing SVG group identity', (t) => {
   };
   renderer.add(anno);
   const before = findAnnotationGroup(globalThis.document);
-  assert.ok(before.group.querySelector('.gev-anno-ring'), 'pending area starts as a reticle');
+  assert.ok(before.group.querySelector('.mm-anno-ring'), 'pending area starts as a reticle');
 
   const labelProxy = Object.assign(Object.create(anno), {
     type: 'label',
@@ -195,9 +195,9 @@ test('outline upgrade preserves the existing SVG group identity', (t) => {
 
   assert.equal(after.group, before.group, 'the rendered group is mutated, not replaced');
   assert.deepEqual(sampledAnchors.at(-1), [-97.5, 31.2], 'the existing group projects from the re-seated anchor');
-  assert.equal(after.svg.children.filter((child) => child.classList.contains('gev-anno')).length, 1);
-  assert.equal(after.group.querySelector('.gev-anno-ring'), null, 'reticle rings are removed in place');
-  assert.ok(after.group.querySelector('.gev-anno-callout'), 'the original callout remains in the group');
+  assert.equal(after.svg.children.filter((child) => child.classList.contains('mm-anno')).length, 1);
+  assert.equal(after.group.querySelector('.mm-anno-ring'), null, 'reticle rings are removed in place');
+  assert.ok(after.group.querySelector('.mm-anno-callout'), 'the original callout remains in the group');
   renderer.destroy();
 });
 
@@ -311,7 +311,7 @@ test('an add that throws after inserting its group unwinds instead of orphaning 
   Cesium.SceneTransforms.worldToWindowCoordinates = () => ({ x: 0, y: 0 });
   const { svg } = findAnnotationGroup(globalThis.document);
   assert.equal(
-    svg.children.filter((child) => child.classList.contains('gev-anno')).length,
+    svg.children.filter((child) => child.classList.contains('mm-anno')).length,
     0,
     'the half-built group must not stay in the document',
   );
@@ -320,7 +320,7 @@ test('an add that throws after inserting its group unwinds instead of orphaning 
   // owns it (a leaked record would leave a second group behind).
   renderer.add(anno);
   assert.equal(
-    svg.children.filter((child) => child.classList.contains('gev-anno')).length,
+    svg.children.filter((child) => child.classList.contains('mm-anno')).length,
     1,
     'the retry must draw one mark, not stack over an orphan',
   );

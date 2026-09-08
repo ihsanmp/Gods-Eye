@@ -231,7 +231,7 @@ export function cableClassificationTypeForStack(activeId) {
 
 /**
  * Derive the active surface from live scene state. The boot-time
- * `setStack(..., { silent: true })` fires no 'gev:map-stack-changed' event,
+ * `setStack(..., { silent: true })` fires no 'mm:map-stack-changed' event,
  * so the initial classification reads the scene the way the height-datum
  * listeners do: the photoreal regime is exactly "globe hidden".
  * @param {Cesium.Scene|null|undefined} scene
@@ -1052,7 +1052,7 @@ export function createTeleGeographySubmarineCableLayer({
             ? cableClassificationTypeForStack(event.detail.activeId)
             : cableClassificationTypeForScene(_viewer?.scene));
         };
-        mapStackEventTarget.addEventListener('gev:map-stack-changed', _mapStackListener);
+        mapStackEventTarget.addEventListener('mm:map-stack-changed', _mapStackListener);
       }
       beginInteraction(viewer);
       if (!_preRenderRemover) {
@@ -1129,7 +1129,7 @@ export function createTeleGeographySubmarineCableLayer({
         _moveEndRemover = null;
       }
       if (_mapStackListener && mapStackEventTarget?.removeEventListener) {
-        mapStackEventTarget.removeEventListener('gev:map-stack-changed', _mapStackListener);
+        mapStackEventTarget.removeEventListener('mm:map-stack-changed', _mapStackListener);
         _mapStackListener = null;
       }
       _viewer = null;

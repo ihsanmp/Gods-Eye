@@ -79,6 +79,7 @@ import militaryInstallationsLayer from './data/militaryInstallations.js';
 import rocketLaunchesLayer from './data/rocketLaunches.js';
 import { LOADING_FAILURE_DWELL_MS, canPresentDeferredStatusNotice } from './statusNotice.js';
 import { shouldSkipExpensiveEffects } from './gpuProfile.js';
+import { readMigratedItem } from './storageKeyMigration.js';
 import { describeWeatherCode } from './weatherWords.js';
 import {
   CCTV_RANGE_DEFAULT,
@@ -266,7 +267,7 @@ const COCKPIT_ENTRY_COLLAPSE_PANEL_IDS = Object.freeze([
  * resetting every panel's open/closed preference.
  */
 const PANEL_POSITION_STORAGE_VERSION = 'v8';
-const DETECTION_ALLOCATION_STORAGE_KEY = 'gev:detection-allocation:v1';
+const DETECTION_ALLOCATION_STORAGE_KEY = 'mm:detection-allocation:v1';
 /** Z ladder: panels promote within [100, 139]; voice pill 150, toast 200, clean-view-exit 300. */
 const PANEL_Z_BASE = 100;
 const PANEL_Z_MAX = 139;
@@ -338,7 +339,7 @@ const LEFT_STACK_OBSTACLE_SELECTOR = [
   '#cesium-credits .cesium-credit-textContainer',
   '#location-bar',
   '#control-panel',
-  '#gev-voice-control',
+  '#mm-voice-control',
   '#pp-toggles',
   '#param-slider-panel',
 ].join(', ');
@@ -387,7 +388,7 @@ const RIGHT_STACK_OBSTACLE_SELECTOR = [
   '#cesium-credits .cesium-credit-logoContainer',
   '#cesium-credits .cesium-credit-textContainer',
   '#command-dock',
-  '#gev-voice-control',
+  '#mm-voice-control',
   // The map clock sits in the top-right corner #style-indicator used to hold.
   // It is filtered by the same runtime rectangle test as everything else here,
   // so it reserves nothing on the mobile layout where it is not painted.
@@ -919,11 +920,11 @@ class CockpitViewController {
     this._listen(this.weatherToggle, 'click', () => {
       const enabled = this.weatherToggle.getAttribute('aria-pressed') !== 'true';
       this.syncWeatherToggle(enabled);
-      window.dispatchEvent(new CustomEvent('gev:cockpit-weather-toggle', {
+      window.dispatchEvent(new CustomEvent('mm:cockpit-weather-toggle', {
         detail: { enabled },
       }));
     });
-    this._listen(window, 'gev:cockpit-weather-state', (event) => {
+    this._listen(window, 'mm:cockpit-weather-state', (event) => {
       this.syncWeatherToggle(event?.detail?.enabled !== false);
     });
     this._listen(this.signalToggle, 'click', () => this.setSignalCollapsed(
@@ -992,7 +993,7 @@ class CockpitViewController {
     const layerId = active && ['flights', 'military'].includes(info?.layerId)
       ? info.layerId
       : null;
-    window.dispatchEvent(new CustomEvent('gev:cockpit-mode-changed', {
+    window.dispatchEvent(new CustomEvent('mm:cockpit-mode-changed', {
       detail: { active: active === true, subjectId, layerId },
     }));
   }
@@ -2080,7 +2081,7 @@ class CockpitViewController {
       if (icon) icon.textContent = expanded ? 'chevron_left' : 'chevron_right';
     }
     if (this.active && wasCollapsed && !this.contextCollapsed) {
-      window.dispatchEvent(new CustomEvent('gev:cockpit-context-expanded'));
+      window.dispatchEvent(new CustomEvent('mm:cockpit-context-expanded'));
     }
     this.scheduleContextLayout();
   }
@@ -2101,7 +2102,7 @@ class CockpitViewController {
     if (this.signalCollapsed) this.stopBriefRotation();
     else this.startBriefRotation({ reset: true });
     if (this.active && wasCollapsed && !this.signalCollapsed) {
-      window.dispatchEvent(new CustomEvent('gev:cockpit-signal-expanded'));
+      window.dispatchEvent(new CustomEvent('mm:cockpit-signal-expanded'));
     }
     this.scheduleContextLayout();
   }
@@ -2345,7 +2346,7 @@ export class StyleManager {
     this._detectionOpacityValue = document.getElementById('detection-opacity-value');
     let storedDetectionAllocation = 'ELASTIC';
     try {
-      storedDetectionAllocation = localStorage.getItem(DETECTION_ALLOCATION_STORAGE_KEY) || 'ELASTIC';
+      storedDetectionAllocation = readMigratedItem(localStorage, DETECTION_ALLOCATION_STORAGE_KEY) || 'ELASTIC';
     } catch { /* storage can be unavailable in privacy/test contexts */ }
     this._detectionAllocationPreference = normalizeAllocationStrategy(storedDetectionAllocation);
     this._celestialBtn = document.getElementById('celestial-toggle');
@@ -3041,7 +3042,7 @@ export class StyleManager {
       }
 
       const stage = new Cesium.PostProcessStage({
-        name: `godsEyeView_${name}`,
+        name: `mapMonitoring_${name}`,
         fragmentShader: shader.fragmentShader,
         uniforms,
       });
@@ -3271,7 +3272,7 @@ export class StyleManager {
 
     // Sharpen — custom unsharp mask PostProcessStage
     this._sharpenStage = new Cesium.PostProcessStage({
-      name: 'godsEyeView_sharpen',
+      name: 'mapMonitoring_sharpen',
       fragmentShader: SHARPEN_SHADER,
       uniforms: {
         amount: 1.3,
@@ -4590,8 +4591,8 @@ export class StyleManager {
     if (!this._awarenessSelectedHandler) {
       this._awarenessSelectedHandler = (event) => this._persistAwarenessSelection(event, false);
       this._awarenessClearedHandler = (event) => this._persistAwarenessSelection(event, true);
-      window.addEventListener('gev:awareness-subject-selected', this._awarenessSelectedHandler);
-      window.addEventListener('gev:awareness-subject-cleared', this._awarenessClearedHandler);
+      window.addEventListener('mm:awareness-subject-selected', this._awarenessSelectedHandler);
+      window.addEventListener('mm:awareness-subject-cleared', this._awarenessClearedHandler);
     }
     this._layerStateCoordinator?.destroy();
     this._layerStateCoordinator = null;
@@ -5705,15 +5706,15 @@ export class StyleManager {
       event.stopImmediatePropagation();
       setCockpitDisclosure(displayOpen ? 'display' : 'radio', false, { returnFocus: true });
     }, { capture: true, signal: this._radioTunerAbort.signal });
-    window.addEventListener('gev:cockpit-mode-changed', (event) => {
+    window.addEventListener('mm:cockpit-mode-changed', (event) => {
       if (event?.detail?.active) return;
       setCockpitDisclosure('display', false);
       setCockpitDisclosure('radio', false);
     }, tunerListenerOptions);
-    window.addEventListener('gev:cockpit-signal-expanded', () => {
+    window.addEventListener('mm:cockpit-signal-expanded', () => {
       setCockpitDisclosure('display', false);
     }, tunerListenerOptions);
-    window.addEventListener('gev:cockpit-context-expanded', () => {
+    window.addEventListener('mm:cockpit-context-expanded', () => {
       this.setPanelCollapsed('data-panel', true);
     }, tunerListenerOptions);
     this._radioFilter?.addEventListener('change', () => {
@@ -5861,7 +5862,7 @@ export class StyleManager {
     this._radioTunerCameraRemove?.();
     this._radioTunerCameraRemove = null;
     this._radioSelectedHandler = () => this.setPanelCollapsed('radio-panel', false);
-    document.addEventListener('gev:radio-selected', this._radioSelectedHandler);
+    document.addEventListener('mm:radio-selected', this._radioSelectedHandler);
   }
 
   /**
@@ -8242,7 +8243,7 @@ export class StyleManager {
       requestAnimationFrame(() => this._scheduleLeftPanelLayout());
       setTimeout(() => this._scheduleLeftPanelLayout(), 300);
     };
-    window.addEventListener('gev:cockpit-mode-changed', this._leftStackCockpitModeHandler);
+    window.addEventListener('mm:cockpit-mode-changed', this._leftStackCockpitModeHandler);
 
     this._scheduleLeftPanelLayout();
   }
@@ -10169,7 +10170,7 @@ export class StyleManager {
     // Sync detection overlay tone to active post-process style
     setDetectionStyle(styleName);
     this._syncIrBoost();
-    window.dispatchEvent(new CustomEvent('gev:style-change', {
+    window.dispatchEvent(new CustomEvent('mm:style-change', {
       detail: { style: styleName },
     }));
 
@@ -11286,7 +11287,7 @@ export class StyleManager {
     this._cockpitDisplayModeHandler = (event) => {
       this._setCockpitDisplayPortalActive(event?.detail?.active === true);
     };
-    window.addEventListener('gev:cockpit-mode-changed', this._cockpitDisplayModeHandler);
+    window.addEventListener('mm:cockpit-mode-changed', this._cockpitDisplayModeHandler);
     this._setCockpitDisplayPortalActive(document.body.classList.contains('cockpit-mode'));
   }
 
@@ -11445,7 +11446,7 @@ export class StyleManager {
     const resolve = this._resolveInitialShareRestore;
     this._resolveInitialShareRestore = null;
     resolve(result);
-    window.dispatchEvent(new CustomEvent('gev:initial-share-restore-settled', { detail: result }));
+    window.dispatchEvent(new CustomEvent('mm:initial-share-restore-settled', { detail: result }));
   }
 
   /**
@@ -11477,11 +11478,11 @@ export class StyleManager {
     }
     this.shareLinkManager?.destroy();
     if (this._awarenessSelectedHandler) {
-      window.removeEventListener('gev:awareness-subject-selected', this._awarenessSelectedHandler);
+      window.removeEventListener('mm:awareness-subject-selected', this._awarenessSelectedHandler);
       this._awarenessSelectedHandler = null;
     }
     if (this._awarenessClearedHandler) {
-      window.removeEventListener('gev:awareness-subject-cleared', this._awarenessClearedHandler);
+      window.removeEventListener('mm:awareness-subject-cleared', this._awarenessClearedHandler);
       this._awarenessClearedHandler = null;
     }
     // Invalidate any in-flight Context transaction the same way a newer request
@@ -11520,7 +11521,7 @@ export class StyleManager {
     }
     this.cockpitView?.dispose();
     if (this._cockpitDisplayModeHandler) {
-      window.removeEventListener('gev:cockpit-mode-changed', this._cockpitDisplayModeHandler);
+      window.removeEventListener('mm:cockpit-mode-changed', this._cockpitDisplayModeHandler);
       this._cockpitDisplayModeHandler = null;
     }
     this._setCockpitDisplayPortalActive(false);
@@ -11605,7 +11606,7 @@ export class StyleManager {
       this._rightStackHudTransitionHandler = null;
     }
     if (this._leftStackCockpitModeHandler) {
-      window.removeEventListener('gev:cockpit-mode-changed', this._leftStackCockpitModeHandler);
+      window.removeEventListener('mm:cockpit-mode-changed', this._leftStackCockpitModeHandler);
       this._leftStackCockpitModeHandler = null;
     }
     this._radioUnsubscribe?.();
@@ -11621,7 +11622,7 @@ export class StyleManager {
     document.getElementById('title-bar')?.classList.remove('radio-broadcasting');
     radioLayer.endTuning();
     if (this._radioSelectedHandler) {
-      document.removeEventListener('gev:radio-selected', this._radioSelectedHandler);
+      document.removeEventListener('mm:radio-selected', this._radioSelectedHandler);
       this._radioSelectedHandler = null;
     }
     destroyTrackedReadout();

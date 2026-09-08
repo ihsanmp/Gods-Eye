@@ -45,7 +45,7 @@ const _scratchProbe = new Cesium.Cartographic();
 // preference. Module-scope listener: the module only loads in the browser
 // bundle, and the subscription is idempotent for the app's lifetime.
 if (typeof window !== 'undefined') {
-  window.addEventListener('gev:map-stack-changed', (event) => {
+  window.addEventListener('mm:map-stack-changed', (event) => {
     const activeId = event?.detail?.activeId;
     if (activeId) setMeshFloorPreferred(activeId === 'photoreal');
   });

@@ -10,11 +10,11 @@ import { TR3B_CLASS } from '../data/tr3bRegistry.js';
 import {
   controlCctv,
   controlRadio,
-  createGevActionRunner,
+  createVoiceActionRunner,
   cctvVoiceFocusOutcome,
   formatTrackedEntityLabel,
   knownRadioLocation,
-} from './gevActions.js';
+} from './voiceActions.js';
 
 test('track_entity narration names aircraft callsign → registration → icao24', () => {
   const found = { callsign: 'SWA696', registration: 'N123AB', icao24: 'ae1fa4' };
@@ -36,7 +36,7 @@ test('track_entity runner narrates a callsign-less aircraft by its registration'
   for (const layerId of ['flights', 'military']) {
     const { viewer, styleManager } = createVoiceNavigationHarness();
     let trackedId = null;
-    const runner = createGevActionRunner({
+    const runner = createVoiceActionRunner({
       viewer,
       styleManager,
       dataManager: {
@@ -146,7 +146,7 @@ test('zoom to globe adopts the shared visible reset route and returns its result
       return expected;
     },
   };
-  const runner = createGevActionRunner({
+  const runner = createVoiceActionRunner({
     viewer,
     styleManager,
     dataManager: { layers: new Map(), getAll: () => [] },
@@ -163,7 +163,7 @@ test('dependent voice navigation waits for the destination viewport to arrive', 
   styleManager.runImmediateLocationNavigation = (navigate) => (
     styleManager.runImmediateNavigation('location', navigate)
   );
-  const runner = createGevActionRunner({
+  const runner = createVoiceActionRunner({
     viewer,
     styleManager,
     dataManager: { layers: new Map(), getAll: () => [] },
@@ -232,7 +232,7 @@ test('nearest-aircraft voice action serializes layer enable, arrival, refresh, a
     },
     getAll: () => [{ id: 'flights', name: 'Live Flights', enabled }],
   };
-  const runner = createGevActionRunner({ viewer, styleManager, dataManager });
+  const runner = createVoiceActionRunner({ viewer, styleManager, dataManager });
   const resultPromise = runner('select_nearest_aircraft', {
     layerId: 'flights',
     locationId: 'austin',
@@ -289,7 +289,7 @@ test('nearest-aircraft voice action refreshes an already-enabled viewport layer 
     },
     getAll: () => [{ id: 'flights', name: 'Live Flights', enabled: true }],
   };
-  const runner = createGevActionRunner({ viewer, styleManager, dataManager });
+  const runner = createVoiceActionRunner({ viewer, styleManager, dataManager });
   const resultPromise = runner('select_nearest_aircraft', {
     layerId: 'flights',
     locationId: 'austin',
@@ -339,7 +339,7 @@ test('fallback with zero airborne records reports enabled fallback without selec
     },
     getAll: () => [{ id: 'flights', name: 'Live Flights', enabled }],
   };
-  const runner = createGevActionRunner({ viewer, styleManager, dataManager });
+  const runner = createVoiceActionRunner({ viewer, styleManager, dataManager });
   const resultPromise = runner('select_nearest_aircraft', {
     layerId: 'flights',
     locationId: 'austin',
@@ -366,7 +366,7 @@ test('nearest-aircraft voice action rejects a missing destination without changi
     },
     getAll: () => [{ id: 'flights', name: 'Live Flights', enabled }],
   };
-  const runner = createGevActionRunner({ viewer, styleManager, dataManager });
+  const runner = createVoiceActionRunner({ viewer, styleManager, dataManager });
   const result = await runner('select_nearest_aircraft', { layerId: 'flights' });
   assert.equal(result.ok, false);
   assert.equal(result.stage, 'location');
@@ -388,7 +388,7 @@ test('successful voice tracking stamps and releases the old owner before layer t
     isEnabled: (id) => id === 'satellites',
     getAll: () => [],
   };
-  const runner = createGevActionRunner({ viewer, styleManager, dataManager });
+  const runner = createVoiceActionRunner({ viewer, styleManager, dataManager });
   const result = await runner('track_entity', { query: 'ISS', layerId: 'satellites' });
   assert.equal(result.ok, true);
   assert.deepEqual(order, ['stamp:satellite', 'release', 'cancel', 'track:25544']);
@@ -406,7 +406,7 @@ test('voice Stop Tracking clears all durable tracker IDs even without active tra
     setLayerParams(layerId, params, options) { cleared.push({ layerId, params, options }); return true; },
     getAll: () => [],
   };
-  const runner = createGevActionRunner({
+  const runner = createVoiceActionRunner({
     viewer: {
       scene: {
         canvas: { addEventListener() {}, removeEventListener() {} },
@@ -450,7 +450,7 @@ test('voice Stop Tracking reports exact layers whose active or durable clear fai
     camera: { moveEnd: { addEventListener() {} } },
     clock: { onTick: { addEventListener() {} } },
   };
-  const runner = createGevActionRunner({ viewer, styleManager: {}, dataManager });
+  const runner = createVoiceActionRunner({ viewer, styleManager: {}, dataManager });
 
   assert.deepEqual(await runner('stop_tracking'), {
     ok: false,
@@ -473,7 +473,7 @@ test('successful voice overhead framing stamps and releases the old owner before
     isEnabled: (id) => id === 'flights',
     getAll: () => [],
   };
-  const runner = createGevActionRunner({ viewer, styleManager, dataManager });
+  const runner = createVoiceActionRunner({ viewer, styleManager, dataManager });
   const result = await runner('frame_overhead', { target: 'flights' });
   assert.equal(result.ok, true);
   assert.deepEqual(order, ['stamp:frame', 'release', 'cancel', 'fly:released']);
@@ -499,7 +499,7 @@ test('tracked aircraft yields to strongest-fire and vessel voice flights before 
       isEnabled: (id) => id === layerId,
       getAll: () => [],
     };
-    const runner = createGevActionRunner({ viewer, styleManager, dataManager });
+    const runner = createVoiceActionRunner({ viewer, styleManager, dataManager });
     const result = await runner('track_entity', {
       query: kind === 'fire' ? 'strongest fire' : 'Test vessel',
       layerId,
@@ -523,7 +523,7 @@ test('move_camera and fly_route validate first, then use the shared camera autho
       path: [{ lat: 29.75, lon: -95.36 }, { lat: 29.76, lon: -95.34 }],
     }],
   };
-  const runner = createGevActionRunner({
+  const runner = createVoiceActionRunner({
     viewer,
     styleManager,
     dataManager: { layers: new Map(), getAll: () => [] },
@@ -546,7 +546,7 @@ test('a chained orbit preserves its current destination flight while still stamp
   const { order, viewer, styleManager } = createVoiceNavigationHarness();
   viewer.trackedEntity = undefined;
   viewer.scene.tweens.push({ id: 'destination-flight' });
-  const runner = createGevActionRunner({
+  const runner = createVoiceActionRunner({
     viewer,
     styleManager,
     dataManager: { layers: new Map(), getAll: () => [] },
@@ -562,7 +562,7 @@ test('a chained orbit preserves its current destination flight while still stamp
 test('invalid named voice navigation never releases the current camera owner', async () => {
   globalThis.window = globalThis.window || { clearTimeout, setTimeout, requestIdleCallback: null };
   const { order, viewer, styleManager } = createVoiceNavigationHarness();
-  const runner = createGevActionRunner({
+  const runner = createVoiceActionRunner({
     viewer,
     styleManager,
     dataManager: { layers: new Map(), isEnabled: () => false, getAll: () => [] },
@@ -574,7 +574,7 @@ test('invalid named voice navigation never releases the current camera owner', a
   assert.deepEqual(order, []);
   assert.equal(viewer.trackedEntity?.id, 'prior-aircraft');
 
-  const invalidRouteRunner = createGevActionRunner({
+  const invalidRouteRunner = createVoiceActionRunner({
     viewer,
     styleManager,
     dataManager: { layers: new Map(), isEnabled: () => false, getAll: () => [] },
@@ -586,7 +586,7 @@ test('invalid named voice navigation never releases the current camera owner', a
   assert.equal((await invalidRouteRunner('fly_route')).ok, false);
   assert.deepEqual(order, []);
 
-  const outOfRangeRouteRunner = createGevActionRunner({
+  const outOfRangeRouteRunner = createVoiceActionRunner({
     viewer,
     styleManager,
     dataManager: { layers: new Map(), isEnabled: () => false, getAll: () => [] },
@@ -622,7 +622,7 @@ test('Cockpit refuses every named voice camera route before camera or selection 
         selectById: () => { selected += 1; return true; },
       } }],
     ]);
-    const runner = createGevActionRunner({
+    const runner = createVoiceActionRunner({
       viewer,
       styleManager,
       dataManager: { layers: modules, isEnabled: () => true, getAll: () => [] },
@@ -651,7 +651,7 @@ test('a newer voice action makes an older deferred navigation authority inert', 
   globalThis.window = globalThis.window || { clearTimeout, setTimeout, requestIdleCallback: null };
   const { viewer, styleManager, currentGeneration } = createVoiceNavigationHarness();
   const oldGeneration = currentGeneration();
-  const runner = createGevActionRunner({
+  const runner = createVoiceActionRunner({
     viewer,
     styleManager,
     dataManager: {
@@ -697,7 +697,7 @@ test('Data Layers voice inventory hides the Context coordinator while current-vi
       positionWC: Cesium.Cartesian3.fromDegrees(-97.7, 30.2, 1000),
     },
   };
-  const runner = createGevActionRunner({ viewer, styleManager, dataManager });
+  const runner = createVoiceActionRunner({ viewer, styleManager, dataManager });
   const menu = await runner('show_data_layers_menu');
   assert.deepEqual(menu.layers.map(({ id }) => id), ['flights']);
   const current = await runner('get_current_view_state');
@@ -733,7 +733,7 @@ test('generic layer visibility forwards cancellation and reports semantic failur
       return !options.signal?.aborted;
     },
   };
-  const runner = createGevActionRunner({ viewer, styleManager: {}, dataManager });
+  const runner = createVoiceActionRunner({ viewer, styleManager: {}, dataManager });
   const controller = new AbortController();
   const work = runner('set_layer_visibility', { layerId: 'radio', enabled: true }, {
     signal: controller.signal,
@@ -783,7 +783,7 @@ test('generic voice visibility preserves a manager resource-cancellation envelop
       successorOrigin: null,
     }),
   };
-  const runner = createGevActionRunner({
+  const runner = createVoiceActionRunner({
     viewer,
     styleManager: { _waitForContextLayerSettlement: async () => {} },
     dataManager,
@@ -827,7 +827,7 @@ test('generic voice visibility preserves caller-abort phase before the stale-tur
       cancellationReason: 'caller-abort',
     }),
   };
-  const runner = createGevActionRunner({
+  const runner = createVoiceActionRunner({
     viewer,
     styleManager: { _waitForContextLayerSettlement: async () => {} },
     dataManager,
@@ -871,7 +871,7 @@ test('generic voice visibility preserves an exact commit when a newer turn arriv
       cancellationReason: null,
     }),
   };
-  const runner = createGevActionRunner({
+  const runner = createVoiceActionRunner({
     viewer,
     styleManager: {
       async _waitForContextLayerSettlement() {
@@ -927,7 +927,7 @@ test('late voice abort cannot revoke a committed manager event and leaves the in
   });
   let releaseSettlement;
   const settlementPending = new Promise((resolve) => { releaseSettlement = resolve; });
-  const runner = createGevActionRunner({
+  const runner = createVoiceActionRunner({
     viewer,
     styleManager: { _waitForContextLayerSettlement: async () => settlementPending },
     dataManager,
@@ -975,7 +975,7 @@ test('generic layer visibility exposes lifecycle truth for every manager phase a
       getAll: () => [{ id: 'radio', name: 'Radio' }],
       setEnabled: async () => true,
     };
-    const runner = createGevActionRunner({ viewer, styleManager: {}, dataManager });
+    const runner = createVoiceActionRunner({ viewer, styleManager: {}, dataManager });
     const result = await runner('set_layer_visibility', {
       layerId: 'radio',
       enabled: lifecycle.enabled,
@@ -996,7 +996,7 @@ test('generic layer visibility exposes lifecycle truth for every manager phase a
     getAll: () => [{ id: 'radio', name: 'Radio' }],
     setEnabled: async () => { throw new Error('lifecycle rejected'); },
   };
-  const rejectedRunner = createGevActionRunner({ viewer, styleManager: {}, dataManager: rejectedManager });
+  const rejectedRunner = createVoiceActionRunner({ viewer, styleManager: {}, dataManager: rejectedManager });
   const rejected = await rejectedRunner('set_layer_visibility', { layerId: 'radio', enabled: false });
   assert.equal(rejected.ok, false);
   assert.equal(rejected.error, 'lifecycle rejected');
@@ -1011,7 +1011,7 @@ test('generic layer visibility exposes lifecycle truth for every manager phase a
     getAll: () => [{ id: 'flights', name: 'Flights' }],
     setEnabled: async () => true,
   };
-  const flightsRunner = createGevActionRunner({ viewer, styleManager: {}, dataManager: flightsManager });
+  const flightsRunner = createVoiceActionRunner({ viewer, styleManager: {}, dataManager: flightsManager });
   const flights = await flightsRunner('set_layer_visibility', { layerId: 'flights', enabled: true });
   assert.equal(flights.ok, true);
   assert.equal(flights.lifecycleState, 'enabled');
@@ -1024,7 +1024,7 @@ test('generic layer visibility exposes lifecycle truth for every manager phase a
     getAll: () => [],
     setEnabled: async () => { throw new Error('must not run'); },
   };
-  const missingRadioRunner = createGevActionRunner({
+  const missingRadioRunner = createVoiceActionRunner({
     viewer,
     styleManager: {},
     dataManager: missingRadioManager,
@@ -1059,7 +1059,7 @@ test('generic voice visibility maps Space Missions to the explicit mission layer
     getLayerLifecycleState: () => ({ enabled: true, lifecycleState: 'enabled', uncertain: false }),
     async setEnabled(...args) { calls.push(args); return true; },
   };
-  const runner = createGevActionRunner({
+  const runner = createVoiceActionRunner({
     viewer,
     styleManager: {
       async _waitForContextLayerSettlement() {
@@ -1127,7 +1127,7 @@ test('control_cockpit forwards schema-valid navigation filters', async () => {
     scene: { canvas: { addEventListener() {}, removeEventListener() {} } },
     camera: { moveEnd: { addEventListener() {} } },
   };
-  const runner = createGevActionRunner({
+  const runner = createVoiceActionRunner({
     viewer,
     styleManager,
     dataManager: { layers: new Map(), getAll: () => [] },
@@ -1160,7 +1160,7 @@ test('control_cockpit resolves spoken TR-3B spellings to the tr3b class id', asy
     scene: { canvas: { addEventListener() {}, removeEventListener() {} } },
     camera: { moveEnd: { addEventListener() {} } },
   };
-  const runner = createGevActionRunner({
+  const runner = createVoiceActionRunner({
     viewer,
     styleManager,
     dataManager: { layers: new Map(), getAll: () => [] },
@@ -1221,7 +1221,7 @@ test('control_cockpit delegates selected-flight adoption to the canonical cockpi
     isEnabled: (layerId) => layerId === 'flights',
     getAll: () => [],
   };
-  const runner = createGevActionRunner({ viewer, styleManager, dataManager });
+  const runner = createVoiceActionRunner({ viewer, styleManager, dataManager });
 
   const result = await runner('control_cockpit', { action: 'enter' });
   assert.equal(result.ok, true);
@@ -1253,7 +1253,7 @@ test('control_cockpit does not mutate selection when Contacts entry fails', asyn
     scene: { canvas: { addEventListener() {}, removeEventListener() {} } },
     camera: { moveEnd: { addEventListener() {} } },
   };
-  const runner = createGevActionRunner({
+  const runner = createVoiceActionRunner({
     viewer,
     styleManager,
     dataManager: { layers: new Map(), isEnabled: () => false, getAll: () => [] },
@@ -1280,7 +1280,7 @@ test('control_cockpit cancellation is inert when Contacts is already active', as
     scene: { canvas: { addEventListener() {}, removeEventListener() {} } },
     camera: { moveEnd: { addEventListener() {} } },
   };
-  const runner = createGevActionRunner({
+  const runner = createVoiceActionRunner({
     viewer,
     styleManager,
     dataManager: { layers: new Map(), isEnabled: () => false, getAll: () => [] },
@@ -1315,7 +1315,7 @@ test('control_cockpit rolls Contacts back when the turn becomes stale at commit'
     scene: { canvas: { addEventListener() {}, removeEventListener() {} } },
     camera: { moveEnd: { addEventListener() {} } },
   };
-  const runner = createGevActionRunner({
+  const runner = createVoiceActionRunner({
     viewer,
     styleManager,
     dataManager: { layers: new Map(), isEnabled: () => false, getAll: () => [] },
@@ -1382,7 +1382,7 @@ test('control_cockpit adopts the newest selection after Contacts settles', async
     isEnabled: (layerId) => layerId === 'flights',
     getAll: () => [],
   };
-  const runner = createGevActionRunner({ viewer, styleManager, dataManager });
+  const runner = createVoiceActionRunner({ viewer, styleManager, dataManager });
 
   const result = await runner('control_cockpit', { action: 'enter' });
   assert.equal(result.ok, true);
@@ -1415,7 +1415,7 @@ test('control_cockpit restores the prior Context mode after Cockpit entry fails'
     scene: { canvas: { addEventListener() {}, removeEventListener() {} } },
     camera: { moveEnd: { addEventListener() {} } },
   };
-  const runner = createGevActionRunner({
+  const runner = createVoiceActionRunner({
     viewer,
     styleManager,
     dataManager: { layers: new Map(), isEnabled: () => false, getAll: () => [] },
@@ -1455,7 +1455,7 @@ test('control_cockpit contains entry exceptions and still restores the prior Con
     scene: { canvas: { addEventListener() {}, removeEventListener() {} } },
     camera: { moveEnd: { addEventListener() {} } },
   };
-  const runner = createGevActionRunner({
+  const runner = createVoiceActionRunner({
     viewer,
     styleManager,
     dataManager: { layers: new Map(), isEnabled: () => false, getAll: () => [] },
@@ -1491,7 +1491,7 @@ test('set_context_mode forwards cancellation authority and reports a stale turn'
     scene: { canvas: { addEventListener() {}, removeEventListener() {} } },
     camera: { moveEnd: { addEventListener() {} } },
   };
-  const runner = createGevActionRunner({
+  const runner = createVoiceActionRunner({
     viewer,
     styleManager,
     dataManager: { layers: new Map(), getAll: () => [] },
@@ -1543,7 +1543,7 @@ test('opening Contacts expands Context before activation and returns its settled
     scene: { canvas: { addEventListener() {}, removeEventListener() {} } },
     camera: { moveEnd: { addEventListener() {} } },
   };
-  const runner = createGevActionRunner({
+  const runner = createVoiceActionRunner({
     viewer,
     styleManager,
     dataManager: { layers: new Map(), getAll: () => [] },
@@ -1571,7 +1571,7 @@ test('set_context_mode pre-dispatch cancellation includes authoritative Context 
     scene: { canvas: { addEventListener() {}, removeEventListener() {} } },
     camera: { moveEnd: { addEventListener() {} } },
   };
-  const runner = createGevActionRunner({
+  const runner = createVoiceActionRunner({
     viewer,
     styleManager,
     dataManager: { layers: new Map(), getAll: () => [] },
@@ -1631,7 +1631,7 @@ test('control_cockpit enter skips selected non-flight context', async () => {
     isEnabled: (layerId) => layerId === 'local-datacenters',
     getAll: () => [],
   };
-  const runner = createGevActionRunner({ viewer, styleManager, dataManager });
+  const runner = createVoiceActionRunner({ viewer, styleManager, dataManager });
 
   const result = await runner('control_cockpit', { action: 'enter' });
   assert.equal(result.ok, true);
@@ -2473,7 +2473,7 @@ function contextClaimProbe({ entrySucceeds = true, cockpitSucceeds = true } = {}
     scene: { canvas: { addEventListener() {}, removeEventListener() {} } },
     camera: { moveEnd: { addEventListener() {} } },
   };
-  const runner = createGevActionRunner({
+  const runner = createVoiceActionRunner({
     viewer,
     styleManager,
     dataManager: { layers: new Map(), isEnabled: () => false, getAll: () => [] },
@@ -2525,7 +2525,7 @@ test('a genuine set_context_mode request DOES claim the visual lane', async () =
 
 /**
  * Viewer stub for the moveEnd prewarm: enough scene graph for
- * `createGevActionRunner` to install its listeners, with every pick under the
+ * `createVoiceActionRunner` to install its listeners, with every pick under the
  * test's control.
  */
 function createPrewarmHarness({ pickPosition, positionCartographic } = {}) {
@@ -2614,7 +2614,7 @@ test('a degenerate depth pick does not escape the view-target prewarm', () => {
   const degenerate = new Cesium.Cartesian3(Number.NaN, Number.NaN, Number.NaN);
   withCapturedTimers(({ flush, debugLines }) => {
     const harness = createPrewarmHarness({ pickPosition: () => degenerate });
-    createGevActionRunner({
+    createVoiceActionRunner({
       viewer: harness.viewer,
       styleManager: {},
       dataManager: { layers: new Map(), isEnabled: () => false, getAll: () => [] },
@@ -2641,7 +2641,7 @@ test('an unexpected prewarm failure is logged once at debug level, never thrown'
     const harness = createPrewarmHarness({
       positionCartographic: () => { throw new Error('scene graph is mid-teardown'); },
     });
-    createGevActionRunner({
+    createVoiceActionRunner({
       viewer: harness.viewer,
       styleManager: {},
       dataManager: { layers: new Map(), isEnabled: () => false, getAll: () => [] },
@@ -2686,7 +2686,7 @@ test('a lost cross-mode switch reports every mode field in the shared vocabulary
     scene: { canvas: { addEventListener() {}, removeEventListener() {} } },
     camera: { moveEnd: { addEventListener() {} } },
   };
-  const runner = createGevActionRunner({
+  const runner = createVoiceActionRunner({
     viewer,
     styleManager,
     dataManager: { layers: new Map(), getAll: () => [] },
@@ -2719,7 +2719,7 @@ test('an absent secondary mode stays absent instead of claiming to be off', asyn
     scene: { canvas: { addEventListener() {}, removeEventListener() {} } },
     camera: { moveEnd: { addEventListener() {} } },
   };
-  const runner = createGevActionRunner({
+  const runner = createVoiceActionRunner({
     viewer,
     styleManager,
     dataManager: { layers: new Map(), getAll: () => [] },
@@ -2756,7 +2756,7 @@ test('a nested Cockpit rollback result is translated too', async () => {
     scene: { canvas: { addEventListener() {}, removeEventListener() {} } },
     camera: { moveEnd: { addEventListener() {} } },
   };
-  const runner = createGevActionRunner({
+  const runner = createVoiceActionRunner({
     viewer,
     styleManager,
     dataManager: { layers: new Map(), isEnabled: () => false, getAll: () => [] },
@@ -2836,7 +2836,7 @@ function analystRunner() {
       positionCartographic: { height: 300_000, latitude: 0.52, longitude: -1.71 },
     },
   };
-  return createGevActionRunner({
+  return createVoiceActionRunner({
     viewer,
     styleManager: {},
     dataManager: {

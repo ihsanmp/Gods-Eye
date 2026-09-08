@@ -311,7 +311,7 @@ body.cockpit-mode #cockpit-cloud-effects.active {
    frame, so the on-screen credit content is owned by Cesium's update loop, not
    CSS overrides — we deliberately don't fight it here.) */
 
-#gev-voice-control {
+#mm-voice-control {
   position: fixed;
   right: 36px;
   bottom: 36px;
@@ -337,7 +337,7 @@ body.cockpit-mode #cockpit-cloud-effects.active {
   pointer-events: auto;
 }
 
-#gev-voice-button {
+#mm-voice-button {
   width: 72px;
   height: 34px;
   flex: 0 0 auto;
@@ -351,24 +351,24 @@ body.cockpit-mode #cockpit-cloud-effects.active {
   cursor: pointer;
 }
 
-#gev-voice-button:hover {
+#mm-voice-button:hover {
   color: #ffffff;
   border-color: var(--accent);
   box-shadow: 0 0 12px rgba(0, 212, 255, 0.22);
 }
 
-.gev-voice-readout {
+.mm-voice-readout {
   min-width: 0;
   line-height: 1.2;
   text-align: right;
 }
 
-#gev-voice-status {
+#mm-voice-status {
   font-size: 10px;
   color: var(--accent);
 }
 
-#gev-voice-detail {
+#mm-voice-detail {
   max-width: 132px;
   margin-top: 2px;
   overflow: hidden;
@@ -378,23 +378,23 @@ body.cockpit-mode #cockpit-cloud-effects.active {
   white-space: nowrap;
 }
 
-#gev-voice-control[data-status='listening'] {
+#mm-voice-control[data-status='listening'] {
   border-color: rgba(92, 255, 198, 0.45);
 }
 
-#gev-voice-control[data-status='listening'] #gev-voice-status {
+#mm-voice-control[data-status='listening'] #mm-voice-status {
   color: #5cffc6;
 }
 
-#gev-voice-control[data-status='executing'] {
+#mm-voice-control[data-status='executing'] {
   border-color: rgba(255, 220, 120, 0.55);
 }
 
-#gev-voice-control[data-status='executing'] #gev-voice-status {
+#mm-voice-control[data-status='executing'] #mm-voice-status {
   color: #ffdc78;
 }
 
-#gev-voice-control[data-status='error'] {
+#mm-voice-control[data-status='error'] {
   align-items: flex-start;
   width: min(440px, calc(100vw - 72px));
   border-color: rgba(255, 92, 110, 0.6);
@@ -402,16 +402,16 @@ body.cockpit-mode #cockpit-cloud-effects.active {
   border-radius: var(--panel-radius);
 }
 
-#gev-voice-control[data-status='error'] #gev-voice-status {
+#mm-voice-control[data-status='error'] #mm-voice-status {
   color: #ff5c6e;
 }
 
-#gev-voice-control[data-status='error'] .gev-voice-readout {
+#mm-voice-control[data-status='error'] .mm-voice-readout {
   flex: 1;
   text-align: left;
 }
 
-#gev-voice-control[data-status='error'] #gev-voice-detail {
+#mm-voice-control[data-status='error'] #mm-voice-detail {
   max-width: none;
   overflow: visible;
   color: #ffb4bd;
@@ -1110,7 +1110,7 @@ body.cockpit-mode #cockpit-cloud-effects.active {
 
 /* Quantitative companion sliders share Display / Sharpen's visible rail,
  * circular thumb, glow, and value treatment while retaining a taller hit area. */
-.gev-quantitative-slider {
+.mm-quantitative-slider {
   width: 100%;
   min-width: 0;
   height: 18px;
@@ -1121,12 +1121,12 @@ body.cockpit-mode #cockpit-cloud-effects.active {
   outline: none;
   cursor: pointer;
 }
-.gev-quantitative-slider::-webkit-slider-runnable-track {
+.mm-quantitative-slider::-webkit-slider-runnable-track {
   height: 3px;
   border-radius: 2px;
   background: rgba(255, 255, 255, 0.08);
 }
-.gev-quantitative-slider::-webkit-slider-thumb {
+.mm-quantitative-slider::-webkit-slider-thumb {
   width: 10px;
   height: 10px;
   margin-top: -3.5px;
@@ -1138,14 +1138,14 @@ body.cockpit-mode #cockpit-cloud-effects.active {
   box-shadow: 0 0 6px var(--accent-glow);
   cursor: pointer;
 }
-.gev-quantitative-slider::-moz-range-track,
-.gev-quantitative-slider::-moz-range-progress {
+.mm-quantitative-slider::-moz-range-track,
+.mm-quantitative-slider::-moz-range-progress {
   height: 3px;
   border: 0;
   border-radius: 2px;
   background: rgba(255, 255, 255, 0.08);
 }
-.gev-quantitative-slider::-moz-range-thumb {
+.mm-quantitative-slider::-moz-range-thumb {
   width: 10px;
   height: 10px;
   border: 0;
@@ -1154,16 +1154,16 @@ body.cockpit-mode #cockpit-cloud-effects.active {
   box-shadow: 0 0 6px var(--accent-glow);
   cursor: pointer;
 }
-.gev-quantitative-slider:focus-visible {
+.mm-quantitative-slider:focus-visible {
   border-radius: 4px;
   outline: 1px solid color-mix(in srgb, var(--accent) 80%, transparent);
   outline-offset: 2px;
 }
-.gev-quantitative-slider:disabled {
+.mm-quantitative-slider:disabled {
   opacity: .42;
   cursor: not-allowed;
 }
-.gev-slider-value {
+.mm-slider-value {
   min-width: 28px;
   color: var(--accent);
   font-family: var(--font-mono);
@@ -5534,7 +5534,7 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
 .military-awareness-direction-arrow { position: absolute; left: 50%; top: 50%; color: #74dbff; font: 23px/1 sans-serif; transform-origin: 50% 50%; text-shadow: 0 0 5px rgba(87,223,255,0.9), 0 0 13px rgba(87,223,255,0.35); }
 .military-awareness-direction-label { position: absolute; left: 50%; top: 50%; padding: 3px 6px; border: 1px solid rgba(116,219,255,0.24); border-radius: 3px; color: #bceeff; background: rgba(5,12,20,0.68); font: 8px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace; text-align: center; white-space: pre; text-shadow: 0 0 5px rgba(116,219,255,0.38); }
 
-.data-toggle-row.gev-voice-focus {
+.data-toggle-row.mm-voice-focus {
   background: rgba(92, 255, 198, 0.1);
   box-shadow: inset 0 0 0 1px rgba(92, 255, 198, 0.72), 0 0 18px rgba(92, 255, 198, 0.18);
 }
@@ -6495,7 +6495,7 @@ body.recording-mode #data-panel,
 body.recording-mode #cctv-panel,
 body.recording-mode #radio-panel,
 body.recording-mode #global-context-panel,
-body.recording-mode #gev-voice-control,
+body.recording-mode #mm-voice-control,
 body.recording-mode #scene-panel {
   opacity: 0 !important;
   visibility: hidden !important;
@@ -6560,13 +6560,13 @@ body.recording-mode #scene-runtime.active {
     bottom: 120px;
   }
 
-  #gev-voice-control {
+  #mm-voice-control {
     right: 16px;
     bottom: 16px;
     min-width: 196px;
   }
 
-  #gev-voice-detail {
+  #mm-voice-detail {
     max-width: 112px;
   }
 
@@ -6757,7 +6757,7 @@ body.recording-mode #scene-runtime.active {
 
 #command-dock > #location-bar,
 #command-dock > #control-panel,
-#command-dock > #gev-voice-control {
+#command-dock > #mm-voice-control {
   position: relative;
   inset: auto;
   width: auto;
@@ -6777,7 +6777,7 @@ body.recording-mode #scene-runtime.active {
   border-left: 1px solid rgba(123, 189, 211, 0.16);
 }
 
-#command-dock > #gev-voice-control {
+#command-dock > #mm-voice-control {
   grid-area: voice;
   z-index: 2;
   align-self: stretch;
@@ -6794,7 +6794,7 @@ body.recording-mode #scene-runtime.active {
     0 0 0 1px rgba(0, 212, 255, 0.08) inset;
 }
 
-#command-dock .gev-voice-kicker {
+#command-dock .mm-voice-kicker {
   position: absolute;
   top: 6px;
   right: 14px;
@@ -6809,17 +6809,17 @@ body.recording-mode #scene-runtime.active {
   white-space: nowrap;
 }
 
-#command-dock #gev-voice-button {
+#command-dock #mm-voice-button {
   width: 78px;
   height: 42px;
 }
 
-#command-dock .gev-voice-readout {
+#command-dock .mm-voice-readout {
   flex: 1;
   text-align: left;
 }
 
-#command-dock #gev-voice-detail {
+#command-dock #mm-voice-detail {
   max-width: 110px;
 }
 
@@ -6992,7 +6992,7 @@ body.recording-mode #cesium-credits {
     border-left: 0;
   }
 
-  #command-dock > #gev-voice-control {
+  #command-dock > #mm-voice-control {
     margin: -10px 0 0;
   }
 
@@ -7245,7 +7245,7 @@ body.recording-mode #cesium-credits {
   display: none;
 }
 
-#command-dock > #gev-voice-control {
+#command-dock > #mm-voice-control {
   position: relative;
   inset: auto;
   z-index: 3;
@@ -7264,7 +7264,7 @@ body.recording-mode #cesium-credits {
   transform: none;
 }
 
-#command-dock .gev-voice-kicker {
+#command-dock .mm-voice-kicker {
   position: static;
   grid-column: 2 / 4;
   grid-row: 1;
@@ -7275,7 +7275,7 @@ body.recording-mode #cesium-credits {
   text-align: center;
 }
 
-#command-dock #gev-voice-button {
+#command-dock #mm-voice-button {
   grid-column: 1;
   grid-row: 1 / 4;
   display: flex;
@@ -7293,25 +7293,25 @@ body.recording-mode #cesium-credits {
     0 0 1rem rgba(0, 212, 255, 0.12);
 }
 
-#command-dock .gev-mic-orbit {
+#command-dock .mm-mic-orbit {
   display: grid;
   place-items: center;
   width: 1.7rem;
   height: 1.7rem;
 }
 
-#command-dock .gev-mic-orbit img {
+#command-dock .mm-mic-orbit img {
   width: 1.55rem;
   height: 1.55rem;
 }
 
-#command-dock .gev-mic-label {
+#command-dock .mm-mic-label {
   font-size: 0.35rem;
   color: rgba(190, 221, 230, 0.72);
   letter-spacing: 0.02rem;
 }
 
-#command-dock .gev-voice-visualizer {
+#command-dock .mm-voice-visualizer {
   grid-column: 2;
   grid-row: 2;
   display: flex;
@@ -7323,7 +7323,7 @@ body.recording-mode #cesium-credits {
   border-bottom: 1px solid rgba(54, 220, 255, 0.34);
 }
 
-#command-dock .gev-voice-visualizer span {
+#command-dock .mm-voice-visualizer span {
   width: 0.18rem;
   height: 0.55rem;
   background: linear-gradient(to top, #28b9db, #71eaff);
@@ -7331,22 +7331,22 @@ body.recording-mode #cesium-credits {
   transform-origin: bottom;
 }
 
-#command-dock .gev-voice-visualizer span:nth-child(3n) { height: 1.35rem; }
-#command-dock .gev-voice-visualizer span:nth-child(4n) { height: 0.95rem; }
-#command-dock .gev-voice-visualizer span:nth-child(5n) { height: 1.7rem; }
-#command-dock .gev-voice-visualizer span:nth-child(7n) { height: 0.75rem; }
+#command-dock .mm-voice-visualizer span:nth-child(3n) { height: 1.35rem; }
+#command-dock .mm-voice-visualizer span:nth-child(4n) { height: 0.95rem; }
+#command-dock .mm-voice-visualizer span:nth-child(5n) { height: 1.7rem; }
+#command-dock .mm-voice-visualizer span:nth-child(7n) { height: 0.75rem; }
 
-#command-dock #gev-voice-control[data-status='listening'] .gev-voice-visualizer span,
-#command-dock #gev-voice-control[data-status='executing'] .gev-voice-visualizer span {
-  animation: gev-voice-bar 680ms ease-in-out infinite alternate;
+#command-dock #mm-voice-control[data-status='listening'] .mm-voice-visualizer span,
+#command-dock #mm-voice-control[data-status='executing'] .mm-voice-visualizer span {
+  animation: mm-voice-bar 680ms ease-in-out infinite alternate;
   animation-delay: calc(var(--bar) * -45ms);
 }
 
-#command-dock .gev-voice-readout {
+#command-dock .mm-voice-readout {
   display: contents;
 }
 
-#command-dock #gev-voice-status {
+#command-dock #mm-voice-status {
   grid-column: 3;
   grid-row: 2;
   align-self: start;
@@ -7355,7 +7355,7 @@ body.recording-mode #cesium-credits {
   text-align: right;
 }
 
-#command-dock #gev-voice-detail {
+#command-dock #mm-voice-detail {
   grid-column: 2 / 4;
   grid-row: 3;
   align-self: center;
@@ -7371,7 +7371,7 @@ body.recording-mode #cesium-credits {
   to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes gev-voice-bar {
+@keyframes mm-voice-bar {
   from { transform: scaleY(0.35); opacity: 0.5; }
   to { transform: scaleY(1); opacity: 1; }
 }
@@ -7413,18 +7413,18 @@ body:not(.ui-clean-view):not(.recording-mode) #cesium-credits {
     border: 0;
   }
 
-  #command-dock:has(#location-bar:not(.collapsed)) > #gev-voice-control,
-  #command-dock:has(#control-panel:not(.collapsed)) > #gev-voice-control {
+  #command-dock:has(#location-bar:not(.collapsed)) > #mm-voice-control,
+  #command-dock:has(#control-panel:not(.collapsed)) > #mm-voice-control {
     flex-basis: 4.75rem;
     width: 4.75rem;
   }
 
-  #command-dock:has(#location-bar:not(.collapsed)) .gev-voice-visualizer,
-  #command-dock:has(#location-bar:not(.collapsed)) .gev-voice-kicker,
-  #command-dock:has(#location-bar:not(.collapsed)) .gev-voice-readout,
-  #command-dock:has(#control-panel:not(.collapsed)) .gev-voice-visualizer,
-  #command-dock:has(#control-panel:not(.collapsed)) .gev-voice-kicker,
-  #command-dock:has(#control-panel:not(.collapsed)) .gev-voice-readout {
+  #command-dock:has(#location-bar:not(.collapsed)) .mm-voice-visualizer,
+  #command-dock:has(#location-bar:not(.collapsed)) .mm-voice-kicker,
+  #command-dock:has(#location-bar:not(.collapsed)) .mm-voice-readout,
+  #command-dock:has(#control-panel:not(.collapsed)) .mm-voice-visualizer,
+  #command-dock:has(#control-panel:not(.collapsed)) .mm-voice-kicker,
+  #command-dock:has(#control-panel:not(.collapsed)) .mm-voice-readout {
     visibility: hidden;
   }
 
@@ -7612,7 +7612,7 @@ body:not(.ui-clean-view):not(.recording-mode) #cesium-credits {
   bottom: calc(100% + 1.2rem + var(--dock-lower-pinned-height));
 }
 
-#command-dock.dock-has-pinned-tray .gev-voice-error-tray {
+#command-dock.dock-has-pinned-tray .mm-voice-error-tray {
   bottom: calc(100% + 1.7rem + var(--dock-pinned-stack-height));
 }
 
@@ -7627,7 +7627,7 @@ body:not(.ui-clean-view):not(.recording-mode) #cesium-credits {
   font-size: 0.68rem;
 }
 
-#command-dock > #gev-voice-control {
+#command-dock > #mm-voice-control {
   grid-template-columns: 3rem minmax(0, 1fr);
   grid-template-rows: 0.8rem 2.25rem 0.85rem;
   gap: 0.12rem 0.28rem;
@@ -7640,7 +7640,7 @@ body:not(.ui-clean-view):not(.recording-mode) #cesium-credits {
   overflow: visible;
 }
 
-#command-dock .gev-voice-heading {
+#command-dock .mm-voice-heading {
   grid-column: 2;
   grid-row: 1;
   display: flex;
@@ -7650,7 +7650,7 @@ body:not(.ui-clean-view):not(.recording-mode) #cesium-credits {
   min-width: 0;
 }
 
-#command-dock .gev-voice-kicker {
+#command-dock .mm-voice-kicker {
   position: static;
   padding-right: 0;
   font-size: 0.46rem;
@@ -7658,7 +7658,7 @@ body:not(.ui-clean-view):not(.recording-mode) #cesium-credits {
   letter-spacing: 0.08rem;
 }
 
-#command-dock #gev-voice-button {
+#command-dock #mm-voice-button {
   grid-column: 1;
   grid-row: 1 / 4;
   align-self: center;
@@ -7670,7 +7670,7 @@ body:not(.ui-clean-view):not(.recording-mode) #cesium-credits {
   box-shadow: none;
 }
 
-#command-dock .gev-mic-orbit {
+#command-dock .mm-mic-orbit {
   flex: 0 0 2.45rem;
   width: 2.45rem;
   height: 2.45rem;
@@ -7682,14 +7682,14 @@ body:not(.ui-clean-view):not(.recording-mode) #cesium-credits {
   box-shadow: 0 0 0 0.18rem rgba(0, 212, 255, 0.06), 0 0 0.9rem rgba(0, 212, 255, 0.12);
 }
 
-#command-dock .gev-mic-label {
+#command-dock .mm-mic-label {
   display: block;
   margin-top: 0.18rem;
   font-size: 0.42rem;
   letter-spacing: 0.035rem;
 }
 
-#command-dock .gev-voice-visualizer {
+#command-dock .mm-voice-visualizer {
   grid-column: 2;
   grid-row: 2;
   align-self: stretch;
@@ -7703,15 +7703,15 @@ body:not(.ui-clean-view):not(.recording-mode) #cesium-credits {
   transition: opacity 180ms ease;
 }
 
-#command-dock #gev-voice-control[data-status='connecting'] .gev-voice-visualizer,
-#command-dock #gev-voice-control[data-status='listening'] .gev-voice-visualizer,
-#command-dock #gev-voice-control[data-status='executing'] .gev-voice-visualizer {
+#command-dock #mm-voice-control[data-status='connecting'] .mm-voice-visualizer,
+#command-dock #mm-voice-control[data-status='listening'] .mm-voice-visualizer,
+#command-dock #mm-voice-control[data-status='executing'] .mm-voice-visualizer {
   visibility: visible;
   opacity: 1;
   transform: none;
 }
 
-#command-dock #gev-voice-status {
+#command-dock #mm-voice-status {
   position: static;
   width: auto;
   padding-top: 0;
@@ -7720,7 +7720,7 @@ body:not(.ui-clean-view):not(.recording-mode) #cesium-credits {
   text-align: left;
 }
 
-#command-dock #gev-voice-detail {
+#command-dock #mm-voice-detail {
   grid-column: 2;
   grid-row: 3;
   align-self: start;
@@ -7735,14 +7735,14 @@ body:not(.ui-clean-view):not(.recording-mode) #cesium-credits {
   white-space: nowrap;
 }
 
-#command-dock #gev-voice-control[data-status='connecting'] #gev-voice-detail,
-#command-dock #gev-voice-control[data-status='listening'] #gev-voice-detail,
-#command-dock #gev-voice-control[data-status='executing'] #gev-voice-detail {
+#command-dock #mm-voice-control[data-status='connecting'] #mm-voice-detail,
+#command-dock #mm-voice-control[data-status='listening'] #mm-voice-detail,
+#command-dock #mm-voice-control[data-status='executing'] #mm-voice-detail {
   grid-row: 3;
   font-size: 0.43rem;
 }
 
-#command-dock #gev-voice-control[data-status='error'] {
+#command-dock #mm-voice-control[data-status='error'] {
   display: grid;
   align-items: initial;
   width: var(--dock-voice-width);
@@ -7750,11 +7750,11 @@ body:not(.ui-clean-view):not(.recording-mode) #cesium-credits {
   border-radius: 0.4rem;
 }
 
-#command-dock #gev-voice-control[data-status='error'] .gev-voice-readout {
+#command-dock #mm-voice-control[data-status='error'] .mm-voice-readout {
   display: contents;
 }
 
-#command-dock #gev-voice-control[data-status='error'] #gev-voice-detail {
+#command-dock #mm-voice-control[data-status='error'] #mm-voice-detail {
   max-width: none;
   overflow: hidden;
   color: #ffb4bd;
@@ -7764,7 +7764,7 @@ body:not(.ui-clean-view):not(.recording-mode) #cesium-credits {
   white-space: nowrap;
 }
 
-#command-dock .gev-voice-error-tray {
+#command-dock .mm-voice-error-tray {
   position: absolute;
   bottom: calc(100% + 0.7rem);
   left: 50%;
@@ -7786,14 +7786,14 @@ body:not(.ui-clean-view):not(.recording-mode) #cesium-credits {
   transition: opacity 180ms ease, visibility 180ms ease, transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-#command-dock #gev-voice-control[data-status='error']:not(.error-dismissed) .gev-voice-error-tray {
+#command-dock #mm-voice-control[data-status='error']:not(.error-dismissed) .mm-voice-error-tray {
   visibility: visible;
   opacity: 1;
   pointer-events: auto;
   transform: translate(-50%, 0) scale(1);
 }
 
-#command-dock .gev-voice-error-header {
+#command-dock .mm-voice-error-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -7805,7 +7805,7 @@ body:not(.ui-clean-view):not(.recording-mode) #cesium-credits {
   letter-spacing: 0.1rem;
 }
 
-#command-dock .gev-voice-error-dismiss {
+#command-dock .mm-voice-error-dismiss {
   padding: 0.25rem 0.42rem;
   color: rgba(255, 220, 224, 0.72);
   background: rgba(255, 255, 255, 0.04);
@@ -7817,7 +7817,7 @@ body:not(.ui-clean-view):not(.recording-mode) #cesium-credits {
   cursor: pointer;
 }
 
-#command-dock #gev-voice-error-detail {
+#command-dock #mm-voice-error-detail {
   margin-top: 0.65rem;
   color: rgba(255, 232, 235, 0.92);
   font-family: var(--font-sans);
@@ -7825,7 +7825,7 @@ body:not(.ui-clean-view):not(.recording-mode) #cesium-credits {
   line-height: 1.45;
 }
 
-#command-dock .gev-voice-error-hint {
+#command-dock .mm-voice-error-hint {
   margin-top: 0.5rem;
   color: rgba(255, 196, 203, 0.58);
   font-family: var(--font-mono);
@@ -7873,7 +7873,7 @@ body:not(.ui-clean-view):not(.recording-mode):has(#intel-hud[data-variant='minim
     max-width: calc(100vw - 1.5rem);
   }
 
-  #command-dock .gev-voice-error-tray {
+  #command-dock .mm-voice-error-tray {
     width: min(24rem, calc(100vw - 1.5rem));
   }
 }
@@ -8045,18 +8045,18 @@ body:not(.ui-clean-view):not(.recording-mode):has(#intel-hud[data-variant='minim
     border: inherit;
   }
 
-  #command-dock:has(#location-bar:not(.collapsed)) > #gev-voice-control,
-  #command-dock:has(#control-panel:not(.collapsed)) > #gev-voice-control {
+  #command-dock:has(#location-bar:not(.collapsed)) > #mm-voice-control,
+  #command-dock:has(#control-panel:not(.collapsed)) > #mm-voice-control {
     flex-basis: var(--dock-voice-width);
     width: var(--dock-voice-width);
   }
 
-  #command-dock:has(#location-bar:not(.collapsed)) .gev-voice-visualizer,
-  #command-dock:has(#location-bar:not(.collapsed)) .gev-voice-kicker,
-  #command-dock:has(#location-bar:not(.collapsed)) .gev-voice-readout,
-  #command-dock:has(#control-panel:not(.collapsed)) .gev-voice-visualizer,
-  #command-dock:has(#control-panel:not(.collapsed)) .gev-voice-kicker,
-  #command-dock:has(#control-panel:not(.collapsed)) .gev-voice-readout {
+  #command-dock:has(#location-bar:not(.collapsed)) .mm-voice-visualizer,
+  #command-dock:has(#location-bar:not(.collapsed)) .mm-voice-kicker,
+  #command-dock:has(#location-bar:not(.collapsed)) .mm-voice-readout,
+  #command-dock:has(#control-panel:not(.collapsed)) .mm-voice-visualizer,
+  #command-dock:has(#control-panel:not(.collapsed)) .mm-voice-kicker,
+  #command-dock:has(#control-panel:not(.collapsed)) .mm-voice-readout {
     visibility: visible;
   }
 
@@ -8214,36 +8214,36 @@ body:not(.ui-clean-view):not(.recording-mode):has(#intel-hud[data-variant='minim
 }
 
 /* Five-pixel standby baseline; live microphone analysis sets --audio-level. */
-#command-dock .gev-voice-visualizer span,
-#command-dock .gev-voice-visualizer span:nth-child(3n),
-#command-dock .gev-voice-visualizer span:nth-child(4n),
-#command-dock .gev-voice-visualizer span:nth-child(5n),
-#command-dock .gev-voice-visualizer span:nth-child(7n) {
+#command-dock .mm-voice-visualizer span,
+#command-dock .mm-voice-visualizer span:nth-child(3n),
+#command-dock .mm-voice-visualizer span:nth-child(4n),
+#command-dock .mm-voice-visualizer span:nth-child(5n),
+#command-dock .mm-voice-visualizer span:nth-child(7n) {
   height: var(--audio-level, 5px);
   opacity: var(--audio-opacity, 0.56);
   animation: none;
   transition: height 70ms linear, opacity 90ms linear;
 }
 
-#command-dock #gev-voice-control[data-status='listening'] .gev-voice-visualizer span,
-#command-dock #gev-voice-control[data-status='executing'] .gev-voice-visualizer span {
+#command-dock #mm-voice-control[data-status='listening'] .mm-voice-visualizer span,
+#command-dock #mm-voice-control[data-status='executing'] .mm-voice-visualizer span {
   animation: none;
 }
 
-#command-dock #gev-voice-control[data-speaker='user'] :is(#gev-voice-status, #gev-voice-detail) {
+#command-dock #mm-voice-control[data-speaker='user'] :is(#mm-voice-status, #mm-voice-detail) {
   color: #ffbf69;
 }
 
-#command-dock #gev-voice-control[data-speaker='user'] .gev-voice-visualizer span {
+#command-dock #mm-voice-control[data-speaker='user'] .mm-voice-visualizer span {
   background: linear-gradient(to top, #d98a35, #ffcf8a);
   box-shadow: 0 0 0.35rem rgba(255, 191, 105, 0.32);
 }
 
-#command-dock #gev-voice-control[data-speaker='ai'] :is(#gev-voice-status, #gev-voice-detail) {
+#command-dock #mm-voice-control[data-speaker='ai'] :is(#mm-voice-status, #mm-voice-detail) {
   color: var(--accent);
 }
 
-#command-dock #gev-voice-control[data-speaker='ai'] .gev-voice-visualizer span {
+#command-dock #mm-voice-control[data-speaker='ai'] .mm-voice-visualizer span {
   background: linear-gradient(to top, #28b9db, #71eaff);
   box-shadow: 0 0 0.35rem rgba(54, 220, 255, 0.28);
 }
@@ -8306,7 +8306,7 @@ body:not(.ui-clean-view):not(.recording-mode):has(#intel-hud[data-variant='minim
 }
 
 /* Keep the microphone neutral at rest; cyan signals hover and live states. */
-#command-dock .gev-mic-orbit {
+#command-dock .mm-mic-orbit {
   background: rgba(232, 234, 237, 0.04);
   border-color: rgba(232, 234, 237, 0.36);
   box-shadow:
@@ -8315,29 +8315,29 @@ body:not(.ui-clean-view):not(.recording-mode):has(#intel-hud[data-variant='minim
   transition: background var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-#command-dock .gev-mic-orbit img {
+#command-dock .mm-mic-orbit img {
   filter: grayscale(1) saturate(0) brightness(1.65);
   opacity: 0.68;
   transition: filter var(--transition-fast), opacity var(--transition-fast);
 }
 
-#command-dock #gev-voice-button:hover .gev-mic-orbit,
-#command-dock #gev-voice-control:is(
+#command-dock #mm-voice-button:hover .mm-mic-orbit,
+#command-dock #mm-voice-control:is(
   [data-status='connecting'],
   [data-status='listening']:not([data-microphone='muted']),
   [data-status='executing']
-) .gev-mic-orbit {
+) .mm-mic-orbit {
   background: rgba(0, 212, 255, 0.06);
   border-color: rgba(0, 212, 255, 0.48);
   box-shadow: 0 0 0 0.18rem rgba(0, 212, 255, 0.06), 0 0 0.9rem rgba(0, 212, 255, 0.12);
 }
 
-#command-dock #gev-voice-button:hover .gev-mic-orbit img,
-#command-dock #gev-voice-control:is(
+#command-dock #mm-voice-button:hover .mm-mic-orbit img,
+#command-dock #mm-voice-control:is(
   [data-status='connecting'],
   [data-status='listening']:not([data-microphone='muted']),
   [data-status='executing']
-) .gev-mic-orbit img {
+) .mm-mic-orbit img {
   filter: none;
   opacity: 1;
 }
@@ -8436,7 +8436,7 @@ body:not(.ui-clean-view):not(.recording-mode):has(#intel-hud[data-variant='minim
   display: none;
 }
 
-#gev-voice-control .gev-voice-help-tray {
+#mm-voice-control .mm-voice-help-tray {
   position: absolute;
   bottom: calc(100% + 0.7rem);
   left: 50%;
@@ -8469,7 +8469,7 @@ body:not(.ui-clean-view):not(.recording-mode):has(#intel-hud[data-variant='minim
     transform 210ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-#gev-voice-control .gev-voice-help-kicker {
+#mm-voice-control .mm-voice-help-kicker {
   color: rgba(54, 220, 255, 0.72);
   font-family: var(--font-mono);
   font-size: 0.46rem;
@@ -8477,26 +8477,26 @@ body:not(.ui-clean-view):not(.recording-mode):has(#intel-hud[data-variant='minim
   letter-spacing: 0.1rem;
 }
 
-#gev-voice-control .gev-voice-help-detail {
+#mm-voice-control .mm-voice-help-detail {
   font-family: var(--font-sans);
   font-size: 0.7rem;
   line-height: 1.35;
   white-space: nowrap;
 }
 
-#gev-voice-control:not([data-status='error']):hover .gev-voice-help-tray,
-#gev-voice-control:not([data-status='error']) #gev-voice-button:focus-visible ~ .gev-voice-help-tray {
+#mm-voice-control:not([data-status='error']):hover .mm-voice-help-tray,
+#mm-voice-control:not([data-status='error']) #mm-voice-button:focus-visible ~ .mm-voice-help-tray {
   visibility: visible;
   opacity: 1;
   transform: translate(-50%, 0) scale(1);
 }
 
-#command-dock.dock-has-pinned-tray .gev-voice-help-tray {
+#command-dock.dock-has-pinned-tray .mm-voice-help-tray {
   bottom: calc(100% + 1.7rem + var(--dock-pinned-stack-height));
 }
 
 @media (prefers-reduced-motion: reduce) {
-  #gev-voice-control .gev-voice-help-tray {
+  #mm-voice-control .mm-voice-help-tray {
     transition: none;
   }
   .radio-tuner-needle,
@@ -8527,10 +8527,10 @@ body:not(.ui-clean-view):not(.recording-mode):has(#intel-hud[data-variant='minim
 /* ------------------------------------------------------------------ *
  * Voice cost control — model-tier toggle + running session estimate.
  * Appended (not woven into the dock passes above) so the three existing
- * #gev-voice-control cascades stay untouched; these rules only add the
- * new .gev-voice-cost cluster inside the existing .gev-voice-heading row.
+ * #mm-voice-control cascades stay untouched; these rules only add the
+ * new .mm-voice-cost cluster inside the existing .mm-voice-heading row.
  * ------------------------------------------------------------------ */
-.gev-voice-cost {
+.mm-voice-cost {
   display: flex;
   align-items: center;
   gap: 0.22rem;
@@ -8538,7 +8538,7 @@ body:not(.ui-clean-view):not(.recording-mode):has(#intel-hud[data-variant='minim
   flex: 0 0 auto;
 }
 
-.gev-voice-tier-btn {
+.mm-voice-tier-btn {
   padding: 0 0.24rem;
   height: 0.72rem;
   min-width: 1.55rem;
@@ -8558,7 +8558,7 @@ body:not(.ui-clean-view):not(.recording-mode):has(#intel-hud[data-variant='minim
     background var(--transition-fast);
 }
 
-.gev-voice-tier-btn:hover {
+.mm-voice-tier-btn:hover {
   color: var(--text-primary);
   border-color: rgba(0, 212, 255, 0.6);
   background: rgba(0, 212, 255, 0.12);
@@ -8566,13 +8566,13 @@ body:not(.ui-clean-view):not(.recording-mode):has(#intel-hud[data-variant='minim
 
 /* MINI engaged — amber, distinct from the cyan default so the cheaper tier
    is legible at a glance without reading the label. */
-.gev-voice-tier-btn[aria-pressed='true'] {
+.mm-voice-tier-btn[aria-pressed='true'] {
   color: #ffc46b;
   border-color: rgba(255, 196, 107, 0.55);
   background: rgba(255, 196, 107, 0.12);
 }
 
-.gev-voice-cost-value {
+.mm-voice-cost-value {
   color: var(--text-dim);
   font-family: var(--font-mono);
   font-size: 0.4rem;
@@ -8582,23 +8582,23 @@ body:not(.ui-clean-view):not(.recording-mode):has(#intel-hud[data-variant='minim
   transition: color var(--transition-fast);
 }
 
-.gev-voice-cost-value[data-level='warn'] {
+.mm-voice-cost-value[data-level='warn'] {
   color: #ffc46b;
 }
 
-.gev-voice-cost-value[data-level='cap'] {
+.mm-voice-cost-value[data-level='cap'] {
   color: #ff6b6b;
   font-weight: 600;
 }
 
 /* The dock heading row is 0.8rem tall; keep the cluster inside it. */
-#command-dock .gev-voice-cost {
+#command-dock .mm-voice-cost {
   max-height: 0.8rem;
 }
 
 /* The dock collapses the kicker/readout when a tray is open — the cost
    cluster follows the same rule so the row never overflows. */
-#command-dock.tray-open .gev-voice-cost {
+#command-dock.tray-open .mm-voice-cost {
   display: none;
 }
 

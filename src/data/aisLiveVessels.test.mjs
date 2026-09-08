@@ -976,7 +976,7 @@ function installWireHarness(picked, stateOverrides = {}) {
 }
 
 test('vessel interaction wire: trail pick does not deselect', () => {
-  const harness = installWireHarness({ id: 'gev-trail:71' });
+  const harness = installWireHarness({ id: 'mm-trail:71' });
   try {
     harness.handler.click({ position: { x: 10, y: 20 } });
     assert.equal(aisLiveVesselsLayer.getSelectedInfo()?.mmsi, harness.record.mmsi);
@@ -987,8 +987,8 @@ test('vessel interaction wire: trail pick does not deselect', () => {
   }
 });
 
-test('vessel interaction wire: only the gev-trail: namespace receives the trail no-op', () => {
-  const harness = installWireHarness({ id: 'gev-trailing-contact' });
+test('vessel interaction wire: only the mm-trail: namespace receives the trail no-op', () => {
+  const harness = installWireHarness({ id: 'mm-trailing-contact' });
   try {
     harness.handler.click({ position: { x: 10, y: 20 } });
     assert.equal(aisLiveVesselsLayer.getSelectedInfo(), null);
@@ -1056,7 +1056,7 @@ test('vessel interaction wire: id-less 3D Tiles pick deselects and resets the HU
       label: harness.record.name,
     });
     selectEntityContext(harness.record);
-    harness.windowTarget.addEventListener('gev:entity-selection-cleared', (event) => {
+    harness.windowTarget.addEventListener('mm:entity-selection-cleared', (event) => {
       cleared.push(event.detail);
     });
 
@@ -1074,7 +1074,7 @@ test('vessel interaction wire: id-less 3D Tiles pick deselects and resets the HU
   }
 });
 
-test('vessel interaction wire: empty pick deselects and emits gev:entity-selection-cleared', () => {
+test('vessel interaction wire: empty pick deselects and emits mm:entity-selection-cleared', () => {
   const harness = installWireHarness(undefined);
   const cleared = [];
   try {
@@ -1084,7 +1084,7 @@ test('vessel interaction wire: empty pick deselects and emits gev:entity-selecti
       label: harness.record.name,
     });
     selectEntityContext(harness.record);
-    harness.windowTarget.addEventListener('gev:entity-selection-cleared', (event) => {
+    harness.windowTarget.addEventListener('mm:entity-selection-cleared', (event) => {
       cleared.push(event.detail);
     });
 
@@ -1393,7 +1393,7 @@ test('vessel real layer lifecycle publishes protected selection and leaves no st
   globalThis.window = new EventTarget();
   globalThis.document = { getElementById: () => null };
   const focusRequests = [];
-  globalThis.window.addEventListener('gev:world-request-focus', (event) => {
+  globalThis.window.addEventListener('mm:world-request-focus', (event) => {
     focusRequests.push(event.detail);
   });
   _setVesselOverlayHostForTest(host);
@@ -1608,7 +1608,7 @@ test('vessel card policy: only MMSI-keyed cards publish a hit rect', () => {
 });
 
 test('vessel interaction wire: deselecting never moves the camera', () => {
-  const harness = installWireHarness({ id: 'gev-empty-space' });
+  const harness = installWireHarness({ id: 'mm-empty-space' });
   const requests = [];
   harness.windowTarget.addEventListener(
     WORLD_FOCUS_REQUEST_EVENT,

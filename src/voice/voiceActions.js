@@ -283,7 +283,7 @@ export function readLayerLifecycleSummary(dataManager, layerId, { fallbackEnable
   };
 }
 
-export function createGevActionRunner({ viewer, styleManager, dataManager, sceneDirector = null, annotations = null }) {
+export function createVoiceActionRunner({ viewer, styleManager, dataManager, sceneDirector = null, annotations = null }) {
   installViewTargetPrewarm(viewer);
   initCameraVerbs(viewer, getViewTargetCartesian);
   return async function runGevAction(name, rawArgs = {}, runOptions = {}) {
@@ -2183,10 +2183,10 @@ function focusDataLayerRow(layerId) {
   const row = document.querySelector(`#data-toggles [data-layer-id="${CSS.escape(layerId)}"]`);
   if (!row) return null;
   row.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  row.classList.remove('gev-voice-focus');
+  row.classList.remove('mm-voice-focus');
   void row.offsetWidth;
-  row.classList.add('gev-voice-focus');
-  window.setTimeout(() => row.classList.remove('gev-voice-focus'), 3000);
+  row.classList.add('mm-voice-focus');
+  window.setTimeout(() => row.classList.remove('mm-voice-focus'), 3000);
   const name = row.querySelector('.data-name')?.textContent?.trim() || layerId;
   return { id: layerId, name };
 }
@@ -2639,7 +2639,7 @@ async function getBasemapContext(viewer, viewTarget = null) {
     );
     return {
       source: 'Google Photorealistic 3D Tiles / Cesium basemap',
-      hasGoogle3DTiles: Boolean(window.__godsEyeView?.tileset),
+      hasGoogle3DTiles: Boolean(window.__mapMonitoring?.tileset),
       viewScale,
       viewportSamples: samples,
       viewportPlaces,
@@ -2675,7 +2675,7 @@ async function getBasemapContext(viewer, viewTarget = null) {
   const nearbyPlaces = resolvedNearbyPlaces || [];
   return {
     source: 'Google Photorealistic 3D Tiles / Cesium basemap',
-    hasGoogle3DTiles: Boolean(window.__godsEyeView?.tileset),
+    hasGoogle3DTiles: Boolean(window.__mapMonitoring?.tileset),
     viewScale,
     viewportSamples: samples,
     viewportPlaces,

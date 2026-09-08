@@ -131,11 +131,11 @@ function fakeDocument() {
 }
 
 function findAnnotationGroup(document) {
-  const layer = document.body.children.find((child) => child.classList.contains('gev-screen-whiteboard'));
-  const svg = layer.children.find((child) => child.classList.contains('gev-screen-whiteboard-svg'));
+  const layer = document.body.children.find((child) => child.classList.contains('mm-screen-whiteboard'));
+  const svg = layer.children.find((child) => child.classList.contains('mm-screen-whiteboard-svg'));
   return {
     svg,
-    group: svg.children.find((child) => child.classList.contains('gev-anno')),
+    group: svg.children.find((child) => child.classList.contains('mm-anno')),
   };
 }
 
@@ -245,7 +245,7 @@ function fakeViewer(lon, lat) {
 }
 
 function annotationGroups(svg) {
-  return svg.children.filter((child) => child.classList.contains('gev-anno'));
+  return svg.children.filter((child) => child.classList.contains('mm-anno'));
 }
 
 function naiveRingCentroid(ring) {
@@ -320,9 +320,9 @@ test('hybrid outline upgrade preserves the screen group and adds world geometry'
 
   renderer.add(anno);
   const before = findAnnotationGroup(globalThis.document);
-  const originalCallout = before.group.querySelector('.gev-anno-callout');
-  const originalDot = before.group.querySelector('.gev-anno-dot');
-  assert.equal(before.group.querySelectorAll('.gev-anno-ring').length, 2);
+  const originalCallout = before.group.querySelector('.mm-anno-callout');
+  const originalDot = before.group.querySelector('.mm-anno-dot');
+  assert.equal(before.group.querySelectorAll('.mm-anno-ring').length, 2);
   assert.equal(dataSources.length, 1);
   assert.equal(dataSources[0].entities.values.length, 0);
 
@@ -345,10 +345,10 @@ test('hybrid outline upgrade preserves the screen group and adds world geometry'
     Cesium.Cartesian3.fromDegrees(centroid.lon, centroid.lat, centroid.height),
   );
   assert.equal(after.group, before.group, 'the real hybrid keeps the existing SVG group');
-  assert.equal(after.svg.children.filter((child) => child.classList.contains('gev-anno')).length, 1);
-  assert.equal(after.group.querySelectorAll('.gev-anno-ring').length, 0, 'screen reticle rings are removed');
-  assert.equal(after.group.querySelector('.gev-anno-callout'), originalCallout, 'the callout node is retained');
-  assert.equal(after.group.querySelector('.gev-anno-dot'), originalDot, 'the anchor dot is retained');
+  assert.equal(after.svg.children.filter((child) => child.classList.contains('mm-anno')).length, 1);
+  assert.equal(after.group.querySelectorAll('.mm-anno-ring').length, 0, 'screen reticle rings are removed');
+  assert.equal(after.group.querySelector('.mm-anno-callout'), originalCallout, 'the callout node is retained');
+  assert.equal(after.group.querySelector('.mm-anno-dot'), originalDot, 'the anchor dot is retained');
   assert.equal(originalDot.getAttribute('cx'), expectedWindow.x.toFixed(1));
   assert.equal(originalDot.getAttribute('cy'), expectedWindow.y.toFixed(1));
   assert.deepEqual(centroid, { lon: -100.8, lat: 29.4, height: 0 }, 'closed-ring vertex mean stays pinned');

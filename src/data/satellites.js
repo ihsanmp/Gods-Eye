@@ -718,7 +718,7 @@ function _clearTracking(skipViewerUntrack = false, { origin = 'programmatic' } =
   _syncIssOverlay();
   clearTrackedSubjectContext('satellites');
   _contextRefreshedAtMs = 0;
-  _emitAwarenessEvent('gev:awareness-subject-cleared', {
+  _emitAwarenessEvent('mm:awareness-subject-cleared', {
     layerId: 'satellites', id: clearedNorad, origin,
   });
 }
@@ -1009,7 +1009,7 @@ function _trackSatellite(noradId, { origin = 'programmatic' } = {}) {
   _trackedEntity.gevDisplayPosition = _trackedDisplayCached;
   _updateTrackedSatelliteLabelModel(initialPos?.altitude ?? null);
 
-  _emitAwarenessEvent('gev:awareness-subject-selected', {
+  _emitAwarenessEvent('mm:awareness-subject-selected', {
     layerId: 'satellites',
     id: noradId,
     label: name,

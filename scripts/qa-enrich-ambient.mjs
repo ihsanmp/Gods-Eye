@@ -35,7 +35,7 @@
  *   E8 next poll : another poll neither reverts glyphs nor re-requests hexes
  *   E10 exhaust  : the ROLLING ambient budget exhausts — new on-screen planes
  *                  stop being requested once the bucket is empty (shrunk via
- *                  the __GEV_ENRICH_AMBIENT_QA seam; a real 5-min window can't
+ *                  the __MM_ENRICH_AMBIENT_QA seam; a real 5-min window can't
  *                  be waited out headlessly)
  *   E11 resume   : after a refill window passes, ambient enrichment RESUMES
  *                  for the still-unrequested planes (the 2026-07-03 field bug:
@@ -76,7 +76,7 @@ const DISPATCH_GAP_MS = 200;   // ENRICH_DISPATCH_GAP_MS (≤5 req/s)
 const GAP_TOLERANCE_MS = 15;   // clock-quantization allowance on the gap check
 const SESSION_CAP = 300;       // ENRICH_AMBIENT_BUDGET_CEIL (rolling-bucket ceiling)
 
-// Rolling-budget QA seam (window.__GEV_ENRICH_AMBIENT_QA in flights.js):
+// Rolling-budget QA seam (window.__MM_ENRICH_AMBIENT_QA in flights.js):
 // shrunk so the exhaust→refill cycle is observable headlessly. windowMs starts
 // effectively-infinite (1 h) so E10 exhausts deterministically (no refill can
 // land mid-phase); E11 then shortens it in-page so refill windows have
@@ -212,7 +212,7 @@ async function main() {
       window.__ENR.epochMs = Date.now();
       // Rolling-budget QA seam — must exist BEFORE flights.js initializes so
       // the shrunk knobs are read from the very first sweep (see BUDGET_QA).
-      window.__GEV_ENRICH_AMBIENT_QA = { ...spec.budgetQa };
+      window.__MM_ENRICH_AMBIENT_QA = { ...spec.budgetQa };
       // Request log: starts (hex + performance.now), live/max concurrency,
       // hold gate (responses park until the harness releases them so the
       // pre-enrichment baseline is deterministic).
@@ -289,7 +289,7 @@ async function main() {
     console.log('Loading app...');
     await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.waitForFunction(
-      () => window.__godsEyeView && window.__godsEyeView.viewer && window.__godsEyeView.dataManager,
+      () => window.__mapMonitoring && window.__mapMonitoring.viewer && window.__mapMonitoring.dataManager,
       { timeout: 60000, polling: 200 }
     );
     console.log('  App globals ready.');
@@ -297,7 +297,7 @@ async function main() {
     // ---- In-page billboard probe (same walk as qa-sprites-b5.mjs) ----------
     await page.evaluate(() => {
       window.__collectBillboards = function () {
-        const v = window.__godsEyeView.viewer;
+        const v = window.__mapMonitoring.viewer;
         const out = [];
         const walk = (coll) => {
           const n = coll.length;
@@ -322,7 +322,7 @@ async function main() {
     // (correctly) skips off-screen planes.
     const centerLon = ROW_LON0 + ((SPEC.planes.length - 1) / 2) * ROW_STEP_DEG;
     await page.evaluate(({ lat, lon, height }) => {
-      const v = window.__godsEyeView.viewer;
+      const v = window.__mapMonitoring.viewer;
       v.camera.cancelFlight(); // the boot fly-to-Austin otherwise stomps setView
       const C3 = v.camera.position.constructor;
       v.camera.setView({
@@ -333,8 +333,8 @@ async function main() {
 
     console.log('Priming straight-flight history through the render delay (30 s)...');
     const primed = await page.evaluate(async () => {
-      const dm = window.__godsEyeView.dataManager;
-      const v = window.__godsEyeView.viewer;
+      const dm = window.__mapMonitoring.dataManager;
+      const v = window.__mapMonitoring.viewer;
       window.__ENR.timeOffsetSec = -32;
       await dm.setEnabled('flights', true);
       const fl = dm.layers.get('flights').module;
@@ -455,8 +455,8 @@ async function main() {
     // ========================================================================
     console.log('\nE8 — next poll after enrichment');
     await page.evaluate(async () => {
-      const dm = window.__godsEyeView.dataManager;
-      const v = window.__godsEyeView.viewer;
+      const dm = window.__mapMonitoring.dataManager;
+      const v = window.__mapMonitoring.viewer;
       await dm.layers.get('flights').module.update(v);
     });
     await sleep(500);
@@ -492,8 +492,8 @@ async function main() {
     const batchHexes = Array.from({ length: BATCH_COUNT }, (_, i) => `ab00${(i + 1).toString(16).padStart(2, '0')}`);
     const startsBeforeBatch = await page.evaluate(() => window.__ENRICH_LOG.starts.length);
     await page.evaluate(async ({ hexes, rowLat, rowLon0, stepDeg }) => {
-      const dm = window.__godsEyeView.dataManager;
-      const v = window.__godsEyeView.viewer;
+      const dm = window.__mapMonitoring.dataManager;
+      const v = window.__mapMonitoring.viewer;
       // Two fresh rows just north of the original one — still inside the
       // top-down 20 km frame, so the sweep's frustum test keeps them.
       // STATIONARY (speed 0): moving planes drift north out of the frustum at
@@ -521,8 +521,8 @@ async function main() {
     await sleep(1500); // any illegal post-exhaustion enqueue would dispatch within ~200 ms
     // One more poll while exhausted — still nothing new.
     await page.evaluate(async () => {
-      const dm = window.__godsEyeView.dataManager;
-      await dm.layers.get('flights').module.update(window.__godsEyeView.viewer);
+      const dm = window.__mapMonitoring.dataManager;
+      await dm.layers.get('flights').module.update(window.__mapMonitoring.viewer);
     });
     await sleep(1000);
     const exhausted = await page.evaluate(() => ({
@@ -540,11 +540,11 @@ async function main() {
     // sweep refills (clamped at ceil) and the waiting planes get requested.
     // ========================================================================
     console.log('\nE11 — refill window passes; ambient enrichment resumes');
-    await page.evaluate((winMs) => { window.__GEV_ENRICH_AMBIENT_QA.windowMs = winMs; }, RESUME_WINDOW_MS);
+    await page.evaluate((winMs) => { window.__MM_ENRICH_AMBIENT_QA.windowMs = winMs; }, RESUME_WINDOW_MS);
     await sleep(RESUME_WINDOW_MS + 200); // a full (shortened) refill window elapses
     await page.evaluate(async () => {
-      const dm = window.__godsEyeView.dataManager;
-      await dm.layers.get('flights').module.update(window.__godsEyeView.viewer);
+      const dm = window.__mapMonitoring.dataManager;
+      await dm.layers.get('flights').module.update(window.__mapMonitoring.viewer);
     });
     const expectedTotal = startsBeforeBatch + BATCH_COUNT; // every batch plane eventually requested
     const resumed = await page.waitForFunction(

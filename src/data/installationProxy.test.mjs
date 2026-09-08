@@ -38,7 +38,7 @@ function entry(cachedAt, elements = [{ type: 'node', id: 1 }]) {
 }
 
 function tempCacheDir() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'gev-installations-'));
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'mm-installations-'));
 }
 
 test('the cache bbox snaps OUTWARD so a cached answer always covers the request', () => {

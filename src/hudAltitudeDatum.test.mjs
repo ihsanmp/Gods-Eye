@@ -22,7 +22,7 @@ import { readFileSync } from 'node:fs';
 import { registerHooks } from 'node:module';
 import { ensureGeoidReady } from './data/geoid.js';
 
-const MGRS_STUB_URL = 'gev-test-stub:mgrs';
+const MGRS_STUB_URL = 'mm-test-stub:mgrs';
 registerHooks({
   resolve(specifier, context, next) {
     if (specifier === 'mgrs') return { url: MGRS_STUB_URL, shortCircuit: true };

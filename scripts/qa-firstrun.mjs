@@ -91,7 +91,7 @@ async function open(page, { hash = '', query = '', clearAll = true, clearSession
   }
   // The launcher is revealed after the loading cover yields (~T+1.9 s).
   await page.waitForFunction(
-    (sel) => !!window.__godsEyeView?.styleManager
+    (sel) => !!window.__mapMonitoring?.styleManager
       && (document.querySelector(sel)?.classList.contains('visible') || !document.querySelector(sel)),
     { timeout: 45000 },
     LAUNCHER,
@@ -106,7 +106,7 @@ const launcherVisible = (page) => page.evaluate(
 );
 
 const appState = (page) => page.evaluate(() => {
-  const gev = window.__godsEyeView || {};
+  const gev = window.__mapMonitoring || {};
   const sm = gev.styleManager;
   const dm = gev.dataManager;
   const carto = sm?.viewer?.camera?.positionCartographic;
@@ -179,7 +179,7 @@ async function pick(page, choice, { timeout = 40000, settle = [] } = {}) {
   ).catch(() => {});
   if (settle.length) {
     await page.evaluate(async (ids) => {
-      const dm = window.__godsEyeView?.dataManager;
+      const dm = window.__mapMonitoring?.dataManager;
       await Promise.all(ids.map((id) => dm?.waitForLayerSettled?.(id)));
     }, settle).catch(() => {});
   }
@@ -567,7 +567,7 @@ async function main() {
 
       // Share links bypass entirely.
       await open(page, { hash: '#lat=30.2672&lon=-97.7431&alt=2500' });
-      const shareState = await page.evaluate(() => !!window.__godsEyeView?.styleManager?.hasShareState);
+      const shareState = await page.evaluate(() => !!window.__mapMonitoring?.styleManager?.hasShareState);
       const shareShowed = await launcherVisible(page);
       record('a share link bypasses the launcher', shareState && !shareShowed,
         `hasShareState=${shareState} launcherVisible=${shareShowed}`);

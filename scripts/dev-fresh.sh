@@ -257,8 +257,8 @@ case "${HOST}" in
     echo "!! This dev server brokers your configured API keys (OpenAI,"
     echo "!! OpenSky, AISStream, TomTom, FIRMS, LL2, Google) to ANYONE who can"
     echo "!! reach it on the network. Use only on networks you trust."
-    echo "!! Consider the opt-in per-IP throttles GEV_RATELIMIT_OPENAI_PER_MIN"
-    echo "!! and GEV_RATELIMIT_GOOGLE_PER_MIN (see .env.example) — and note"
+    echo "!! Consider the opt-in per-IP throttles MM_RATELIMIT_OPENAI_PER_MIN"
+    echo "!! and MM_RATELIMIT_GOOGLE_PER_MIN (see .env.example) — and note"
     echo "!! they are NOT billing caps; set provider-side budget alerts too."
     if [[ -n "${LAN_IP}" ]]; then
       echo "!! LAN URL: http://${LAN_IP}:${PORT}/"

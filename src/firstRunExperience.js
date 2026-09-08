@@ -1,3 +1,4 @@
+import { readMigratedItem } from './storageKeyMigration.js';
 // First-run mission launcher.
 //
 // The map deliberately does not auto-enable live feeds on every visit: doing so
@@ -20,9 +21,9 @@
 // is enthusiasm, not "never show me this again".
 
 /** Durable suppression. Written ONLY by the "Don't show this again" checkbox. */
-export const FIRST_RUN_STORAGE_KEY = 'gev:first-run-mission:v1';
+export const FIRST_RUN_STORAGE_KEY = 'mm:first-run-mission:v1';
 /** Per-session dismissal. Written by every close path; scoped to sessionStorage. */
-export const FIRST_RUN_SESSION_KEY = 'gev:first-run-mission-session:v1';
+export const FIRST_RUN_SESSION_KEY = 'mm:first-run-mission-session:v1';
 
 /**
  * Configurable name for the fires/quakes mission. Flip this ONE constant to
@@ -52,7 +53,7 @@ export function environmentalLabel(choice = ENVIRONMENTAL_LABEL_CHOICE) {
  * Product decision: picking a mission carries the same weight as clicking the
  * toggles it represents — durable where those clicks are durable — but it must
  * never write a preference the visitor did not effectively choose by picking it.
- * Layer enablement IS durable in this app (`gev:layer-state:v2`, written by
+ * Layer enablement IS durable in this app (`mm:layer-state:v2`, written by
  * LayerStateCoordinator._commitExplicit only for origin user/voice/tool), so:
  *
  *   TOUCHED, DURABLE      layer enables for the mission's OWN layers, at
@@ -73,7 +74,7 @@ export function environmentalLabel(choice = ENVIRONMENTAL_LABEL_CHOICE) {
  *                         kill the CRT/NVG/FLIR auto-preset contract for the
  *                         whole session. Missions run through setContextMode and
  *                         DataManager.setEnabled, neither of which writes it.
- *   NOT TOUCHED           detection allocation (`gev:detection-allocation:v1`),
+ *   NOT TOUCHED           detection allocation (`mm:detection-allocation:v1`),
  *                         3D aircraft models, scope feather. All are defaults or
  *                         separate durable prefs the visitor did not choose here.
  *                         In particular nothing calls `_setModels3dEnabled` /
@@ -156,7 +157,9 @@ function resolveStore(kind, injected) {
 /** Read one key, treating every failure as "nothing stored". */
 function readStored(kind, injected, key) {
   try {
-    return resolveStore(kind, injected)?.getItem?.(key) ?? null;
+    // Falls back to the pre-rename `gev:` key, so a visitor who dismissed this
+    // launcher before the rename is not shown it again.
+    return readMigratedItem(resolveStore(kind, injected), key);
   } catch {
     return null;
   }

@@ -649,16 +649,26 @@ test('the DISPLAY rail starts collapsed on a first run, and a stored choice wins
 // ── Voice: instruction-only, tool schema byte-unchanged ─────────────────────
 
 test('the voice TOOL SCHEMA is byte-identical to main — the mission mapping is instructions only', () => {
+  /*
+   * The pin captures the ARRAY, not the declaration line.
+   *
+   * It used to start at `const GEV_REALTIME_TOOLS = [`, which meant the frozen
+   * bytes included the variable's own name — so renaming the project tripped a
+   * test whose entire subject is whether the SCHEMA drifted. It had not. The
+   * slice now begins at the opening bracket, so a rename cannot fire this while
+   * any edit to a tool, a parameter or a description still does.
+   */
   const src = fs.readFileSync(new URL('../vite.config.js', import.meta.url), 'utf8');
-  const start = src.indexOf('const GEV_REALTIME_TOOLS = [');
-  assert.ok(start > 0, 'GEV_REALTIME_TOOLS must still be a single literal array');
+  const declaration = src.indexOf('const MM_REALTIME_TOOLS = [');
+  assert.ok(declaration > 0, 'MM_REALTIME_TOOLS must still be a single literal array');
+  const start = src.indexOf('[', declaration);
   const end = src.indexOf('\n];\n', start);
   const block = src.slice(start, end + 4);
 
-  assert.equal(block.length, 31104, 'tool schema byte length drifted from the frozen baseline');
+  assert.equal(block.length, 31077, 'tool schema byte length drifted from the frozen baseline');
   assert.equal(
     crypto.createHash('sha256').update(block).digest('hex'),
-    '3ace199727934e851902e4899c423d549d34d3f53469dcb56f07fc070d3f9d66',
+    '2cba24101f20caeb8cc8938210b86acdc03cb29b8631521bdf05cf4de58ee91b',
     'the first-run missions must ride EXISTING tools: no schema edit, no cache bust',
   );
 
@@ -742,7 +752,7 @@ test('a failed mount gives the old control back rather than hiding both', () => 
   const legacyCss = fs.readFileSync(new URL('../legacy-chrome.css', import.meta.url), 'utf8');
   const mainJs = fs.readFileSync(new URL('./main.js', import.meta.url), 'utf8');
 
-  for (const marker of ['gev-spotlight-unavailable', 'gev-fluid-menu-unavailable']) {
+  for (const marker of ['mm-spotlight-unavailable', 'mm-fluid-menu-unavailable']) {
     assert.ok(legacyCss.includes(`body:not(.${marker})`),
       `${marker} must guard the rule it releases`);
     assert.ok(mainJs.includes(`'${marker}'`),
@@ -752,8 +762,8 @@ test('a failed mount gives the old control back rather than hiding both', () => 
   // The guard is worthless if the catch does not actually mark the body.
   assert.match(mainJs, /const legacyFallback = \(marker\) => \(error\) => \{[\s\S]*?classList\.add\(marker\)/,
     'the fallback handler must add the marker class to the body');
-  assert.match(mainJs, /\.catch\(legacyFallback\('gev-spotlight-unavailable'\)\)/,
+  assert.match(mainJs, /\.catch\(legacyFallback\('mm-spotlight-unavailable'\)\)/,
     'the spotlight import must use the fallback handler');
-  assert.match(mainJs, /\.catch\(legacyFallback\('gev-fluid-menu-unavailable'\)\)/,
+  assert.match(mainJs, /\.catch\(legacyFallback\('mm-fluid-menu-unavailable'\)\)/,
     'the fluid menu import must use the fallback handler');
 });

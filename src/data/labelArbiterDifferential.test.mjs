@@ -396,7 +396,7 @@ function buildGoldenBattery() {
   };
 }
 
-if (process.env.GEV_PRINT_ARBITER_GOLDEN === '1') {
+if (process.env.MM_PRINT_ARBITER_GOLDEN === '1') {
   process.stdout.write(`${JSON.stringify(buildGoldenBattery(), null, 2)}\n`);
 } else {
   test('seeded arbiter scenario battery matches the current golden behavior', () => {

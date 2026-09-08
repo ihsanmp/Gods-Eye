@@ -91,19 +91,19 @@ import {
  * harness), and a fixed virtual clock stepped at 16 ms per frame.
  */
 
-const ENTRY_COUNT = Number(process.env.GEV_ALLOC_ENTRIES) || 60;
-const PROFILE = process.env.GEV_ALLOC_PROFILE || 'generic';
+const ENTRY_COUNT = Number(process.env.MM_ALLOC_ENTRIES) || 60;
+const PROFILE = process.env.MM_ALLOC_PROFILE || 'generic';
 // Long enough for every frame-path function to reach the top optimizing tier
 // (V8 boxes intermediate doubles below TurboFan, which is not the steady state
 // a 60 fps browser session ever sits in).
-const WARMUP_FRAMES = Number(process.env.GEV_ALLOC_WARMUP) || 3000;
+const WARMUP_FRAMES = Number(process.env.MM_ALLOC_WARMUP) || 3000;
 // Measured frames are split into GC-bracketed chunks. A chunk's heap delta is
 // (allocated - collected), so a chunk can only ever UNDER-report; the reported
 // median is immune to a single anomalous chunk, and the maximum is the
 // tightest sound estimate of the steady rate.
-const CHUNK_FRAMES = Number(process.env.GEV_ALLOC_CHUNK) || 48;
-const CHUNK_COUNT = Number(process.env.GEV_ALLOC_CHUNKS) || 10;
-const STABILIZATION_CHUNKS = Number(process.env.GEV_ALLOC_STABILIZATION_CHUNKS) || 6;
+const CHUNK_FRAMES = Number(process.env.MM_ALLOC_CHUNK) || 48;
+const CHUNK_COUNT = Number(process.env.MM_ALLOC_CHUNKS) || 10;
+const STABILIZATION_CHUNKS = Number(process.env.MM_ALLOC_STABILIZATION_CHUNKS) || 6;
 const FRAME_MS = 16;
 const VIEWPORT_WIDTH = 1600;
 const VIEWPORT_HEIGHT = 900;
@@ -1030,7 +1030,7 @@ function main() {
                                 ? buildSubmarineCablesWorkload(ENTRY_COUNT)
         : buildWorkload(ENTRY_COUNT);
   const { entries, positions, drifts } = workload;
-  const solveIntervalMs = Number(process.env.GEV_ALLOC_SOLVE_MS) || 125;
+  const solveIntervalMs = Number(process.env.MM_ALLOC_SOLVE_MS) || 125;
   const detectionActive = !!workload.detectionLayer;
   if (detectionActive) {
     // Spread polar ECEF x/y over the viewport while retaining a real WGS84

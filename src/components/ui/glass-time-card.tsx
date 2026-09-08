@@ -89,15 +89,15 @@ export function GlassTimeCard(props: GlassTimeCardProps) {
   if (!time) return null;
 
   return (
-    <div className="gev-map-clock">
-      <div className="gev-map-clock-inner">
-        <div className="gev-map-clock-date">{date}</div>
+    <div className="mm-map-clock">
+      <div className="mm-map-clock-inner">
+        <div className="mm-map-clock-date">{date}</div>
         {/*
           aria-live is deliberately off: a clock that announced itself every
           second would make a screen reader unusable.
         */}
-        <div className="gev-map-clock-time" aria-live="off">{time}</div>
-        {showTimezone && zoneLabel ? <div className="gev-map-clock-zone">{zoneLabel}</div> : null}
+        <div className="mm-map-clock-time" aria-live="off">{time}</div>
+        {showTimezone && zoneLabel ? <div className="mm-map-clock-zone">{zoneLabel}</div> : null}
       </div>
     </div>
   );

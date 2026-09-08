@@ -91,7 +91,7 @@ export const WORLD_OVERLAY_OCCLUDER_SELECTORS = Object.freeze([
   '#right-context-rail',
   '#pp-toggles',
   '#command-dock',
-  '#gev-voice-control',
+  '#mm-voice-control',
   '#cesium-credits',
   '.hud-top-left',
   '.hud-top-right',
@@ -2207,7 +2207,7 @@ export function initWorldOverlay(viewer) {
     _cockpitActive = event?.detail?.active === true;
     invalidateHost();
   };
-  window.addEventListener('gev:cockpit-mode-changed', _cockpitModeHandler);
+  window.addEventListener('mm:cockpit-mode-changed', _cockpitModeHandler);
   _removePostRender = viewer.scene.postRender.addEventListener(drawWorldOverlay);
   if (viewer.camera?.moveEnd?.addEventListener) {
     _removeMoveEnd = viewer.camera.moveEnd.addEventListener(() => invalidateHost());
@@ -2236,7 +2236,7 @@ export function destroyWorldOverlay() {
   _removeMoveEnd?.();
   _removeMoveEnd = null;
   if (_cockpitModeHandler && typeof window !== 'undefined') {
-    window.removeEventListener('gev:cockpit-mode-changed', _cockpitModeHandler);
+    window.removeEventListener('mm:cockpit-mode-changed', _cockpitModeHandler);
   }
   _cockpitModeHandler = null;
   if (_windowResizeHandler && typeof window !== 'undefined') {

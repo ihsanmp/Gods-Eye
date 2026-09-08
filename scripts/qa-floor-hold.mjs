@@ -105,13 +105,13 @@ await page.evaluateOnNewDocument((site, icao) => {
 
 console.log(`\nFloor hold through a terrain outage\n  App  : ${APP_URL}\n  GPU  : ANGLE/${ANGLE}\n  Site : ${SITE.lat}, ${SITE.lon}\n`);
 await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 120000 });
-await page.waitForFunction(() => window.__godsEyeView?.viewer && window.__godsEyeView?.dataManager,
+await page.waitForFunction(() => window.__mapMonitoring?.viewer && window.__mapMonitoring?.dataManager,
   { timeout: 150000 });
 await sleep(12000); // let the boot fly-to settle before pinning
 
 await page.evaluate((site) => { window.__SITE = site; }, SITE);
 const pin = () => page.evaluate(() => {
-  const v = window.__godsEyeView.viewer;
+  const v = window.__mapMonitoring.viewer;
   const C = v.camera.positionCartographic.constructor;
   v.camera.cancelFlight();
   v.camera.setView({
@@ -123,11 +123,11 @@ const pin = () => page.evaluate(() => {
   v.camera.moveEnd.raiseEvent();
 });
 await pin();
-await page.evaluate(async () => { await window.__godsEyeView.dataManager.toggle('flights'); });
+await page.evaluate(async () => { await window.__mapMonitoring.dataManager.toggle('flights'); });
 
 /** Reads the contact's rendered height and the rendered mesh beneath it. */
 const measure = () => page.evaluate(async (icao) => {
-  const v = window.__godsEyeView.viewer;
+  const v = window.__mapMonitoring.viewer;
   const C = v.camera.positionCartographic.constructor;
   const sprites = []; const models = []; let bb = null;
   const walk = (coll) => {
@@ -152,7 +152,7 @@ const measure = () => page.evaluate(async (icao) => {
   // app's own governor hook before each attempt, exactly as the fly_route
   // harness does, and accept the coarse cell centre as a fallback point.
   const pump = () => new Promise((resolve) => {
-    try { window.__godsEyeView.requestRender?.(); } catch { /* no governor */ }
+    try { window.__mapMonitoring.requestRender?.(); } catch { /* no governor */ }
     try { v.scene.requestRender(); } catch { /* explicit-render off */ }
     requestAnimationFrame(() => requestAnimationFrame(resolve));
   });

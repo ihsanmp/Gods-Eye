@@ -33,7 +33,7 @@
   user-select: none;
 }
 
-.gev-map-clock {
+.mm-map-clock {
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(17, 19, 24, 0.52);
@@ -42,25 +42,25 @@
   box-shadow: 0 18px 44px rgba(0, 0, 0, 0.45);
   padding: 12px 20px;
   min-width: 208px;
-  font-family: var(--gev-card-font, Inter, ui-sans-serif, system-ui, sans-serif);
+  font-family: var(--mm-card-font, Inter, ui-sans-serif, system-ui, sans-serif);
   text-align: center;
 }
 
-.gev-map-clock-inner {
+.mm-map-clock-inner {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
 }
 
-.gev-map-clock-date {
+.mm-map-clock-date {
   font-size: 12px;
   font-weight: 500;
   letter-spacing: 0.01em;
-  color: var(--gev-card-label, #d4d4d8);
+  color: var(--mm-card-label, #d4d4d8);
 }
 
-.gev-map-clock-time {
+.mm-map-clock-time {
   /*
    * Tabular figures are the whole reason this is readable: with proportional
    * ones every tick of the seconds shifts the digits left and right, and a
@@ -77,11 +77,11 @@
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
 }
 
-.gev-map-clock-zone {
+.mm-map-clock-zone {
   font-size: 11px;
   font-weight: 500;
   letter-spacing: 0.02em;
-  color: var(--gev-card-muted, #8b8b93);
+  color: var(--mm-card-muted, #8b8b93);
 }
 
 /*
@@ -103,12 +103,12 @@ body.recording-mode #map-clock-root {
     right: 12px;
   }
 
-  .gev-map-clock {
+  .mm-map-clock {
     padding: 9px 14px;
     min-width: 0;
   }
 
-  .gev-map-clock-time {
+  .mm-map-clock-time {
     font-size: 30px;
   }
 }

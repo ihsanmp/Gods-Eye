@@ -477,7 +477,7 @@ test('regionFramingPlan: invalid viewports return null', () => {
 // Globe-view preset (field test 2026-07-23): "zoom out to a globe view" needs an
 // ABSOLUTE full-earth framing — the relative zoom tool can never reach it. The preset
 // must sit inside the app's own 'global' view-scale band (>12,000 km camera height,
-// classifyViewScale in gevActions.js) and under the fly_to rangeM ceiling (20,000 km).
+// classifyViewScale in voiceActions.js) and under the fly_to rangeM ceiling (20,000 km).
 test('GLOBE_VIEW preset height sits in the global view band', () => {
   assert.ok(GLOBE_VIEW.heightM > 12000000, `must classify as global band, got ${GLOBE_VIEW.heightM}`);
   assert.ok(GLOBE_VIEW.heightM <= 20000000, `must stay under the 20,000 km ceiling, got ${GLOBE_VIEW.heightM}`);

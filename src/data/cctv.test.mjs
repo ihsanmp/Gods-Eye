@@ -1075,7 +1075,7 @@ test('CCTV drag-then-release over a camera is inert, while a clean tap activates
 test('CCTV auto-hop remains activation-only and never dispatches a focus request', () => {
   assert.doesNotMatch(
     maybeAutoHop.toString(),
-    /activateCctvCameraFromWorldClick|gev:cctv-request-focus|dispatchEvent/,
+    /activateCctvCameraFromWorldClick|mm:cctv-request-focus|dispatchEvent/,
   );
 });
 

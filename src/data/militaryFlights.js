@@ -319,7 +319,7 @@ function _publishTrackedSelection(icao24, origin = 'programmatic') {
   const info = _flightData.get(icao24);
   if (!bb?.position || !info) return false;
   if (_trackedEntity) _trackedEntity.gevSelectionOrigin = origin;
-  _emitAwarenessEvent('gev:awareness-subject-selected', {
+  _emitAwarenessEvent('mm:awareness-subject-selected', {
     layerId: 'military',
     id: icao24,
     label: _toCleanText(info.callsign) || _toCleanText(info.registration) || icao24,
@@ -2131,9 +2131,9 @@ function _startTrail(icao24) {
   // to the 12 Hz icon instead of lagging ~1 s behind it.
   if (!_trailHeadEntity && _viewer) {
     _trailHeadEntity = _viewer.entities.add({
-      // 'gev-trail' namespace (round 6): claimed by trailRenderer's pick
+      // 'mm-trail' namespace (round 6): claimed by trailRenderer's pick
       // owner so a click on the head segment never reads as empty space.
-      id: `gev-trail:mil-head-${++_trailHeadSeq}`,
+      id: `mm-trail:mil-head-${++_trailHeadSeq}`,
       show: !_cockpitContactMode,
       polyline: {
         positions: new Cesium.CallbackProperty(() => {
@@ -2369,7 +2369,7 @@ function _clearTracking(skipViewerUntrack = false, {
   _trackedIcao = null;
   _applyFleetBillboardPresentation(clearedIcao, _billboards.get(clearedIcao));
   clearTrackedSubjectContext('military');
-  _emitAwarenessEvent('gev:awareness-subject-cleared', {
+  _emitAwarenessEvent('mm:awareness-subject-cleared', {
     layerId: 'military',
     id: clearedIcao,
     origin,
@@ -2652,7 +2652,7 @@ const militaryFlightsLayer = {
     _cockpitNearContacts = new Set();
     if (!_cockpitModeListener) {
       _cockpitModeListener = (event) => _applyCockpitState(event?.detail);
-      window.addEventListener('gev:cockpit-mode-changed', _cockpitModeListener);
+      window.addEventListener('mm:cockpit-mode-changed', _cockpitModeListener);
     }
 
     _installClickHandler(viewer);
@@ -3259,7 +3259,7 @@ const militaryFlightsLayer = {
     }
     document.removeEventListener('keydown', _onKeyDown);
     if (_cockpitModeListener) {
-      window.removeEventListener('gev:cockpit-mode-changed', _cockpitModeListener);
+      window.removeEventListener('mm:cockpit-mode-changed', _cockpitModeListener);
       _cockpitModeListener = null;
     }
     unregisterPickOwner('military');

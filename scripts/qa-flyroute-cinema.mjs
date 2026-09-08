@@ -99,7 +99,7 @@ if (TERRAIN_DELAY_MS > 0) {
 /** Install a postRender sampler: one row per RENDERED frame. */
 async function installSampler() {
   await page.evaluate(() => {
-    const viewer = window.__godsEyeView.viewer;
+    const viewer = window.__mapMonitoring.viewer;
     window.__gevFlyTrace = { rows: [], marks: [] };
     if (window.__gevFlyTraceRemove) window.__gevFlyTraceRemove();
     let frame = 0;
@@ -153,7 +153,7 @@ try {
   console.log(`\nfly_route cinematic evidence — ${APP_URL}`);
   await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 90000 });
   await page.waitForFunction(
-    () => window.__godsEyeView?.viewer && window.__gevVoiceCommands?.runner && window.__gevAnnotations,
+    () => window.__mapMonitoring?.viewer && window.__gevVoiceCommands?.runner && window.__gevAnnotations,
     { timeout: 150000, polling: 250 },
   );
   const run = (name, args = {}) => page.evaluate(
@@ -426,7 +426,7 @@ try {
   const second = await run('fly_route', { label: 'cinema evidence', speed: 'normal' });
   report(second?.ok === true, 'second flight starts for the interrupt case');
   const liveRollDeg = () => page.evaluate(
-    () => (window.__godsEyeView.viewer.camera.roll * 180) / Math.PI,
+    () => (window.__mapMonitoring.viewer.camera.roll * 180) / Math.PI,
   );
   let rollBeforeCut = 0;
   for (let waited = 0; waited < 90000; waited += 400) {
@@ -439,7 +439,7 @@ try {
   await page.screenshot({ path: path.join(OUT_DIR, 'interrupt-0-banked.png') });
 
   const cut = await page.evaluate(async () => {
-    const viewer = window.__godsEyeView.viewer;
+    const viewer = window.__mapMonitoring.viewer;
     const canvas = viewer.scene.canvas;
     // Read the motion slot BEFORE the cut too: under Vite a dynamic import can
     // hand back a second module instance whose slot is always empty, and an

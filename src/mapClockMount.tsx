@@ -80,7 +80,7 @@ function MapClock() {
 
     const resolve = () => {
       if (cancelled) return;
-      const viewer = (window as any).__godsEyeView?.viewer;
+      const viewer = (window as any).__mapMonitoring?.viewer;
       const centre = mapCentreCoordinate(viewer);
       const zone = centre ? timezoneForCoordinate(centre.lat, centre.lon) : null;
       // Setting state on every moveEnd would re-render the card for a pan that
@@ -101,7 +101,7 @@ function MapClock() {
     let attempts = 0;
     const attach = () => {
       if (cancelled) return;
-      const viewer = (window as any).__godsEyeView?.viewer;
+      const viewer = (window as any).__mapMonitoring?.viewer;
       if (viewer?.camera?.moveEnd) {
         removeListener = viewer.camera.moveEnd.addEventListener(resolve);
         resolve();

@@ -1,3 +1,5 @@
+import { readMigratedItem } from '../storageKeyMigration.js';
+
 const VALID_DISPOSITIONS = new Set([
   'enabled-only',
   'enabled+options',
@@ -24,7 +26,7 @@ const TRACKING_ID_GRAMMAR = /^[0-9a-z~_-]{1,16}$/;
  */
 const MAX_ENABLED_LAYERS_CHARS = 64;
 const MAX_LAYER_OPTIONS_CHARS = 512;
-export const LAYER_STATE_STORAGE_KEY = 'gev:layer-state:v2';
+export const LAYER_STATE_STORAGE_KEY = 'mm:layer-state:v2';
 export const LAYER_RESTORE_ORIGINS = Object.freeze({
   share: 'share-restore',
   local: 'local-restore',
@@ -579,7 +581,7 @@ export class LayerStateCoordinator {
       this._shareCreatedAtMs = Number.isFinite(shareCreatedAtMs) ? shareCreatedAtMs : null;
     } else if (allowLocalState) {
       let stored = null;
-      try { stored = parseStoredLayerState(this.storage?.getItem?.(LAYER_STATE_STORAGE_KEY)); } catch { /* best effort */ }
+      try { stored = parseStoredLayerState(readMigratedItem(this.storage, LAYER_STATE_STORAGE_KEY)); } catch { /* best effort */ }
       if (stored) {
         selected = stored;
         this._source = 'local';

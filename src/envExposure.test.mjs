@@ -12,7 +12,7 @@ import path from 'node:path';
  * the value is `undefined` forever. The setting appears to exist, documentation
  * can be written for it, a user can put it in their .env, and it does nothing.
  *
- * That is exactly what happened to GEV_GPU_BUDGET: shipped as the dial for
+ * That is exactly what happened to MM_GPU_BUDGET: shipped as the dial for
  * lowering GPU load on an integrated chip, read in main.js, never defined, and
  * therefore dead from the first commit. It was caught only when someone asked
  * how to use it.
@@ -66,7 +66,13 @@ test('the GPU budget dial is actually wired, end to end', () => {
   // The specific one that was dead. Named rather than left to the sweep above,
   // because a setting nobody can reach is worse than no setting: it invites
   // someone to edit their .env and conclude the machine simply cannot go faster.
-  assert.match(config, /'import\.meta\.env\.GEV_GPU_BUDGET': JSON\.stringify\(env\.GEV_GPU_BUDGET\)/);
+  // Defined WITH a fallback to the pre-rename name: `.env` is untracked and
+  // lives only on each installation, so renaming the reader alone would have
+  // silently dropped a setting someone already had back to its default.
+  assert.match(
+    config,
+    /'import\.meta\.env\.MM_GPU_BUDGET': JSON\.stringify\(env\.MM_GPU_BUDGET \?\? env\.GEV_GPU_BUDGET\)/,
+  );
   const main = readFileSync(path.join(ROOT, 'src', 'main.js'), 'utf8');
-  assert.match(main, /Number\(import\.meta\.env\.GEV_GPU_BUDGET\)/);
+  assert.match(main, /Number\(import\.meta\.env\.MM_GPU_BUDGET\)/);
 });

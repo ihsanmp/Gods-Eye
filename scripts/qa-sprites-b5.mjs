@@ -275,7 +275,7 @@ async function main() {
     console.log('Loading app...');
     await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.waitForFunction(
-      () => window.__godsEyeView && window.__godsEyeView.viewer && window.__godsEyeView.dataManager,
+      () => window.__mapMonitoring && window.__mapMonitoring.viewer && window.__mapMonitoring.dataManager,
       { timeout: 60000, polling: 200 }
     );
     console.log('  App globals ready.');
@@ -284,7 +284,7 @@ async function main() {
     await page.evaluate(() => {
       // Every billboard (image + alignedAxis + id) in every collection.
       window.__collectBillboards = function () {
-        const v = window.__godsEyeView.viewer;
+        const v = window.__mapMonitoring.viewer;
         const out = [];
         const walk = (coll) => {
           const n = coll.length;
@@ -303,7 +303,7 @@ async function main() {
       };
       // Every glTF model primitive (modelMatrix + ready flag), with id + scale.
       window.__collectModels = function () {
-        const v = window.__godsEyeView.viewer;
+        const v = window.__mapMonitoring.viewer;
         const out = [];
         const walk = (coll) => {
           const n = coll.length;
@@ -332,7 +332,7 @@ async function main() {
       // Canvas coordinates of every synthetic plane at its displayed position —
       // ground truth for identifying which glyph is which in a screenshot.
       window.__planeCanvasCoords = function (layer, renderDelaySec, altOf) {
-        const v = window.__godsEyeView.viewer;
+        const v = window.__mapMonitoring.viewer;
         const S = window.__SPR;
         const C3 = v.camera.position.constructor;
         return S[layer].map((p, i) => {
@@ -347,8 +347,8 @@ async function main() {
     // ---- Prime history through the render delay (same pattern as b3) -------
     console.log('Priming straight-flight history through the render delay (30 s / 15 s)...');
     const primed = await page.evaluate(async () => {
-      const dm = window.__godsEyeView.dataManager;
-      const v = window.__godsEyeView.viewer;
+      const dm = window.__mapMonitoring.dataManager;
+      const v = window.__mapMonitoring.viewer;
       window.__SPR.timeOffsetSec = -32;
       await dm.setEnabled('flights', true);
       await dm.setEnabled('military', true);
@@ -405,7 +405,7 @@ async function main() {
     console.log('\n2D screenshots → qa-shots/b5/');
     const topDown = async (lat, lon, height) => {
       await page.evaluate(({ lat, lon, height }) => {
-        const v = window.__godsEyeView.viewer;
+        const v = window.__mapMonitoring.viewer;
         v.camera.cancelFlight(); // the boot fly-to-Austin otherwise stomps setView
         const C3 = v.camera.position.constructor;
         v.camera.setView({
@@ -421,7 +421,7 @@ async function main() {
     // (the second tracked plane inherits the previous phase's close-in offset).
     const zoomToRange = async (want) => {
       await page.evaluate((want) => {
-        const v = window.__godsEyeView.viewer;
+        const v = window.__mapMonitoring.viewer;
         const p = v.camera.position;
         const d = Math.hypot(p.x, p.y, p.z);
         if (d > 1e6) return; // not in a tracked reference frame — leave it alone
@@ -453,7 +453,7 @@ async function main() {
 
     // Tracked tint: commercial tracked plane goes cyan; neighbors stay white.
     await page.evaluate((icao) => {
-      window.__godsEyeView.dataManager.layers.get('flights').module.trackById(icao);
+      window.__mapMonitoring.dataManager.layers.get('flights').module.trackById(icao);
     }, 'caa002');
     await sleep(3000);
     await page.screenshot({ path: path.join(SHOT_DIR, 'b5-2d-tracked-cyan.png') });
@@ -464,7 +464,7 @@ async function main() {
     // ========================================================================
     console.log('\n3D — flights cluster (airplane.glb, per-class scale)');
     await page.evaluate(() => {
-      const dm = window.__godsEyeView.dataManager;
+      const dm = window.__mapMonitoring.dataManager;
       dm.layers.get('flights').module.setParams({ models3d: true });
       dm.layers.get('flights').module.trackById('cbb002');
     });
@@ -509,7 +509,7 @@ async function main() {
     // ========================================================================
     console.log('\n3D — military cluster (jet.glb, per-class scale)');
     await page.evaluate(() => {
-      const dm = window.__godsEyeView.dataManager;
+      const dm = window.__mapMonitoring.dataManager;
       dm.layers.get('military').module.setParams({ models3d: true });
       dm.layers.get('military').module.trackById('ddb002');
     });

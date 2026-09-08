@@ -6,7 +6,7 @@ import path from 'node:path';
 import { readDotenvValue } from '../scripts/read-dotenv-value.mjs';
 
 test('dotenv reader preserves values without executing shell metacharacters', async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'gev-dotenv-'));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'mm-dotenv-'));
   const marker = path.join(root, 'must-not-exist');
   try {
     await fs.writeFile(path.join(root, '.env'), [
@@ -27,32 +27,32 @@ test('dotenv reader preserves values without executing shell metacharacters', as
 });
 
 test('an inherited export never masks the value written in the file', async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'gev-dotenv-'));
-  const had = Object.prototype.hasOwnProperty.call(process.env, 'GEV_INHERIT_PROBE');
-  const previous = process.env.GEV_INHERIT_PROBE;
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'mm-dotenv-'));
+  const had = Object.prototype.hasOwnProperty.call(process.env, 'MM_INHERIT_PROBE');
+  const previous = process.env.MM_INHERIT_PROBE;
   try {
-    await fs.writeFile(path.join(root, '.env'), 'GEV_INHERIT_PROBE=from-dotenv\n');
+    await fs.writeFile(path.join(root, '.env'), 'MM_INHERIT_PROBE=from-dotenv\n');
 
     // An empty export is how a shell says "unset" to the launcher's `:-`
     // fallbacks, and Vite's loadEnv otherwise lets process.env win — which is
     // exactly how a configured key went missing.
-    process.env.GEV_INHERIT_PROBE = '';
-    assert.equal(readDotenvValue('GEV_INHERIT_PROBE', root), 'from-dotenv');
+    process.env.MM_INHERIT_PROBE = '';
+    assert.equal(readDotenvValue('MM_INHERIT_PROBE', root), 'from-dotenv');
 
     // A non-empty inherited value must not win either: this reader answers for
     // the files, and the caller decides precedence.
-    process.env.GEV_INHERIT_PROBE = 'from-shell';
-    assert.equal(readDotenvValue('GEV_INHERIT_PROBE', root), 'from-dotenv');
+    process.env.MM_INHERIT_PROBE = 'from-shell';
+    assert.equal(readDotenvValue('MM_INHERIT_PROBE', root), 'from-dotenv');
 
     // The caller's own environment survives the read unchanged.
-    assert.equal(process.env.GEV_INHERIT_PROBE, 'from-shell');
+    assert.equal(process.env.MM_INHERIT_PROBE, 'from-shell');
 
-    delete process.env.GEV_INHERIT_PROBE;
-    assert.equal(readDotenvValue('GEV_INHERIT_PROBE', root), 'from-dotenv');
-    assert.equal(Object.prototype.hasOwnProperty.call(process.env, 'GEV_INHERIT_PROBE'), false);
+    delete process.env.MM_INHERIT_PROBE;
+    assert.equal(readDotenvValue('MM_INHERIT_PROBE', root), 'from-dotenv');
+    assert.equal(Object.prototype.hasOwnProperty.call(process.env, 'MM_INHERIT_PROBE'), false);
   } finally {
-    if (had) process.env.GEV_INHERIT_PROBE = previous;
-    else delete process.env.GEV_INHERIT_PROBE;
+    if (had) process.env.MM_INHERIT_PROBE = previous;
+    else delete process.env.MM_INHERIT_PROBE;
     await fs.rm(root, { recursive: true, force: true });
   }
 });

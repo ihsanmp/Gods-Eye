@@ -1,4 +1,4 @@
-import { createGevActionRunner, readLayerLifecycleSummary } from './gevActions.js';
+import { createVoiceActionRunner, readLayerLifecycleSummary } from './voiceActions.js';
 import {
   DEFAULT_VOICE_TIER,
   VOICE_COST_LIMITS,
@@ -31,7 +31,7 @@ const DISCONNECT_GRACE_MS = 6000;
 const VIEWPORT_MAX_PIXELS = 1200 * 900; // ~1.08 MP, matches the old 1200px-wide landscape budget
 const VIEWPORT_MAX_ENCODED_BYTES = 200 * 1024; // ~200 KB encoded ceiling
 const ERROR_LOG_LIMIT = 30;
-const ERROR_STORAGE_KEY = 'gev-realtime-errors';
+const ERROR_STORAGE_KEY = 'mm-realtime-errors';
 const DEBUG_LOG_URL = '/api/realtime/debug-log';
 // Voice cost control (repo-wide `godsEyeView.<feature>.<field>` convention;
 // the neighbouring ERROR_STORAGE_KEY predates it).
@@ -193,11 +193,11 @@ export function silenceRadioForVoice({ duckRadio, pauseRadio } = {}) {
  */
 const SUPERSEDED_RESPONSE_MEMORY = 8;
 
-export function initGevVoiceCommands({ viewer, styleManager, dataManager, sceneDirector = null, annotations = null }) {
+export function initVoiceCommands({ viewer, styleManager, dataManager, sceneDirector = null, annotations = null }) {
   if (window.__gevVoiceCommands && typeof window.__gevVoiceCommands.stop === 'function') {
     window.__gevVoiceCommands.stop({ removeUi: true });
   }
-  const runner = createGevActionRunner({ viewer, styleManager, dataManager, sceneDirector, annotations });
+  const runner = createVoiceActionRunner({ viewer, styleManager, dataManager, sceneDirector, annotations });
   const ui = createVoiceControl({ reset: true });
   const radioLayer = dataManager?.layers?.get('radio')?.module || null;
   const controller = new GevRealtimeController({ runner, ui, radioLayer, dataManager });
@@ -413,10 +413,10 @@ export class GevRealtimeController {
       this.setMicrophoneEnabled(!this.pushToTalkMode || this.pushToTalkKeyHeld);
       this.startVoiceVisualizer(localStream);
 
-      document.querySelectorAll('audio[data-gev-realtime-audio="true"]').forEach((el) => el.remove());
+      document.querySelectorAll('audio[data-mm-realtime-audio="true"]').forEach((el) => el.remove());
       this.audioEl = document.createElement('audio');
       this.audioEl.autoplay = true;
-      this.audioEl.dataset.gevRealtimeAudio = 'true';
+      this.audioEl.dataset.voiceRealtimeAudio = 'true';
       this.audioEl.style.display = 'none';
       document.body.appendChild(this.audioEl);
 
@@ -656,7 +656,7 @@ export class GevRealtimeController {
   startVoiceVisualizer(stream) {
     this.stopVoiceVisualizer();
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-    const bars = Array.from(this.ui.root.querySelectorAll('.gev-voice-visualizer span'));
+    const bars = Array.from(this.ui.root.querySelectorAll('.mm-voice-visualizer span'));
     if (!AudioContextClass || !stream || !bars.length) return;
     try {
       const context = new AudioContextClass();
@@ -755,7 +755,7 @@ export class GevRealtimeController {
       this.visualizerAudioContext.close().catch(() => {});
       this.visualizerAudioContext = null;
     }
-    resetVoiceVisualizerBars(this.ui?.root?.querySelectorAll('.gev-voice-visualizer span'));
+    resetVoiceVisualizerBars(this.ui?.root?.querySelectorAll('.mm-voice-visualizer span'));
   }
 
   // Fatal error path: tear the session down (stop tracks, close pc/dc, kill the
@@ -1719,7 +1719,7 @@ export class GevRealtimeController {
       recentErrors: this.errors.slice(),
       debugLog: {
         endpoint: DEBUG_LOG_URL,
-        file: '.gev-logs/realtime-conversations.jsonl',
+        file: '.mm-logs/realtime-conversations.jsonl',
         sessionId: this.sessionId,
       },
       cost: this.costTracker.state(),
@@ -2105,7 +2105,7 @@ function responseInstructionForToolResult(result) {
 
 function createDebugSessionId() {
   const randomPart = Math.random().toString(36).slice(2, 10);
-  return `gev-${Date.now().toString(36)}-${randomPart}`;
+  return `mm-${Date.now().toString(36)}-${randomPart}`;
 }
 
 // Idempotently tear down a MediaStream + RTCPeerConnection acquired by an
@@ -2178,7 +2178,7 @@ function isSecretLikeKey(key) {
 }
 
 async function captureViewportImage() {
-  const viewer = window.__godsEyeView?.viewer;
+  const viewer = window.__mapMonitoring?.viewer;
   const source = viewer?.scene?.canvas || document.querySelector('#cesiumContainer .cesium-widget canvas');
   if (!source || !source.width || !source.height) return null;
   // No fresh frame (hidden, or the bounded render wait timed out) → no
@@ -2540,46 +2540,46 @@ function resetVoiceVisualizerBars(bars) {
 }
 
 function createVoiceControl({ reset = false } = {}) {
-  let root = document.getElementById('gev-voice-control');
+  let root = document.getElementById('mm-voice-control');
   if (root && reset) {
     root.remove();
     root = null;
   }
   if (!root) {
     root = document.createElement('div');
-    root.id = 'gev-voice-control';
+    root.id = 'mm-voice-control';
     root.dataset.status = 'idle';
     root.dataset.speaker = 'idle';
     root.innerHTML = `
-      <div class="gev-voice-heading">
-        <div class="gev-voice-kicker">AI AGENT</div>
-        <div id="gev-voice-status">OFF</div>
-        <div class="gev-voice-cost">
-          <button id="gev-voice-tier" class="gev-voice-tier-btn" type="button" aria-pressed="false" title="Voice model tier — applies next session">STD</button>
-          <span id="gev-voice-cost-value" class="gev-voice-cost-value" data-level="ok" title="Estimated session cost">~$0.00</span>
+      <div class="mm-voice-heading">
+        <div class="mm-voice-kicker">AI AGENT</div>
+        <div id="mm-voice-status">OFF</div>
+        <div class="mm-voice-cost">
+          <button id="mm-voice-tier" class="mm-voice-tier-btn" type="button" aria-pressed="false" title="Voice model tier — applies next session">STD</button>
+          <span id="mm-voice-cost-value" class="mm-voice-cost-value" data-level="ok" title="Estimated session cost">~$0.00</span>
         </div>
       </div>
-      <button id="gev-voice-button" type="button" aria-label="Voice control — hold Space to speak; click to toggle voice" aria-describedby="gev-voice-help">
-        <span class="gev-mic-orbit"><img src="/mic.svg" alt="" /></span>
-        <span class="gev-mic-label">ON/OFF</span>
+      <button id="mm-voice-button" type="button" aria-label="Voice control — hold Space to speak; click to toggle voice" aria-describedby="mm-voice-help">
+        <span class="mm-mic-orbit"><img src="/mic.svg" alt="" /></span>
+        <span class="mm-mic-label">ON/OFF</span>
       </button>
-      <div class="gev-voice-visualizer" aria-hidden="true">
+      <div class="mm-voice-visualizer" aria-hidden="true">
         ${Array.from({ length: 15 }, (_, index) => `<span style="--bar:${index}"></span>`).join('')}
       </div>
-      <div class="gev-voice-readout">
-        <div id="gev-voice-detail">VOICE STANDBY</div>
+      <div class="mm-voice-readout">
+        <div id="mm-voice-detail">VOICE STANDBY</div>
       </div>
-      <div id="gev-voice-help" class="gev-voice-help-tray" role="tooltip">
-        <span class="gev-voice-help-kicker">VOICE CONTROL</span>
-        <span class="gev-voice-help-detail">Hold Space to speak · click mic to toggle voice</span>
+      <div id="mm-voice-help" class="mm-voice-help-tray" role="tooltip">
+        <span class="mm-voice-help-kicker">VOICE CONTROL</span>
+        <span class="mm-voice-help-detail">Hold Space to speak · click mic to toggle voice</span>
       </div>
-      <div class="gev-voice-error-tray" role="alert" aria-live="assertive">
-        <div class="gev-voice-error-header">
+      <div class="mm-voice-error-tray" role="alert" aria-live="assertive">
+        <div class="mm-voice-error-header">
           <span>VOICE SYSTEM ERROR</span>
-          <button class="gev-voice-error-dismiss" type="button">DISMISS</button>
+          <button class="mm-voice-error-dismiss" type="button">DISMISS</button>
         </div>
-        <div id="gev-voice-error-detail"></div>
-        <div class="gev-voice-error-hint">Check microphone permission and network access, then try again.</div>
+        <div id="mm-voice-error-detail"></div>
+        <div class="mm-voice-error-hint">Check microphone permission and network access, then try again.</div>
       </div>
     `;
     const commandDock = document.getElementById('command-dock');
@@ -2594,19 +2594,19 @@ function createVoiceControl({ reset = false } = {}) {
     } else {
       document.body.appendChild(root);
     }
-    root.querySelector('.gev-voice-error-dismiss')?.addEventListener('click', () => {
+    root.querySelector('.mm-voice-error-dismiss')?.addEventListener('click', () => {
       root.classList.add('error-dismissed');
     });
   }
   return {
     root,
-    button: root.querySelector('#gev-voice-button'),
-    buttonLabel: root.querySelector('.gev-mic-label'),
-    status: root.querySelector('#gev-voice-status'),
-    detail: root.querySelector('#gev-voice-detail'),
-    helpDetail: root.querySelector('.gev-voice-help-detail'),
-    errorDetail: root.querySelector('#gev-voice-error-detail'),
-    tierButton: root.querySelector('#gev-voice-tier'),
-    costValue: root.querySelector('#gev-voice-cost-value'),
+    button: root.querySelector('#mm-voice-button'),
+    buttonLabel: root.querySelector('.mm-mic-label'),
+    status: root.querySelector('#mm-voice-status'),
+    detail: root.querySelector('#mm-voice-detail'),
+    helpDetail: root.querySelector('.mm-voice-help-detail'),
+    errorDetail: root.querySelector('#mm-voice-error-detail'),
+    tierButton: root.querySelector('#mm-voice-tier'),
+    costValue: root.querySelector('#mm-voice-cost-value'),
   };
 }

@@ -12,7 +12,7 @@ import * as Cesium from 'cesium';
  *   at a time.
  *     - Google Photorealistic 3D Tiles: the Cesium globe is HIDDEN, so there is
  *       no terrain and the drape target is the tileset.
- *     - OSM / Bing (the keyless stacks, and the default since GEV_MAP_STACK):
+ *     - OSM / Bing (the keyless stacks, and the default since MM_MAP_STACK):
  *       there is no tileset at all and the drape target is the globe.
  *   So the classification type is BOTH. It was CESIUM_3D_TILE, which silently
  *   drew nothing whenever photoreal was off: a route reported its distance in
@@ -45,7 +45,7 @@ const CLASSIFY = Cesium.ClassificationType.BOTH;
 const CLAMP = Cesium.HeightReference.CLAMP_TO_GROUND;
 
 export function createWorldAnnotationRenderer(viewer) {
-  const dataSource = new Cesium.CustomDataSource('gev-annotations');
+  const dataSource = new Cesium.CustomDataSource('mm-annotations');
   viewer.dataSources.add(dataSource);
 
   function colorFor(anno) {

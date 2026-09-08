@@ -75,15 +75,15 @@ export function MenuPopover({
   return (
     <div
       ref={ref}
-      className="gev-menu-popover"
+      className="mm-menu-popover"
       style={{ top }}
       role="dialog"
       aria-label={title}
     >
-      <div className="gev-menu-popover-title">{title}</div>
-      <div className="gev-menu-popover-desc">{description}</div>
-      <div className="gev-menu-popover-body">{children}</div>
-      {footer ? <div className="gev-menu-popover-footer">{footer}</div> : null}
+      <div className="mm-menu-popover-title">{title}</div>
+      <div className="mm-menu-popover-desc">{description}</div>
+      <div className="mm-menu-popover-body">{children}</div>
+      {footer ? <div className="mm-menu-popover-footer">{footer}</div> : null}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-# God's Eye View Current State
+# Map Monitoring Current State
 
 Updated: August 24, 2026
 

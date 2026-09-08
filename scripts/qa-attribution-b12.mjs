@@ -111,7 +111,7 @@ async function main() {
 
   // Wait for the app + viewer.creditDisplay to be live.
   await page.waitForFunction(
-    () => window.__godsEyeView && window.__godsEyeView.viewer && window.__godsEyeView.viewer.creditDisplay,
+    () => window.__mapMonitoring && window.__mapMonitoring.viewer && window.__mapMonitoring.viewer.creditDisplay,
     { timeout: 60000 },
   );
   // Give Cesium a few frames to render the on-screen credit line (logo + link).
@@ -120,7 +120,7 @@ async function main() {
   // ── (i) H11: static credits registered ────────────────────────────
   console.log('H11 — per-layer credits registered in viewer.creditDisplay');
   const registeredHtml = await page.evaluate(() => {
-    const cd = window.__godsEyeView.viewer.creditDisplay;
+    const cd = window.__mapMonitoring.viewer.creditDisplay;
     const statics = cd._staticCredits || [];
     return statics.map((c) => c.html);
   });
@@ -138,7 +138,7 @@ async function main() {
   console.log('\nH11 — "Data attribution" lightbox surfaces the credits');
   // Force a render frame so the credit display flushes, then open the lightbox.
   const lightboxState = await page.evaluate(async () => {
-    const viewer = window.__godsEyeView.viewer;
+    const viewer = window.__mapMonitoring.viewer;
     viewer.scene.requestRender();
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     const cd = viewer.creditDisplay;
@@ -238,28 +238,28 @@ async function main() {
       && lightboxState.stackProbeExtendsOutsideModal,
     `modal z=${lightboxState.overlayZIndex}, world labels z=${lightboxState.worldOverlayZIndex}, overlap=${lightboxState.stackProbeIntersectsModal}`,
   );
-  await page.evaluate(() => window.__godsEyeView.viewer.creditDisplay.hideLightbox());
+  await page.evaluate(() => window.__mapMonitoring.viewer.creditDisplay.hideLightbox());
   await page.screenshot({ path: resolve(SHOT_DIR, 'attribution-stacking-before-desktop.png') });
   await page.evaluate(() => {
-    window.__godsEyeView.viewer.creditDisplay.showLightbox();
+    window.__mapMonitoring.viewer.creditDisplay.showLightbox();
     const list = document.querySelector('.cesium-credit-lightbox > ul');
     if (list) list.scrollTop = 0;
   });
   await page.screenshot({ path: resolve(SHOT_DIR, 'attribution-lightbox-desktop.png') });
   await page.evaluate(() => {
-    window.__godsEyeView.viewer.creditDisplay.hideLightbox();
+    window.__mapMonitoring.viewer.creditDisplay.hideLightbox();
     document.querySelector('[data-qa-attribution-stack-probe]')?.remove();
   });
 
   await page.setViewport({ width: 560, height: 760, deviceScaleFactor: 1 });
   await page.evaluate(async () => {
-    const viewer = window.__godsEyeView.viewer;
+    const viewer = window.__mapMonitoring.viewer;
     viewer.resize();
     viewer.scene.requestRender();
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   });
   const mobileLightbox = await page.evaluate(() => {
-    const viewer = window.__godsEyeView.viewer;
+    const viewer = window.__mapMonitoring.viewer;
     viewer.creditDisplay.showLightbox();
     const box = document.querySelector('.cesium-credit-lightbox');
     const list = box?.querySelector(':scope > ul');
@@ -288,24 +288,24 @@ async function main() {
     `box=${Math.round(mobileLightbox.left)},${Math.round(mobileLightbox.top)}–${Math.round(mobileLightbox.right)},${Math.round(mobileLightbox.bottom)}`,
   );
   await page.screenshot({ path: resolve(SHOT_DIR, 'attribution-lightbox-mobile.png') });
-  await page.evaluate(() => window.__godsEyeView.viewer.creditDisplay.hideLightbox());
+  await page.evaluate(() => window.__mapMonitoring.viewer.creditDisplay.hideLightbox());
   await page.setViewport({ width: 1440, height: 900, deviceScaleFactor: 1 });
 
   // ── (ii) enable datacenters + cables; credits still present ────────
   console.log('\nH11 — enabling datacenters + submarine cables');
   const layerIds = await page.evaluate(() => {
-    const dm = window.__godsEyeView.dataManager;
+    const dm = window.__mapMonitoring.dataManager;
     return [...dm.layers.keys()];
   });
   // Find the datacenter + cable layer ids by fuzzy match on the id string.
   const dcId = layerIds.find((id) => /datacenter/i.test(id));
   const cableId = layerIds.find((id) => /cable|submarine|telegeo/i.test(id));
   check('found datacenter + cable layer ids', !!dcId && !!cableId, `dc=${dcId} cable=${cableId}`);
-  if (dcId) await page.evaluate((id) => window.__godsEyeView.dataManager.setEnabled(id, true), dcId);
-  if (cableId) await page.evaluate((id) => window.__godsEyeView.dataManager.setEnabled(id, true), cableId);
+  if (dcId) await page.evaluate((id) => window.__mapMonitoring.dataManager.setEnabled(id, true), dcId);
+  if (cableId) await page.evaluate((id) => window.__mapMonitoring.dataManager.setEnabled(id, true), cableId);
   await new Promise((r) => setTimeout(r, 800));
   const afterEnableHtml = await page.evaluate(() =>
-    (window.__godsEyeView.viewer.creditDisplay._staticCredits || []).map((c) => c.html),
+    (window.__mapMonitoring.viewer.creditDisplay._staticCredits || []).map((c) => c.html),
   );
   check(
     'datacenter credit (OSM/ODbL) still present after enable',

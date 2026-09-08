@@ -1586,10 +1586,10 @@ function syncAwarenessRenderHold() {
 
 function attachRuntimeListeners() {
   if (state.runtimeListenersAttached || !state.viewer) return;
-  window.addEventListener('gev:awareness-subject-selected', state.subjectListener);
-  window.addEventListener('gev:entity-selected', state.contextListener);
-  window.addEventListener('gev:entity-selection-cleared', state.clearListener);
-  window.addEventListener('gev:awareness-subject-cleared', state.subjectClearListener);
+  window.addEventListener('mm:awareness-subject-selected', state.subjectListener);
+  window.addEventListener('mm:entity-selected', state.contextListener);
+  window.addEventListener('mm:entity-selection-cleared', state.clearListener);
+  window.addEventListener('mm:awareness-subject-cleared', state.subjectClearListener);
   state.preRenderRemover = state.viewer.scene.preRender.addEventListener(() => {
     if (!state.enabled) return;
     const now = Date.now();
@@ -1636,10 +1636,10 @@ function attachRuntimeListeners() {
 
 function detachRuntimeListeners() {
   if (state.runtimeListenersAttached) {
-    window.removeEventListener('gev:awareness-subject-selected', state.subjectListener);
-    window.removeEventListener('gev:entity-selected', state.contextListener);
-    window.removeEventListener('gev:entity-selection-cleared', state.clearListener);
-    window.removeEventListener('gev:awareness-subject-cleared', state.subjectClearListener);
+    window.removeEventListener('mm:awareness-subject-selected', state.subjectListener);
+    window.removeEventListener('mm:entity-selected', state.contextListener);
+    window.removeEventListener('mm:entity-selection-cleared', state.clearListener);
+    window.removeEventListener('mm:awareness-subject-cleared', state.subjectClearListener);
   }
   state.preRenderRemover?.();
   state.preRenderRemover = null;

@@ -56,13 +56,13 @@ try {
   const page = await browser.newPage();
   await page.setViewport({ width: 1440, height: 860 });
   await page.goto(url, { waitUntil: 'domcontentloaded' });
-  await page.waitForFunction(() => !!window.__godsEyeView?.viewer, { timeout: 90_000 });
+  await page.waitForFunction(() => !!window.__mapMonitoring?.viewer, { timeout: 90_000 });
   await new Promise((r) => setTimeout(r, 12_000)); // boot flyTo + deferred init
 
   // Park mid-Atlantic (many cables + both coasts' landings in range) and
   // disable every layer so the cables layer is measured in isolation.
   await page.evaluate(async () => {
-    const gev = window.__godsEyeView;
+    const gev = window.__mapMonitoring;
     const v = gev.viewer;
     v.camera.cancelFlight();
     const ell = v.scene.globe.ellipsoid;
@@ -81,7 +81,7 @@ try {
   // ── b. toggle-ON → labels visible ─────────────────────────────────────
   if (!control) {
     const labelLatency = await page.evaluate(async (layerId, isLegacy) => {
-      const gev = window.__godsEyeView;
+      const gev = window.__mapMonitoring;
       const t0 = performance.now();
       await gev.dataManager.setEnabled(layerId, true, { origin: 'user' });
       const deadline = t0 + 60_000;
@@ -107,7 +107,7 @@ try {
 
   // ── c. entity / label / host counts ───────────────────────────────────
   const counts = await page.evaluate((layerId) => {
-    const gev = window.__godsEyeView;
+    const gev = window.__mapMonitoring;
     const v = gev.viewer;
     const out = {
       dataSources: {}, nativeLabels: 0, dynamicPositionEntities: 0,
@@ -138,7 +138,7 @@ try {
 
   // ── a. per-frame scene.render cost over a ~10 s driven orbit ─────────
   const frameCost = await page.evaluate(() => new Promise((resolve) => {
-    const v = window.__godsEyeView.viewer;
+    const v = window.__mapMonitoring.viewer;
     const scene = v.scene;
     const durations = [];
     const originalRender = scene.render;
@@ -178,7 +178,7 @@ try {
   // ── d. parked idle honesty (labels must not force continuous render) ──
   await new Promise((r) => setTimeout(r, 4_000)); // orbit stop + fades settle
   const idle = await page.evaluate(() => new Promise((resolve) => {
-    const scene = window.__godsEyeView.viewer.scene;
+    const scene = window.__mapMonitoring.viewer.scene;
     let renders = 0;
     const remove = scene.postRender.addEventListener(() => { renders += 1; });
     setTimeout(() => { remove(); resolve({ renders }); }, 5_000);
@@ -206,7 +206,7 @@ try {
 
     // OFF must clear the host source (no orphan labels), ON must restore.
     const cycle = await page.evaluate(async (layerId) => {
-      const gev = window.__godsEyeView;
+      const gev = window.__mapMonitoring;
       await gev.dataManager.setEnabled(layerId, false, { origin: 'user' });
       gev.viewer.scene.requestRender?.();
       await new Promise((r) => setTimeout(r, 1_200));

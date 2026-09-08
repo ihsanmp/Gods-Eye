@@ -230,9 +230,9 @@ export function initTrackedReadout(viewer) {
     _selectedContext = null;
     if (!_viewer?.trackedEntity) clearTrackedSource();
   };
-  window.addEventListener('gev:entity-selected', _contextSelectedHandler);
-  window.addEventListener('gev:entity-selection-cleared', _contextClearedHandler);
-  window.addEventListener('gev:awareness-subject-selected', _aircraftSelectedHandler);
+  window.addEventListener('mm:entity-selected', _contextSelectedHandler);
+  window.addEventListener('mm:entity-selection-cleared', _contextClearedHandler);
+  window.addEventListener('mm:awareness-subject-selected', _aircraftSelectedHandler);
   syncActiveEntity();
   // Boot-verification contract: the track regression harness asserts this
   // exact line at init (dropped by the host migration; restored).
@@ -243,9 +243,9 @@ export function initTrackedReadout(viewer) {
 export function destroyTrackedReadout() {
   _trackedEntityChangedRemove?.();
   _trackedEntityChangedRemove = null;
-  if (_contextSelectedHandler) window.removeEventListener('gev:entity-selected', _contextSelectedHandler);
-  if (_contextClearedHandler) window.removeEventListener('gev:entity-selection-cleared', _contextClearedHandler);
-  if (_aircraftSelectedHandler) window.removeEventListener('gev:awareness-subject-selected', _aircraftSelectedHandler);
+  if (_contextSelectedHandler) window.removeEventListener('mm:entity-selected', _contextSelectedHandler);
+  if (_contextClearedHandler) window.removeEventListener('mm:entity-selection-cleared', _contextClearedHandler);
+  if (_aircraftSelectedHandler) window.removeEventListener('mm:awareness-subject-selected', _aircraftSelectedHandler);
   _contextSelectedHandler = null;
   _contextClearedHandler = null;
   _aircraftSelectedHandler = null;

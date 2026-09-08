@@ -451,7 +451,7 @@ test('lifecycle is idempotent and teardown removes listeners, observers, and DOM
   initWorldOverlay(env.viewer);
   assert.equal(env.postRender.listeners.size, 1);
   assert.equal(env.moveEnd.listeners.size, 1);
-  assert.equal(env.window.listenerCount('gev:cockpit-mode-changed'), 1);
+  assert.equal(env.window.listenerCount('mm:cockpit-mode-changed'), 1);
   assert.equal(env.document.getElementById('world-overlay-root') !== null, true);
   const root = env.document.getElementById('world-overlay-root');
   const surface = env.document.getElementById('world-overlay-detection-surface');
@@ -475,7 +475,7 @@ test('lifecycle is idempotent and teardown removes listeners, observers, and DOM
   destroyWorldOverlay();
   assert.equal(env.postRender.listeners.size, 0);
   assert.equal(env.moveEnd.listeners.size, 0);
-  assert.equal(env.window.listenerCount('gev:cockpit-mode-changed'), 0);
+  assert.equal(env.window.listenerCount('mm:cockpit-mode-changed'), 0);
   assert.equal(env.document.getElementById('world-overlay-root'), null);
   assert.equal(env.document.getElementById('world-overlay-detection-surface'), null);
   assert.ok(env.resizeObservers.every((observer) => observer.disconnected));
@@ -1462,7 +1462,7 @@ test('cockpit keeps its cards and its detection lane, and hides only the tracked
   ]);
   setOverlayEntries('trackedReadout', [selectedEntry('TRACKED')], { hideInCockpit: true });
 
-  env.window.dispatch('gev:cockpit-mode-changed', { detail: { active: true } });
+  env.window.dispatch('mm:cockpit-mode-changed', { detail: { active: true } });
   env.postRender.raise();
 
   assert.equal(getWorldOverlayDiagnostics().paintedCount, 2,
@@ -1541,7 +1541,7 @@ test('position getters snapshot once per frame and cockpit-gated sources disappe
   assert.equal(getWorldOverlayDiagnostics().paintedCount, 1);
   env.postRender.raise();
   assert.equal(getterCalls, 2);
-  env.window.dispatch('gev:cockpit-mode-changed', { detail: { active: true } });
+  env.window.dispatch('mm:cockpit-mode-changed', { detail: { active: true } });
   env.postRender.raise();
   assert.equal(getterCalls, 2);
   assert.equal(getWorldOverlayDiagnostics().paintedCount, 0);
@@ -2122,7 +2122,7 @@ test('every exported entry point is inert after destroy', () => {
   assert.equal(env.document.getElementById('world-overlay-detection-surface'), null);
   assert.equal(env.postRender.listeners.size, 0);
   assert.equal(env.moveEnd.listeners.size, 0);
-  assert.equal(env.window.listenerCount('gev:cockpit-mode-changed'), 0);
+  assert.equal(env.window.listenerCount('mm:cockpit-mode-changed'), 0);
   assert.equal(env.window.listenerCount('resize'), 0);
 
   // A later init still produces a fully working host.

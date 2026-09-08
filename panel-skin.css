@@ -22,16 +22,16 @@
  */
 
 :root {
-  --gev-card-surface: #111318;
-  --gev-card-border: rgba(255, 255, 255, 0.12);
-  --gev-card-shadow: 0 18px 44px rgba(0, 0, 0, 0.62);
-  --gev-card-title: #f4f4f5;
-  --gev-card-label: #d4d4d8;
-  --gev-card-muted: #8b8b93;
-  --gev-card-hover: rgba(255, 255, 255, 0.06);
-  --gev-card-on: rgba(255, 255, 255, 0.09);
-  --gev-card-line: rgba(255, 255, 255, 0.14);
-  --gev-card-font: Inter, ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif;
+  --mm-card-surface: #111318;
+  --mm-card-border: rgba(255, 255, 255, 0.12);
+  --mm-card-shadow: 0 18px 44px rgba(0, 0, 0, 0.62);
+  --mm-card-title: #f4f4f5;
+  --mm-card-label: #d4d4d8;
+  --mm-card-muted: #8b8b93;
+  --mm-card-hover: rgba(255, 255, 255, 0.06);
+  --mm-card-on: rgba(255, 255, 255, 0.09);
+  --mm-card-line: rgba(255, 255, 255, 0.14);
+  --mm-card-font: Inter, ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif;
 }
 
 /* ---- 0. the accent, redefined where the panels can see it ---------- */
@@ -80,10 +80,10 @@
 .global-context-panel-inner,
 #control-panel .panel-inner,
 #pp-toggles {
-  background: var(--gev-card-surface) !important;
-  border: 1px solid var(--gev-card-border) !important;
+  background: var(--mm-card-surface) !important;
+  border: 1px solid var(--mm-card-border) !important;
   border-radius: 12px !important;
-  box-shadow: var(--gev-card-shadow) !important;
+  box-shadow: var(--mm-card-shadow) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
@@ -103,7 +103,7 @@
 #command-dock #control-panel *,
 #pp-toggles,
 #pp-toggles * {
-  font-family: var(--gev-card-font) !important;
+  font-family: var(--mm-card-font) !important;
   letter-spacing: 0 !important;
   text-shadow: none !important;
 }
@@ -138,7 +138,7 @@
 .panel-collapsible .panel-title {
   font-size: 14px !important;
   font-weight: 600 !important;
-  color: var(--gev-card-title) !important;
+  color: var(--mm-card-title) !important;
 }
 
 /* The rule the card draws instead is whitespace. */
@@ -150,7 +150,7 @@
 .panel-collapsible .dock-pin-btn {
   background: transparent !important;
   border: 0 !important;
-  color: var(--gev-card-muted) !important;
+  color: var(--mm-card-muted) !important;
   box-shadow: none !important;
 }
 
@@ -169,7 +169,7 @@
 }
 
 .data-toggle-row:hover {
-  background: var(--gev-card-hover) !important;
+  background: var(--mm-card-hover) !important;
 }
 
 /* The card lists a name and a pill, nothing else in the gutter. */
@@ -180,14 +180,14 @@
 .data-name {
   font-size: 12.5px !important;
   font-weight: 400 !important;
-  color: var(--gev-card-label) !important;
+  color: var(--mm-card-label) !important;
   text-transform: none !important;
 }
 
 .data-count,
 .data-toggle-meta {
   font-size: 11px !important;
-  color: var(--gev-card-muted) !important;
+  color: var(--mm-card-muted) !important;
   text-transform: none !important;
 }
 
@@ -196,7 +196,7 @@
   border: 1px solid rgba(255, 255, 255, 0.18) !important;
   border-radius: 999px !important;
   background: transparent !important;
-  color: var(--gev-card-muted) !important;
+  color: var(--mm-card-muted) !important;
   font-size: 10px !important;
   font-weight: 600 !important;
   letter-spacing: 0.08em !important;
@@ -219,9 +219,9 @@
 #pp-toggles .pp-toggle-btn,
 #pp-toggles .pp-mode-btn {
   background: transparent !important;
-  border: 1px solid var(--gev-card-line) !important;
+  border: 1px solid var(--mm-card-line) !important;
   border-radius: 8px !important;
-  color: var(--gev-card-label) !important;
+  color: var(--mm-card-label) !important;
   box-shadow: none !important;
 }
 
@@ -232,7 +232,7 @@
 .panel-collapsible .panel-layer-toggle:hover,
 #pp-toggles .pp-toggle-btn:hover,
 #pp-toggles .pp-mode-btn:hover {
-  background: var(--gev-card-hover) !important;
+  background: var(--mm-card-hover) !important;
   color: #ffffff !important;
 }
 
@@ -242,7 +242,7 @@
 .panel-collapsible .panel-layer-toggle.active,
 #pp-toggles .pp-toggle-btn.active,
 #pp-toggles .pp-mode-btn.active {
-  background: var(--gev-card-on) !important;
+  background: var(--mm-card-on) !important;
   border-color: rgba(255, 255, 255, 0.24) !important;
   color: #ffffff !important;
 }
@@ -261,9 +261,9 @@
 .panel-collapsible select,
 #pp-toggles select {
   background: rgba(255, 255, 255, 0.03) !important;
-  border: 1px solid var(--gev-card-line) !important;
+  border: 1px solid var(--mm-card-line) !important;
   border-radius: 8px !important;
-  color: var(--gev-card-title) !important;
+  color: var(--mm-card-title) !important;
   box-shadow: none !important;
 }
 
@@ -277,8 +277,8 @@
 
 .panel-collapsible select option,
 #pp-toggles select option {
-  background: var(--gev-card-surface) !important;
-  color: var(--gev-card-title) !important;
+  background: var(--mm-card-surface) !important;
+  color: var(--mm-card-title) !important;
 }
 
 .panel-collapsible input[type='range'],
@@ -298,14 +298,14 @@
 .panel-collapsible .route-field-label,
 #pp-toggles label,
 #pp-toggles .pp-label {
-  color: var(--gev-card-label) !important;
+  color: var(--mm-card-label) !important;
   text-transform: none !important;
 }
 
 .panel-collapsible .pp-slider-row,
 #pp-toggles .pp-slider-row,
 #pp-toggles .pp-value {
-  color: var(--gev-card-muted) !important;
+  color: var(--mm-card-muted) !important;
 }
 
 /* ---- 8. what the sweep above did not name -------------------------- */
@@ -328,8 +328,8 @@
      card until this clears it. The named rules above set their own fills and
      outrank this one, so only the unclaimed buttons land here. */
   background: transparent !important;
-  color: var(--gev-card-label) !important;
-  border-color: var(--gev-card-line) !important;
+  color: var(--mm-card-label) !important;
+  border-color: var(--mm-card-line) !important;
   box-shadow: none !important;
 }
 
@@ -348,11 +348,11 @@
 
 /* Slider and calibration readouts: information, not an accent. */
 .panel-collapsible .pp-slider-value,
-.panel-collapsible .gev-slider-value,
+.panel-collapsible .mm-slider-value,
 .panel-collapsible .cctv-cal-value,
 #pp-toggles .pp-slider-value,
-#pp-toggles .gev-slider-value {
-  color: var(--gev-card-muted) !important;
+#pp-toggles .mm-slider-value {
+  color: var(--mm-card-muted) !important;
   border-color: transparent !important;
   background: transparent !important;
   text-shadow: none !important;
@@ -361,30 +361,30 @@
 /* The suggestion list is a small card of its own, so it is built like one. */
 .route-suggest,
 .place-suggest {
-  background: var(--gev-card-surface) !important;
-  border: 1px solid var(--gev-card-border) !important;
+  background: var(--mm-card-surface) !important;
+  border: 1px solid var(--mm-card-border) !important;
   border-radius: 10px !important;
-  box-shadow: var(--gev-card-shadow) !important;
+  box-shadow: var(--mm-card-shadow) !important;
 }
 
 .route-suggest li:hover,
 .route-suggest li[aria-selected='true'],
 .place-suggest li:hover,
 .place-suggest li[aria-selected='true'] {
-  background: var(--gev-card-hover) !important;
+  background: var(--mm-card-hover) !important;
 }
 
 .route-suggest-name {
-  color: var(--gev-card-title) !important;
+  color: var(--mm-card-title) !important;
 }
 
 .route-suggest-context {
-  color: var(--gev-card-muted) !important;
+  color: var(--mm-card-muted) !important;
 }
 
 .panel-collapsible strong,
 #pp-toggles strong {
-  color: var(--gev-card-title) !important;
+  color: var(--mm-card-title) !important;
   font-weight: 600 !important;
 }
 
@@ -409,7 +409,7 @@
 :where(#right-context-rail .panel-collapsible) :where(*),
 :where(#command-dock #control-panel) :where(*),
 :where(#pp-toggles) :where(*) {
-  color: var(--gev-card-label) !important;
+  color: var(--mm-card-label) !important;
 }
 
 /* Accent-tinted button fills, named because there are only three. */
@@ -417,14 +417,14 @@
 .panel-collapsible .context-radio-toggle,
 .panel-collapsible .tr3b-toggle {
   background: transparent !important;
-  border: 1px solid var(--gev-card-line) !important;
+  border: 1px solid var(--mm-card-line) !important;
   border-radius: 8px !important;
 }
 
 .panel-collapsible .route-gps-btn:hover,
 .panel-collapsible .context-radio-toggle:hover,
 .panel-collapsible .tr3b-toggle:hover {
-  background: var(--gev-card-hover) !important;
+  background: var(--mm-card-hover) !important;
 }
 
 /*
@@ -443,12 +443,12 @@
 }
 
 .panel-collapsible .scene-shot-row.active {
-  background: var(--gev-card-on) !important;
+  background: var(--mm-card-on) !important;
   border-color: rgba(255, 255, 255, 0.24) !important;
 }
 
 .panel-collapsible .scene-shot-row:hover {
-  background: var(--gev-card-hover) !important;
+  background: var(--mm-card-hover) !important;
 }
 
 /* ---- 10. CCTV sub-blocks, on the destination report's surface ------ */
@@ -478,17 +478,17 @@
 }
 
 #cctv-panel .cctv-summary-label {
-  color: var(--gev-card-muted) !important;
+  color: var(--mm-card-muted) !important;
   font-weight: 600 !important;
 }
 
 #cctv-panel #cctv-summary,
 #cctv-panel #cctv-meta {
-  color: var(--gev-card-label) !important;
+  color: var(--mm-card-label) !important;
 }
 
 #cctv-panel #cctv-source-badge {
-  color: var(--gev-card-muted) !important;
+  color: var(--mm-card-muted) !important;
   font-weight: 600 !important;
 }
 
@@ -511,12 +511,12 @@
 
 #cctv-panel .cctv-cal-value {
   background: transparent !important;
-  border: 1px solid var(--gev-card-line) !important;
-  color: var(--gev-card-muted) !important;
+  border: 1px solid var(--mm-card-line) !important;
+  color: var(--mm-card-muted) !important;
 }
 
 #cctv-panel .cctv-cal-value:hover:not(:disabled) {
-  background: var(--gev-card-hover) !important;
+  background: var(--mm-card-hover) !important;
   border-color: rgba(255, 255, 255, 0.24) !important;
   color: #ffffff !important;
 }

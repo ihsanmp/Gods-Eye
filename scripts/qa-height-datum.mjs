@@ -152,7 +152,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function waitForTilesLoaded(page, timeoutMs = 15000) {
   return page.waitForFunction(
     () => {
-      const scene = window.__godsEyeView.viewer.scene;
+      const scene = window.__mapMonitoring.viewer.scene;
       const prims = scene.primitives;
       for (let i = 0; i < prims.length; i++) {
         const p = prims.get(i);
@@ -179,7 +179,7 @@ function waitForTilesLoaded(page, timeoutMs = 15000) {
  */
 async function readCameraGround(page, camId) {
   return page.evaluate((id) => {
-    const viewer = window.__godsEyeView.viewer;
+    const viewer = window.__mapMonitoring.viewer;
     const time = viewer.clock.currentTime;
     const ent = viewer.entities.getById(`cctv-${id}-ray-tl`);
     if (!ent || !ent.polyline) return null;
@@ -190,7 +190,7 @@ async function readCameraGround(page, camId) {
     // static fromCartesian off a live Cartographic instance's constructor.
     const carto = viewer.scene.globe.ellipsoid.cartesianToCartographic(mount);
     const mountAltM = carto.height;
-    const mod = window.__godsEyeView.dataManager.layers.get('cctv').module;
+    const mod = window.__mapMonitoring.dataManager.layers.get('cctv').module;
     const cam = mod.getUIState().cameras.find((c) => c.id === id);
     const mountHeightM = cam ? cam.mountHeightM : null;
     return {
@@ -278,7 +278,7 @@ async function main() {
     console.log('Loading app...');
     await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.waitForFunction(
-      () => window.__godsEyeView && window.__godsEyeView.viewer && window.__godsEyeView.dataManager,
+      () => window.__mapMonitoring && window.__mapMonitoring.viewer && window.__mapMonitoring.dataManager,
       { timeout: 60000 }
     );
     await sleep(4000);
@@ -288,12 +288,12 @@ async function main() {
     // =========================================================================
     console.log('Enabling CCTV layer (full city-packs catalog)...');
     await page.evaluate(async () => {
-      const dm = window.__godsEyeView.dataManager;
+      const dm = window.__mapMonitoring.dataManager;
       const entry = dm.layers.get('cctv');
       if (!entry.enabled) await dm.toggle('cctv');
     });
 
-    const camCount = await page.evaluate(() => window.__godsEyeView.dataManager.layers.get('cctv').module.getUIState().count);
+    const camCount = await page.evaluate(() => window.__mapMonitoring.dataManager.layers.get('cctv').module.getUIState().count);
     console.log(`CCTV catalog loaded: ${camCount} cameras. Waiting for the geometry-load queue to drain...`);
     // The full-catalog drain is NOT a precondition for group 1's assertions
     // below: every record renders correctly from `record.groundPrior` the
@@ -316,7 +316,7 @@ async function main() {
     const DRAIN_WAIT_CEILING_MS = 120000;
     const drained = await page.waitForFunction(
       () => {
-        const mod = window.__godsEyeView.dataManager.layers.get('cctv').module;
+        const mod = window.__mapMonitoring.dataManager.layers.get('cctv').module;
         const ui = mod.getUIState();
         return ui.loading && ui.loading.active === false;
       },
@@ -336,7 +336,7 @@ async function main() {
     // `nearbyPlace` string (NOT a stable "San Francisco" literal), so SF-area
     // Caltrans cameras are identified by proximity to the SF anchor instead
     // (same anchor vite.config.js's CALTRANS_ANCHORS uses for prioritization).
-    const allCameras = await page.evaluate(() => window.__godsEyeView.dataManager.layers.get('cctv').module.getUIState().cameras);
+    const allCameras = await page.evaluate(() => window.__mapMonitoring.dataManager.layers.get('cctv').module.getUIState().cameras);
     console.log(`Camera catalog: ${allCameras.length} total.`);
 
     const SF_ANCHOR = { lat: 37.7793, lon: -122.4193 };
@@ -372,7 +372,7 @@ async function main() {
     for (const { label, cams } of cityBuckets) {
       for (const cam of cams) {
         const state = await page.evaluate((id) => {
-          const mod = window.__godsEyeView.dataManager.layers.get('cctv').module;
+          const mod = window.__mapMonitoring.dataManager.layers.get('cctv').module;
           return mod.getUIState().cameras.find((camera) => camera.id === id) || null;
         }, cam.id);
         const geom = await readCameraGround(page, cam.id);
@@ -422,7 +422,7 @@ async function main() {
     console.log('Checking Google-3D active-camera ground BANDS (post-snap)...');
     async function checkActiveCameraBand(cityLabel, targetCamId, band) {
       await page.evaluate((id) => {
-        window.__godsEyeView.dataManager.layers.get('cctv').module.selectCamera(id, { focus: true, durationSec: 0.1 });
+        window.__mapMonitoring.dataManager.layers.get('cctv').module.selectCamera(id, { focus: true, durationSec: 0.1 });
       }, targetCamId);
       await sleep(600);
       const tilesReady = await waitForTilesLoaded(page, 30000);
@@ -460,7 +460,7 @@ async function main() {
     // =========================================================================
     console.log('Enabling flights layer, waiting for a live aircraft sample...');
     await page.evaluate(async () => {
-      const dm = window.__godsEyeView.dataManager;
+      const dm = window.__mapMonitoring.dataManager;
       const entry = dm.layers.get('flights');
       if (!entry.enabled) await dm.toggle('flights');
     });
@@ -469,7 +469,7 @@ async function main() {
     // (the layer polls every ~30s per docs/CURRENT-STATE.md).
     const gotAircraft = await page.waitForFunction(
       () => {
-        const mod = window.__godsEyeView.dataManager.layers.get('flights').module;
+        const mod = window.__mapMonitoring.dataManager.layers.get('flights').module;
         return mod.getAllPositions(1).length > 0;
       },
       { timeout: 45000 }
@@ -500,7 +500,7 @@ async function main() {
       // the two public APIs by icao24/id to reconstruct both sides without
       // reaching into the layer's private _flightData closure.
       const allPositions = await page.evaluate(() => {
-        const mod = window.__godsEyeView.dataManager.layers.get('flights').module;
+        const mod = window.__mapMonitoring.dataManager.layers.get('flights').module;
         return mod.getAllPositions(60);
       });
       // getNearby needs an ECEF center + range; use the live camera position
@@ -509,8 +509,8 @@ async function main() {
       // qa-cctv-v2's pattern) with an effectively unbounded range so it
       // returns everything currently shown regardless of viewer position.
       const nearbyList = await page.evaluate(() => {
-        const mod = window.__godsEyeView.dataManager.layers.get('flights').module;
-        const center = window.__godsEyeView.viewer.camera.position;
+        const mod = window.__mapMonitoring.dataManager.layers.get('flights').module;
+        const center = window.__mapMonitoring.viewer.camera.position;
         return mod.getNearby(center, Number.MAX_VALUE, 200).map((a) => ({ icao24: a.icao24, altitudeM: a.altitudeM }));
       });
       const baroById = new Map(nearbyList.map((a) => [a.icao24, a.altitudeM]));
@@ -632,7 +632,7 @@ async function main() {
     const groundBeforeSwitch = regimeCTargetId ? await readCameraGround(page, regimeCTargetId) : null;
 
     await page.evaluate(async () => {
-      await window.__godsEyeView.mapStackController.setStack('osm');
+      await window.__mapMonitoring.mapStackController.setStack('osm');
     });
     // Real (non-flat) terrain loads ASYNCHRONOUSLY on a globe stack, and by two
     // different code paths depending on whether a Cesium Ion token is present:
@@ -650,13 +650,13 @@ async function main() {
     let terrainCtor = null;
     try {
       await page.waitForFunction(() => {
-        const p = window.__godsEyeView?.viewer?.terrainProvider;
+        const p = window.__mapMonitoring?.viewer?.terrainProvider;
         const name = p && p.constructor && p.constructor.name;
         return !!name && name !== 'EllipsoidTerrainProvider';
       }, { timeout: 12000, polling: 250 });
     } catch { /* timed out — fall through and report the settled ctor below */ }
     terrainCtor = await page.evaluate(() => {
-      const provider = window.__godsEyeView.viewer.terrainProvider;
+      const provider = window.__mapMonitoring.viewer.terrainProvider;
       return provider?.constructor?.name || null;
     });
     record('globe-stack terrain is a real CesiumTerrainProvider, not the flat EllipsoidTerrainProvider (regime B/C)',

@@ -173,7 +173,7 @@ const OVERPASS_DISK_TTL_MS = 7 * 86_400_000;
  */
 const OVERPASS_BOUNDARY_DISK_TTL_MS = 30 * 86_400_000;
 /** Disk-cache directory for Overpass responses. */
-const OVERPASS_DISK_DIR = path.join(process.cwd(), '.gev-cache', 'overpass');
+const OVERPASS_DISK_DIR = path.join(process.cwd(), '.mm-cache', 'overpass');
 /** Per-upstream fetch timeout (ms). */
 const OVERPASS_TIMEOUT_MS = 22000;
 /** Max entries in the Overpass response cache (LRU-like, oldest evicted first). */
@@ -536,12 +536,12 @@ let _openAiRateLimiter; // undefined = not built yet; null = unlimited; fn = act
 let _googleRateLimiter;
 /** OpenAI cost endpoints (realtime/token + hud-summary). Null = unlimited (default). */
 function openAiRateLimiter() {
-  if (_openAiRateLimiter === undefined) _openAiRateLimiter = makeOptInRateLimiter(process.env.GEV_RATELIMIT_OPENAI_PER_MIN);
+  if (_openAiRateLimiter === undefined) _openAiRateLimiter = makeOptInRateLimiter(process.env.MM_RATELIMIT_OPENAI_PER_MIN ?? process.env.GEV_RATELIMIT_OPENAI_PER_MIN);
   return _openAiRateLimiter;
 }
 /** Google cost endpoint (nearby-places). Null = unlimited (default). */
 function googleRateLimiter() {
-  if (_googleRateLimiter === undefined) _googleRateLimiter = makeOptInRateLimiter(process.env.GEV_RATELIMIT_GOOGLE_PER_MIN);
+  if (_googleRateLimiter === undefined) _googleRateLimiter = makeOptInRateLimiter(process.env.MM_RATELIMIT_GOOGLE_PER_MIN ?? process.env.GEV_RATELIMIT_GOOGLE_PER_MIN);
   return _googleRateLimiter;
 }
 
@@ -1410,7 +1410,7 @@ const OPENAI_REALTIME_REASONING_DEFAULT = 'low';
 const OPENAI_REALTIME_CONTEXT_TOKENS_DEFAULT = 3000;
 const OPENAI_REALTIME_CONTEXT_RETENTION_DEFAULT = 0.5;
 const OPENAI_HUD_SUMMARY_MODEL_DEFAULT = 'gpt-5-nano';
-const REALTIME_DEBUG_LOG_DIR = path.join(__dirname, '.gev-logs');
+const REALTIME_DEBUG_LOG_DIR = path.join(__dirname, '.mm-logs');
 const REALTIME_DEBUG_LOG_FILE = path.join(REALTIME_DEBUG_LOG_DIR, 'realtime-conversations.jsonl');
 const REALTIME_DEBUG_LOG_MAX_BYTES = 8 * 1024 * 1024;
 
@@ -1583,7 +1583,7 @@ function buildOpenSkyHeaders({ cacheStatus, requestedMode, usedMode, reason, sta
  */
 function celestrakProxy() {
   const TLE_TTL_MS = 6 * 3600_000;
-  const CACHE_DIR = path.join(process.cwd(), '.gev-cache');
+  const CACHE_DIR = path.join(process.cwd(), '.mm-cache');
   const mem = new Map(); // group -> { at: epochMs, body: string }
   const inflight = new Map(); // group -> Promise<{at, body}|null>
 
@@ -1698,7 +1698,7 @@ function rocketLaunchesProxy() {
   const ttlMs = LL2_CACHE_TTL_MS;
   const maxResponseBytes = 12 * 1024 * 1024;
   const maxDiskCacheBytes = 24 * 1024 * 1024;
-  const cachePath = path.join(process.cwd(), '.gev-cache', 'launch-library-2-v2.3.json');
+  const cachePath = path.join(process.cwd(), '.mm-cache', 'launch-library-2-v2.3.json');
   let cache = null;
   let diskLoaded = false;
   const inFlight = new Map();
@@ -1814,12 +1814,12 @@ function rocketLaunchesProxy() {
  * "Traffic flow"). The key comes from TOMTOM_API_KEY server-side only — the
  * browser fetches same-origin `/api/tomtom/flow/{z}/{x}/{y}.pbf`.
  *
- * Cache: memory + disk (.gev-cache/tomtom/), TTL 120 s (traffic is fresh
+ * Cache: memory + disk (.mm-cache/tomtom/), TTL 120 s (traffic is fresh
  * data), single-flight per tile, serve-stale-on-failure — the celestrakProxy
  * pattern. Cache hits never count against the budget.
  *
  * Budget governor (mirrors the OpenSky credit-governor philosophy — last-good
- * data beats a dead layer): a persistent counter (.gev-cache/tomtom/budget.json,
+ * data beats a dead layer): a persistent counter (.mm-cache/tomtom/budget.json,
  * keyed by UTC date, reset on day change) counts upstream fetch attempts
  * against a soft cap (TOMTOM_DAILY_TILE_BUDGET, default 40,000 of the free
  * tier's ~50k/day). Over the cap the proxy serves stale tiles when available,
@@ -1833,7 +1833,7 @@ function rocketLaunchesProxy() {
  */
 function tomtomProxy() {
   const TILE_TTL_MS = 120_000;
-  const CACHE_DIR = path.join(process.cwd(), '.gev-cache', 'tomtom');
+  const CACHE_DIR = path.join(process.cwd(), '.mm-cache', 'tomtom');
   const BUDGET_PATH = path.join(CACHE_DIR, 'budget.json');
   const DEFAULT_DAILY_BUDGET = 40000;
   const MEM_MAX_ENTRIES = 256;
@@ -2046,7 +2046,7 @@ function tomtomProxy() {
  * clamps to the trailing 24 h via src/data/firmsCsv.js. FIRMS quota is
  * 5,000 transactions / 10 min per MAP_KEY, so the cache is the point:
  * TTL 30 min, single-flight refresh, serve-stale-on-failure, and a
- * fresh-enough disk cache (.gev-cache/firms.json) prevents ANY upstream
+ * fresh-enough disk cache (.mm-cache/firms.json) prevents ANY upstream
  * fetch across dev-server restarts. Pattern mirrors celestrakProxy.
  *
  * Routes:
@@ -2062,7 +2062,7 @@ function firmsProxy() {
   const TTL_MS = 30 * 60_000;
   const STATUS_TTL_MS = 5 * 60_000;
   const SOURCES = ['VIIRS_NOAA20_NRT', 'VIIRS_NOAA21_NRT', 'VIIRS_SNPP_NRT'];
-  const CACHE_DIR = path.join(process.cwd(), '.gev-cache');
+  const CACHE_DIR = path.join(process.cwd(), '.mm-cache');
   const CACHE_PATH = path.join(CACHE_DIR, 'firms.json');
 
   /** @type {?{at: number, sources: Array<object>, fires: Array<object>}} */
@@ -2268,7 +2268,7 @@ function firmsProxy() {
  */
 function terrainHeightsProxy() {
   const TTL_MS = 30 * 24 * 3600_000;
-  const CACHE_DIR = path.join(process.cwd(), '.gev-cache');
+  const CACHE_DIR = path.join(process.cwd(), '.mm-cache');
   const CACHE_PATH = path.join(CACHE_DIR, 'terrain-heights.json');
   const UPSTREAM_CHUNK = 256;
   const MAX_POINTS = 2000;
@@ -2416,7 +2416,7 @@ function terrainHeightsProxy() {
  */
 function adsbdbProxy() {
   const TTL_MS = 24 * 3600_000;
-  const CACHE_PATH = path.join(process.cwd(), '.gev-cache', 'adsbdb.json');
+  const CACHE_PATH = path.join(process.cwd(), '.mm-cache', 'adsbdb.json');
   let cache = { routes: {}, aircraft: {} };
   let dirty = false;
   let loaded = false;
@@ -6080,7 +6080,7 @@ function openAiRealtimeProxy() {
         return;
       }
 
-      // Opt-in per-IP throttle (GEV_RATELIMIT_OPENAI_PER_MIN). No-op when unset.
+      // Opt-in per-IP throttle (MM_RATELIMIT_OPENAI_PER_MIN). No-op when unset.
       if (!enforceOptInRateLimit(openAiRateLimiter(), req, res)) return;
 
       const apiKey = process.env.OPENAI_API_KEY;
@@ -6163,7 +6163,7 @@ function openAiRealtimeProxy() {
         return;
       }
 
-      // Opt-in per-IP throttle (GEV_RATELIMIT_OPENAI_PER_MIN). No-op when unset.
+      // Opt-in per-IP throttle (MM_RATELIMIT_OPENAI_PER_MIN). No-op when unset.
       if (!enforceOptInRateLimit(openAiRateLimiter(), req, res)) return;
 
       const apiKey = process.env.OPENAI_API_KEY;
@@ -6265,7 +6265,7 @@ function openAiRealtimeProxy() {
             // infrastructure tile at all. See src/firstRunExperience.js for why.
             //
             // Fully expressible with tools that already exist, so
-            // GEV_REALTIME_TOOLS is deliberately untouched — deleting this one
+            // MM_REALTIME_TOOLS is deliberately untouched — deleting this one
             // string is the whole rollback.
             'NAMED VIEWS are shorthand for tool calls you already have — there is no "mode" tool for them. Treat ONLY these as the shorthand: "infrastructure mode" / "the infrastructure view" / "show me global infrastructure" means three set_layer_visibility calls (local-datacenters, local-dams, telegeography-submarine-cables) plus zoom_to_globe; "environmental mode" / "earth watch" / "active events", said as the name of a view, means set_layer_visibility for local-firms and earthquakes plus zoom_to_globe. Anything vaguer is NOT this shorthand — an open-ended question about the world or the news is an ordinary question: answer it, or use analyst_query over the layers already on. Never switch a whole view on to answer a question nobody asked to see. When you do run one, make every call before speaking, then give one confirmation naming the resulting state; if the fires layer comes back unavailable because no FIRMS key is configured, say so plainly — the earthquakes still loaded. "Live contacts" and "space missions" are NOT this pattern: they stay set_context_mode{mode:"contacts"} and set_context_mode{mode:"space-missions"}.',
             'For visual filter requests, call set_visual_style with one of the allowed style IDs.',
@@ -6290,7 +6290,7 @@ function openAiRealtimeProxy() {
             'PREFER NAMES. Only when you cannot name or geocode a place but you can clearly SEE the exact spot in the most recent viewport screenshot, fall back to screenX/screenY (normalized 0..1 from that image) to point at it; the app converts the pixel to a real world point. Never use screenX/screenY for something you could name.',
             'PATHS vs DISTANCES: for "walking/driving route from A to B" (or through several stops), use type=route with the ordered points and the matching mode (walking/driving/cycling) — the app draws the real street-following path on the map and reports distance and travel time, which you can read aloud. For "how far is X from Y", "is it nearby", or "X is next to Y", use type=arrow between the two — it draws a floating connector and shows the straight-line distance. Do NOT use route for a simple distance/proximity question.',
           ].join('\n'),
-          tools: GEV_REALTIME_TOOLS,
+          tools: MM_REALTIME_TOOLS,
           tool_choice: 'auto',
         },
       };
@@ -6301,7 +6301,7 @@ function openAiRealtimeProxy() {
           headers: {
             Authorization: `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
-            'OpenAI-Safety-Identifier': 'gev-local-dev',
+            'OpenAI-Safety-Identifier': 'mm-local-dev',
           },
           body: JSON.stringify(sessionConfig),
         });
@@ -6394,7 +6394,7 @@ function googlePlacesContextProxy() {
         return;
       }
 
-      // Opt-in per-IP throttle (GEV_RATELIMIT_GOOGLE_PER_MIN). No-op when unset.
+      // Opt-in per-IP throttle (MM_RATELIMIT_GOOGLE_PER_MIN). No-op when unset.
       // Inlined (not the shared helper) so the 429 body keeps this endpoint's
       // `places: []` contract that the client expects on every error response.
       const _grl = googleRateLimiter();
@@ -6508,7 +6508,7 @@ function googlePlacesContextProxy() {
         return;
       }
 
-      // Opt-in per-IP throttle (GEV_RATELIMIT_GOOGLE_PER_MIN). No-op when unset.
+      // Opt-in per-IP throttle (MM_RATELIMIT_GOOGLE_PER_MIN). No-op when unset.
       // Inlined (like nearby-places) so the 429 body keeps the `places: []`
       // contract the client expects on every error response.
       const _grl = googleRateLimiter();
@@ -6644,7 +6644,7 @@ function approximateDistanceM(latA, lonA, latB, lonB) {
   ));
 }
 
-const GEV_REALTIME_TOOLS = [
+const MM_REALTIME_TOOLS = [
   {
     type: 'function',
     name: 'fly_to_location',
@@ -7694,7 +7694,7 @@ export const MILITARY_INSTALLATION_ELEMENT_CAP = 700;
  */
 const MILITARY_INSTALLATION_DISK_TTL_MS = 30 * 86_400_000;
 /** Disk-cache directory for mapped installation payloads. */
-const MILITARY_INSTALLATION_DISK_DIR = path.join(process.cwd(), '.gev-cache', 'military-installations');
+const MILITARY_INSTALLATION_DISK_DIR = path.join(process.cwd(), '.mm-cache', 'military-installations');
 /**
  * Cache-key grid step in degrees (~5.5 km).
  *
@@ -8544,20 +8544,29 @@ export default defineConfig(({ mode }) => {
         ? true
         : ['localhost', '127.0.0.1', '.local'],
     },
-    // Expose selected API keys to the browser via import.meta.env.*
+    /*
+     * Expose selected settings to the browser via import.meta.env.*
+     *
+     * The project's settings are named MM_* since the rename, but `.env` is not
+     * tracked by this repo and lives only on each installation — so a rename
+     * that only changed the READER would silently drop every setting a person
+     * already had back to its default, and the first they would know of it is
+     * the GPU budget quietly not applying. Each one therefore falls back to its
+     * old GEV_ name: set either and it works, set both and MM_ wins.
+     */
     define: {
       'import.meta.env.GOOGLE_MAPS_API_KEY': JSON.stringify(env.GOOGLE_MAPS_API_KEY),
       'import.meta.env.CESIUM_ION_TOKEN': JSON.stringify(env.CESIUM_ION_TOKEN),
-      'import.meta.env.GEV_RENDER_QUALITY': JSON.stringify(env.GEV_RENDER_QUALITY),
+      'import.meta.env.MM_RENDER_QUALITY': JSON.stringify(env.MM_RENDER_QUALITY ?? env.GEV_RENDER_QUALITY),
       // Basemap this install boots on: 'osm' (default, keyless and free) or
       // 'photoreal' (Google 3D Tiles, billed per session). Not a secret — it
       // only names a stack the client already knows about.
-      'import.meta.env.GEV_MAP_STACK': JSON.stringify(env.GEV_MAP_STACK),
+      'import.meta.env.MM_MAP_STACK': JSON.stringify(env.MM_MAP_STACK ?? env.MM_MAP_STACK),
       // Share of full resolution an integrated GPU renders, 40-100. Reading this
       // without listing it here is the whole hazard: the client compiles fine,
-      // `import.meta.env.GEV_GPU_BUDGET` is simply `undefined` forever, and the
+      // `import.meta.env.MM_GPU_BUDGET` is simply `undefined` forever, and the
       // setting looks like it exists while doing nothing at all.
-      'import.meta.env.GEV_GPU_BUDGET': JSON.stringify(env.GEV_GPU_BUDGET),
+      'import.meta.env.MM_GPU_BUDGET': JSON.stringify(env.MM_GPU_BUDGET ?? env.GEV_GPU_BUDGET),
     },
     build: {
       // The Cesium engine bundle is inherently large; raise the warning ceiling

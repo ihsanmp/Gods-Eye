@@ -208,7 +208,7 @@ test('a map-stack change re-classifies every cable line once, and destroy detach
   // The harness scene has no globe → BOTH at init (safe unknown fallback).
   const cableEntity = cableSource.entities.values[0];
   assert.equal(classificationOf(cableEntity), Cesium.ClassificationType.BOTH);
-  const listener = listeners.get('gev:map-stack-changed');
+  const listener = listeners.get('mm:map-stack-changed');
   assert.equal(typeof listener, 'function', 'init must subscribe to the stack event');
 
   listener({ detail: { activeId: 'photoreal', status: 'ready' } });
@@ -218,7 +218,7 @@ test('a map-stack change re-classifies every cable line once, and destroy detach
   assert.equal(classificationOf(cableEntity), Cesium.ClassificationType.TERRAIN);
 
   env.layer.destroy(env.viewer);
-  assert.equal(listeners.has('gev:map-stack-changed'), false, 'destroy must detach the stack listener');
+  assert.equal(listeners.has('mm:map-stack-changed'), false, 'destroy must detach the stack listener');
 });
 
 test('marker collections blend in a single translucent pass behind a loud shape invariant', async () => {

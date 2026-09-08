@@ -275,7 +275,7 @@ let _cockpitModeListener = null;
  */
 export function initDetection(viewer, layers, onModeChange) {
   if (_cockpitModeListener && typeof window !== 'undefined') {
-    window.removeEventListener('gev:cockpit-mode-changed', _cockpitModeListener);
+    window.removeEventListener('mm:cockpit-mode-changed', _cockpitModeListener);
   }
   _hostLane?.unregister?.();
   _calloutLane?.unregister?.();
@@ -308,7 +308,7 @@ export function initDetection(viewer, layers, onModeChange) {
     _hostLane?.requestPaint();
   };
   if (typeof window !== 'undefined') {
-    window.addEventListener('gev:cockpit-mode-changed', _cockpitModeListener);
+    window.addEventListener('mm:cockpit-mode-changed', _cockpitModeListener);
   }
 
   setDetectionStyle('normal');
@@ -319,7 +319,7 @@ export function initDetection(viewer, layers, onModeChange) {
 /** Release the host lane and all retained detection runtime state. */
 export function destroyDetection() {
   if (_cockpitModeListener && typeof window !== 'undefined') {
-    window.removeEventListener('gev:cockpit-mode-changed', _cockpitModeListener);
+    window.removeEventListener('mm:cockpit-mode-changed', _cockpitModeListener);
   }
   _cockpitModeListener = null;
   _cockpitActive = false;

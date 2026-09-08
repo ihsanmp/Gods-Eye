@@ -279,7 +279,7 @@ test('real military track path creates no native label and publishes every cache
   const realFetch = globalThis.fetch;
   globalThis.window = new EventTarget();
   const selectionEvents = [];
-  globalThis.window.addEventListener('gev:awareness-subject-selected', (event) => {
+  globalThis.window.addEventListener('mm:awareness-subject-selected', (event) => {
     selectionEvents.push(event.detail);
   });
   globalThis.fetch = async () => ({ ok: false });

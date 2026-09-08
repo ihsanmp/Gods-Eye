@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DataLayerManager } from '../data/manager.js';
-import { controlRadio, createGevActionRunner } from './gevActions.js';
+import { controlRadio, createVoiceActionRunner } from './voiceActions.js';
 import {
   computeDownscale,
   renderFreshCesiumFrame,
@@ -26,7 +26,7 @@ import {
   readStoredVoiceLimits,
   writeStoredVoiceTier,
   writeStoredVoiceLimits,
-} from './gevRealtime.js';
+} from './voiceRealtime.js';
 import { createVoiceCostTracker } from './voiceCost.js';
 
 test('push-to-talk recognizes Space by code or key', () => {
@@ -940,7 +940,7 @@ test('generic same-response Radio visibility disable supersedes delayed Select',
     scene: { canvas: { addEventListener() {}, removeEventListener() {} } },
     camera: { moveEnd: { addEventListener() {} } },
   };
-  const genericRunner = createGevActionRunner({ viewer, styleManager: {}, dataManager });
+  const genericRunner = createVoiceActionRunner({ viewer, styleManager: {}, dataManager });
   const ui = {
     root: { dataset: {}, classList: { remove() {} }, querySelectorAll: () => [] },
     status: { textContent: '' },
@@ -1202,7 +1202,7 @@ test('Pause and Stop preserve independent dedicated and generic Radio ON across 
                 scene: { canvas: { addEventListener() {}, removeEventListener() {} } },
                 camera: { moveEnd: { addEventListener() {} } },
               };
-              const genericRunner = createGevActionRunner({
+              const genericRunner = createVoiceActionRunner({
                 viewer,
                 styleManager: {},
                 dataManager,

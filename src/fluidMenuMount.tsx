@@ -136,14 +136,14 @@ function MirrorRow({ control }: { control: MirrorControl }) {
     return (
       <button
         type="button"
-        className="gev-mirror-row"
+        className="mm-mirror-row"
         data-on={control.on ? 'true' : undefined}
         disabled={control.disabled}
         onClick={() => pressControl(control)}
       >
-        <span className="gev-mirror-label">{control.label}</span>
+        <span className="mm-mirror-label">{control.label}</span>
         {control.toggle ? (
-          <span className="gev-mirror-chip" data-on={control.on ? 'true' : undefined}>
+          <span className="mm-mirror-chip" data-on={control.on ? 'true' : undefined}>
             {control.on ? 'ON' : 'OFF'}
           </span>
         ) : null}
@@ -153,8 +153,8 @@ function MirrorRow({ control }: { control: MirrorControl }) {
 
   if (control.kind === 'checkbox') {
     return (
-      <label className="gev-mirror-row gev-mirror-check">
-        <span className="gev-mirror-label">{control.label}</span>
+      <label className="mm-mirror-row mm-mirror-check">
+        <span className="mm-mirror-label">{control.label}</span>
         <input
           type="checkbox"
           checked={control.on}
@@ -166,8 +166,8 @@ function MirrorRow({ control }: { control: MirrorControl }) {
 
   if (control.kind === 'select') {
     return (
-      <label className="gev-mirror-field">
-        <span className="gev-mirror-label">{control.label}</span>
+      <label className="mm-mirror-field">
+        <span className="mm-mirror-label">{control.label}</span>
         <select
           value={control.value}
           onChange={(event) => setControlValue(control, event.target.value)}
@@ -184,8 +184,8 @@ function MirrorRow({ control }: { control: MirrorControl }) {
 
   if (control.kind === 'range') {
     return (
-      <label className="gev-mirror-field">
-        <span className="gev-mirror-label">{control.label}</span>
+      <label className="mm-mirror-field">
+        <span className="mm-mirror-label">{control.label}</span>
         <input
           type="range"
           min={control.min}
@@ -199,8 +199,8 @@ function MirrorRow({ control }: { control: MirrorControl }) {
   }
 
   return (
-    <label className="gev-mirror-field">
-      <span className="gev-mirror-label">{control.label}</span>
+    <label className="mm-mirror-field">
+      <span className="mm-mirror-label">{control.label}</span>
       {/*
         Uncontrolled on purpose. The panel re-reads on every mutation, and a
         controlled value would fight the operator's own typing on each of those
@@ -280,7 +280,7 @@ function FluidMenuHost() {
   }, [entry, revision]);
 
   const togglePanel = useCallback((id: string) => {
-    const styleManager = (window as any).__godsEyeView?.styleManager;
+    const styleManager = (window as any).__mapMonitoring?.styleManager;
     const el = document.getElementById(id);
     if (!styleManager?.setPanelCollapsed || !el) return;
     const collapsed = el.classList.contains('collapsed');
@@ -331,7 +331,7 @@ function FluidMenuHost() {
           footer={
             <button
               type="button"
-              className="gev-menu-popover-primary"
+              className="mm-menu-popover-primary"
               onClick={() => {
                 togglePanel(entry.id);
                 closeCard();
@@ -344,9 +344,9 @@ function FluidMenuHost() {
           {controls.length ? (
             controls.map((control) => <MirrorRow key={control.key} control={control} />)
           ) : (
-            <div className="gev-mirror-empty">Panel ini belum siap.</div>
+            <div className="mm-mirror-empty">Panel ini belum siap.</div>
           )}
-          {entry.note ? <div className="gev-mirror-note">{entry.note}</div> : null}
+          {entry.note ? <div className="mm-mirror-note">{entry.note}</div> : null}
         </MenuPopover>
       ) : null}
     </>

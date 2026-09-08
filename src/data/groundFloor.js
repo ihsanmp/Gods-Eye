@@ -392,7 +392,7 @@ const _meshCells = new Map();
  *  regime (photoreal stack). On globe stacks the rendered surface IS the
  *  terrain provider (Re:Earth on keyless), so the DEM is already correct
  *  there and mesh heights would float. Kept current by meshFloorSampler's
- *  'gev:map-stack-changed' listener. Photoreal is the boot default. */
+ *  'mm:map-stack-changed' listener. Photoreal is the boot default. */
 let _meshPreferred = true;
 
 /** @param {boolean} preferred - google-3d regime active. */

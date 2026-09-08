@@ -7,7 +7,7 @@
  * flying.
  */
 
-export const NAVIGATION_AUTHORITY_EVENT = 'gev:navigation-authority-taken';
+export const NAVIGATION_AUTHORITY_EVENT = 'mm:navigation-authority-taken';
 
 /**
  * Announce that a layer-owned camera flight is taking navigation authority.

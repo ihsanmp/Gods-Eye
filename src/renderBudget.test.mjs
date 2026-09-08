@@ -12,7 +12,7 @@ const main = readFileSync(new URL('./main.js', import.meta.url), 'utf8');
  * viewer construction against a live WebGL context, which no unit test here
  * has. What they defend is narrow and worth defending: the target machine is a
  * Core Ultra 7 155H with an Arc iGPU and no discrete card, and its .env asks for
- * GEV_RENDER_QUALITY=high — so every one of these clamps is the only thing
+ * MM_RENDER_QUALITY=high — so every one of these clamps is the only thing
  * standing between that preset and a pegged GPU.
  *
  * The first pass clamped MSAA and frame rate and left tile detail, tile cache
@@ -57,7 +57,7 @@ test('an absolute pixel ceiling backs the relative budget, and follows resizes',
 });
 
 test('the budget is overridable and floored, never zeroed by a bad value', () => {
-  assert.match(main, /Number\(import\.meta\.env\.GEV_GPU_BUDGET\)/);
+  assert.match(main, /Number\(import\.meta\.env\.MM_GPU_BUDGET\)/);
   // A typo or an empty env var must not resolve to a 0% budget and a zero-pixel
   // canvas; Number.isFinite gates it and the clamp floors it.
   assert.match(main, /Number\.isFinite\(budgetRaw\)/);
@@ -66,7 +66,7 @@ test('the budget is overridable and floored, never zeroed by a bad value', () =>
 });
 
 test('tile detail and cache are clamped on an iGPU, and only ever downward', () => {
-  // GEV_RENDER_QUALITY=high asks for a screen-space error of 1.5 - a discrete
+  // MM_RENDER_QUALITY=high asks for a screen-space error of 1.5 - a discrete
   // card's setting, and the heaviest thing on screen during a descent that
   // crosses every LOD level in four seconds.
   assert.match(main, /Math\.max\(quality\.screenSpaceError, 2\.5\)/,

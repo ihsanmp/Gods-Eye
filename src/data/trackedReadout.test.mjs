@@ -186,27 +186,27 @@ test('selection lifecycle ignores vessels, accepts installations, and clears wit
   try {
     initTrackedReadout(viewer);
     const setsBefore = recorder.calls.filter(({ op }) => op === 'set').length;
-    fakeWindow.dispatchEvent(new CustomEvent('gev:entity-selected', {
+    fakeWindow.dispatchEvent(new CustomEvent('mm:entity-selected', {
       detail: { layerId: 'ais-live-vessels', entity: installation },
     }));
     assert.equal(recorder.calls.filter(({ op }) => op === 'set').length, setsBefore);
 
-    fakeWindow.dispatchEvent(new CustomEvent('gev:entity-selected', {
+    fakeWindow.dispatchEvent(new CustomEvent('mm:entity-selected', {
       detail: { layerId: 'military-installations', entity: installation },
     }));
     assert.equal(getActiveTrackedReadoutId(), 'installations:fort-test');
     assert.equal(recorder.calls.filter(({ op }) => op === 'set').at(-1).entries[0].title, 'FORT TEST');
 
-    fakeWindow.dispatchEvent(new CustomEvent('gev:entity-selected', {
+    fakeWindow.dispatchEvent(new CustomEvent('mm:entity-selected', {
       detail: { layerId: 'ais-live-vessels', entity: installation },
     }));
     assert.equal(getActiveTrackedReadoutId(), null, 'sibling selection clears an installation card');
 
-    fakeWindow.dispatchEvent(new CustomEvent('gev:entity-selected', {
+    fakeWindow.dispatchEvent(new CustomEvent('mm:entity-selected', {
       detail: { layerId: 'military-installations', entity: installation },
     }));
 
-    fakeWindow.dispatchEvent(new CustomEvent('gev:entity-selection-cleared', {
+    fakeWindow.dispatchEvent(new CustomEvent('mm:entity-selection-cleared', {
       detail: { layerId: 'military-installations' },
     }));
     assert.equal(getActiveTrackedReadoutId(), null);

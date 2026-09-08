@@ -3,7 +3,7 @@
  */
 import * as Cesium from 'cesium';
 
-export const WORLD_FOCUS_REQUEST_EVENT = 'gev:world-request-focus';
+export const WORLD_FOCUS_REQUEST_EVENT = 'mm:world-request-focus';
 export const WORLD_CLICK_FOCUS_DURATION_SEC = 1.9;
 
 export const WORLD_FOCUS_FRAMING = Object.freeze({

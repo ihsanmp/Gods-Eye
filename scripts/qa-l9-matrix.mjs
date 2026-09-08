@@ -497,7 +497,7 @@ function readOverlaySummary(layerId, jsonPath) {
   };
 }
 
-const HARNESS_LOG_DIR = resolve(REPO_ROOT, '.gev-logs', 'qa-l9-matrix');
+const HARNESS_LOG_DIR = resolve(REPO_ROOT, '.mm-logs', 'qa-l9-matrix');
 /** Where D12 asks qa-overlay-baseline to write its machine-readable run. */
 const OVERLAY_JSON = resolve(HARNESS_LOG_DIR, 'D12-overlay-baseline.json');
 
@@ -603,7 +603,7 @@ check({
         return crash(`the runtime selected for the allocation gate (${label}) reports ${version || 'no parseable version'}, not Node 24 — the gate would refuse or silently skip, so this check verified nothing`);
       }
       const r = await sh(bin, [resolve(REPO_ROOT, 'scripts/run-unit-tests.mjs')], {
-        timeoutMs: 600000, env: { GEV_REQUIRE_ALLOCATION_GATE: '1' },
+        timeoutMs: 600000, env: { MM_REQUIRE_ALLOCATION_GATE: '1' },
       });
       return r.code === 0
         ? pass(`allocation gate ran under ${label} (${version}) and passed`)
@@ -714,8 +714,8 @@ check({
     const t = readFileSync(resolve(REPO_ROOT, '.env.example'), 'utf8');
     const bits = {
       lan: /HOST=0\.0\.0\.0/.test(t),
-      google: /GEV_RATELIMIT_GOOGLE_PER_MIN/.test(t),
-      openai: /GEV_RATELIMIT_OPENAI_PER_MIN/.test(t),
+      google: /MM_RATELIMIT_GOOGLE_PER_MIN/.test(t),
+      openai: /MM_RATELIMIT_OPENAI_PER_MIN/.test(t),
       notBilling: /not.*billing cap|billing cap/i.test(t),
     };
     const bad = Object.entries(bits).filter(([, v]) => !v).map(([k]) => k);
@@ -1191,7 +1191,7 @@ function selected(c) {
 }
 
 // ── browser group runner ──────────────────────────────────────────────────
-const BOOT_JS = () => window.__godsEyeView?.viewer && window.__godsEyeView?.dataManager;
+const BOOT_JS = () => window.__mapMonitoring?.viewer && window.__mapMonitoring?.dataManager;
 
 async function runBrowserGroup(record) {
   const ids = BROWSER_CHECKS.map(([id]) => id).filter((id) => selected(CHECKS.find((c) => c.id === id)));
@@ -1288,7 +1288,7 @@ async function runBrowserGroup(record) {
   let paint = null;
   if (booted) {
     const paintR = await mustEval(async () => {
-      const g = window.__godsEyeView;
+      const g = window.__mapMonitoring;
       // Wait for Cesium to actually render a frame, then confirm the canvas
       // holds non-blank pixels.
       const painted = await new Promise((resolve) => {
@@ -1328,7 +1328,7 @@ async function runBrowserGroup(record) {
   }
 
   // Cancel the intro flyTo: it clobbers any setView issued mid-flight.
-  await evalBounded(() => { try { window.__godsEyeView.viewer.camera.cancelFlight(); } catch { /* none */ } });
+  await evalBounded(() => { try { window.__mapMonitoring.viewer.camera.cancelFlight(); } catch { /* none */ } });
   await new Promise((r) => setTimeout(r, 3000));
 
   // Enable a layer, then poll its stats from THIS side. Polling in Node (many
@@ -1336,7 +1336,7 @@ async function runBrowserGroup(record) {
   // below the protocol timeout even when a layer stalls the main thread.
   const settle = async (layerId, maxSec = 45) => {
     const enabled = (await evalBounded(async (id) => {
-      const dm = window.__godsEyeView.dataManager;
+      const dm = window.__mapMonitoring.dataManager;
       if (!dm.layers.has(id)) return { missing: true };
       try {
         // setEnabled resolves when the whole lifecycle transaction settles —
@@ -1359,7 +1359,7 @@ async function runBrowserGroup(record) {
       await new Promise((r) => setTimeout(r, 1000));
       // eslint-disable-next-line no-await-in-loop
       const snap = await evalBounded((id) => {
-        const dm = window.__godsEyeView.dataManager;
+        const dm = window.__mapMonitoring.dataManager;
         const mod = dm.layers.get(id)?.module;
         const s = mod?.getStats ? mod.getStats() : null;
         const projected = dm.getAll().find((l) => l.id === id) || {};
@@ -1389,7 +1389,7 @@ async function runBrowserGroup(record) {
     if (quiesced) return;
     quiesced = true;
     await evalBounded(async () => {
-      const dm = window.__godsEyeView.dataManager;
+      const dm = window.__mapMonitoring.dataManager;
       const heavy = ['cctv', 'traffic', 'flights', 'satellites', 'telegeography-submarine-cables',
         'local-datacenters', 'local-dams', 'military-installations', 'earthquakes'];
       for (const id of heavy) {
@@ -1408,7 +1408,7 @@ async function runBrowserGroup(record) {
     // evidence: an OSM-only fallback would have satisfied the old OR-chain
     // while the headline feature was missing.
     const infoR = await mustEval(() => {
-      const g = window.__godsEyeView;
+      const g = window.__mapMonitoring;
       const prims = g.viewer.scene.primitives;
       const tilesets = [];
       for (let i = 0; i < prims.length; i += 1) {
@@ -1490,7 +1490,7 @@ async function runBrowserGroup(record) {
     for (let i = 0; i < 30; i += 1) {
       // eslint-disable-next-line no-await-in-loop
       ui = await evalBounded(() => {
-        const st = window.__godsEyeView.dataManager.layers.get('cctv')?.module?.getUIState?.();
+        const st = window.__mapMonitoring.dataManager.layers.get('cctv')?.module?.getUIState?.();
         return st ? { count: st.count, loading: st.loading, ambient: st.ambientCards, error: st.error } : null;
       }, null) || ui;
       if (ui && ui.count > 0 && (ui.ambient?.count || 0) > 0 && (ui.ambient?.frameFetches || 0) > 0) break;
@@ -1591,7 +1591,7 @@ async function runBrowserGroup(record) {
     // planet-sized road graph. Put the camera over a dense city first — that
     // is also the only altitude at which "live flow" means anything.
     await evalBounded(async () => {
-      const g = window.__godsEyeView;
+      const g = window.__mapMonitoring;
       g.viewer.camera.cancelFlight();
       g.styleManager.applyCameraState({ lat: 30.2672, lon: -97.7431, alt: 2500, heading: 0, pitch: -40 }, 1.2);
       await new Promise((r) => setTimeout(r, 3500));
@@ -1636,7 +1636,7 @@ async function runBrowserGroup(record) {
     // camera made this check report an empty layer that was actually fine.
     // Establish the camera this check needs instead of inheriting one.
     await evalBounded(async () => {
-      const g = window.__godsEyeView;
+      const g = window.__mapMonitoring;
       g.viewer.camera.cancelFlight();
       g.styleManager.applyCameraState({ lat: 20, lon: 0, alt: 14000000, heading: 0, pitch: -90 }, 1.5);
       await new Promise((r) => setTimeout(r, 4000));
@@ -1708,7 +1708,7 @@ async function runBrowserGroup(record) {
     // the horizon and blows past that even from low altitude, so look straight
     // down: nadir at 25 km spans well under a degree.
     await evalBounded(async (b) => {
-      const g = window.__godsEyeView;
+      const g = window.__mapMonitoring;
       g.viewer.camera.cancelFlight();
       g.styleManager.applyCameraState({ lat: b.lat, lon: b.lon, alt: 25000, heading: 0, pitch: -90 }, 1.2);
       await new Promise((r) => setTimeout(r, 4000));
@@ -1724,7 +1724,7 @@ async function runBrowserGroup(record) {
       if (ms.error && !/zoom.?in/i.test(String(ms.error))) break;
       // eslint-disable-next-line no-await-in-loop
       const snap = await evalBounded(() => {
-        const dm = window.__godsEyeView.dataManager;
+        const dm = window.__mapMonitoring.dataManager;
         // Nudge the viewport-driven reload: the layer reloads on camera settle.
         try { dm.layers.get('military-installations')?.module?.refresh?.(); } catch { /* optional */ }
         return dm.layers.get('military-installations')?.module?.getStats?.() ?? null;
@@ -1760,21 +1760,21 @@ async function runBrowserGroup(record) {
     // This check reads the credits of whatever THIS run switched on. Run
     // standalone (`--only C12`) nothing is on, and it would pass vacuously off
     // the static credit list — so self-arm a deterministic set first.
-    const armed = (await evalBounded(() => [...(window.__godsEyeView.dataManager.getEnabledLayerIds?.() || [])], null, 20000)) || [];
+    const armed = (await evalBounded(() => [...(window.__mapMonitoring.dataManager.getEnabledLayerIds?.() || [])], null, 20000)) || [];
     const SELF_ARM = ['flights', 'satellites', 'earthquakes', 'telegeography-submarine-cables'];
     if (armed.length === 0) {
       for (const id of SELF_ARM) {
         // eslint-disable-next-line no-await-in-loop
         await settle(id, 25);
       }
-      const nowOn = (await evalBounded(() => [...(window.__godsEyeView.dataManager.getEnabledLayerIds?.() || [])], null, 20000)) || [];
+      const nowOn = (await evalBounded(() => [...(window.__mapMonitoring.dataManager.getEnabledLayerIds?.() || [])], null, 20000)) || [];
       if (nowOn.length === 0) {
         return crash('no layers are enabled and self-arming failed — this check has nothing to verify credits against');
       }
     }
     const credR = await mustEval(async () => {
-      const viewer = window.__godsEyeView.viewer;
-      const dm = window.__godsEyeView.dataManager;
+      const viewer = window.__mapMonitoring.viewer;
+      const dm = window.__mapMonitoring.dataManager;
       viewer.scene.requestRender();
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
       const html = (viewer.creditDisplay._staticCredits || []).map((c) => c.html);
@@ -1814,8 +1814,8 @@ async function runBrowserGroup(record) {
 
   await step('C13', async () => {
     const stR = await mustEval(async () => {
-      const viewer = window.__godsEyeView.viewer;
-      window.__godsEyeView.styleManager.setCleanView(true);
+      const viewer = window.__mapMonitoring.viewer;
+      window.__mapMonitoring.styleManager.setCleanView(true);
       // Cesium paints the credit line during a render — force frames before
       // measuring, or a healthy credit reads as 0x0.
       for (let i = 0; i < 4; i += 1) {
@@ -1840,7 +1840,7 @@ async function runBrowserGroup(record) {
           .map((n) => n.getBoundingClientRect())
           .reduce((best, r) => ((r.width * r.height > best.w * best.h) ? { w: r.width, h: r.height } : best), { w: 0, h: 0 }),
       };
-      window.__godsEyeView.styleManager.setCleanView(false);
+      window.__mapMonitoring.styleManager.setCleanView(false);
       return out;
     }, null, 60000);
     if (!stR.ok) return crash(`could not measure the clean-UI credit line: ${stR.reason}`);
@@ -1883,7 +1883,7 @@ async function runBrowserGroup(record) {
     // the returned visual state actually changed to the requested style.
     const wanted = [['retro', 'CRT'], ['surveillance', 'NVG'], ['thermal', 'FLIR'], ['normal', 'Normal']];
     const rR = await mustEval(async (styles) => {
-      const g = window.__godsEyeView;
+      const g = window.__mapMonitoring;
       const cam = g.viewer.camera;
       const before = { x: cam.position.x, y: cam.position.y, z: cam.position.z };
       const seen = [];
@@ -1937,7 +1937,7 @@ async function runBrowserGroup(record) {
     // threshold, this check would "pass" while proving nothing about the reset
     // control at all.
     const setupR = await mustEval(async () => {
-      const g = window.__godsEyeView;
+      const g = window.__mapMonitoring;
       g.viewer.camera.cancelFlight();
       g.styleManager.applyCameraState({ lat: 30.2672, lon: -97.7431, alt: 3000, heading: 0, pitch: -35 }, 1.5);
       await new Promise((r) => setTimeout(r, 3000));
@@ -1962,7 +1962,7 @@ async function runBrowserGroup(record) {
       // eslint-disable-next-line no-await-in-loop
       await new Promise((r) => setTimeout(r, 1000));
       // eslint-disable-next-line no-await-in-loop
-      altKm = (await evalBounded(() => window.__godsEyeView.viewer.camera.positionCartographic.height / 1000, null, 20000)) ?? altKm;
+      altKm = (await evalBounded(() => window.__mapMonitoring.viewer.camera.positionCartographic.height / 1000, null, 20000)) ?? altKm;
       if (altKm > 5000) break;
     }
     return altKm > 5000
@@ -1991,27 +1991,27 @@ async function runBrowserGroup(record) {
     // Actually exercise the failure: with no key the token mint 503s, and the
     // product's job is to SAY SO. "A runner function exists" proved nothing.
     // (Free: the 503 happens before any session is created.)
-    const beforeR = await mustEval(() => document.querySelectorAll('#gev-voice-control').length, null, 45000);
+    const beforeR = await mustEval(() => document.querySelectorAll('#mm-voice-control').length, null, 45000);
     if (!beforeR.ok) return crash(`could not look for the voice control: ${beforeR.reason}`);
-    if (!beforeR.value) return fail('#gev-voice-control is absent — the voice surface never rendered');
+    if (!beforeR.value) return fail('#mm-voice-control is absent — the voice surface never rendered');
     const surfacedR = await mustEval(async () => {
       const vc = window.__gevVoiceCommands;
       try { await vc.start?.(); } catch { /* the rejection is the point */ }
       for (let i = 0; i < 20; i += 1) {
         // eslint-disable-next-line no-await-in-loop
         await new Promise((r) => setTimeout(r, 500));
-        const status = document.getElementById('gev-voice-status')?.textContent?.trim() || '';
+        const status = document.getElementById('mm-voice-status')?.textContent?.trim() || '';
         if (status && status !== 'CONNECTING') break;
       }
       let diag = null;
       try { diag = vc.getDiagnostics?.(); } catch { /* not started */ }
       return {
-        status: document.getElementById('gev-voice-status')?.textContent?.trim() || null,
-        detail: document.getElementById('gev-voice-detail')?.textContent?.trim() || null,
-        errorDetail: document.getElementById('gev-voice-error-detail')?.textContent?.trim() || null,
-        dataStatus: document.getElementById('gev-voice-control')?.dataset?.status || null,
+        status: document.getElementById('mm-voice-status')?.textContent?.trim() || null,
+        detail: document.getElementById('mm-voice-detail')?.textContent?.trim() || null,
+        errorDetail: document.getElementById('mm-voice-error-detail')?.textContent?.trim() || null,
+        dataStatus: document.getElementById('mm-voice-control')?.dataset?.status || null,
         recentError: diag?.recentErrors?.[0] ? { source: diag.recentErrors[0].source, message: diag.recentErrors[0].message } : null,
-        appAlive: !!window.__godsEyeView?.viewer,
+        appAlive: !!window.__mapMonitoring?.viewer,
       };
     }, null, 60000);
     if (!surfacedR.ok) return crash(`could not drive the keyless voice path: ${surfacedR.reason}`);

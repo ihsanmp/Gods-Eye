@@ -62,6 +62,6 @@ test('npm test stays green on every supported engine, not only the calibrated on
   // The runner throws for uncalibrated runtimes ONLY behind the explicit
   // opt-in env; by default it skips, so a supported non-24 engine cannot fail.
   const runner = readFileSync(new URL('../scripts/run-unit-tests.mjs', import.meta.url), 'utf8');
-  assert.match(runner, /GEV_REQUIRE_ALLOCATION_GATE/);
+  assert.match(runner, /MM_REQUIRE_ALLOCATION_GATE/);
   assert.match(runner, /SKIPPED .*allocation microbenchmarks/);
 });

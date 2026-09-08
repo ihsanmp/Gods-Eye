@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const voiceConfig = readFileSync(new URL('../../vite.config.js', import.meta.url), 'utf8');
-const realtime = readFileSync(new URL('./gevRealtime.js', import.meta.url), 'utf8');
+const realtime = readFileSync(new URL('./voiceRealtime.js', import.meta.url), 'utf8');
 
 test('aircraft identity narration acknowledges missing enrichment', () => {
   const start = voiceConfig.indexOf("'For \"what is this aircraft?\" answers");

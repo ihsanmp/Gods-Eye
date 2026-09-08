@@ -1,6 +1,6 @@
-# Contributing to God's Eye View
+# Contributing to Map Monitoring
 
-Thanks for being here. God's Eye View is an open foundation for live spatial intelligence in the browser, and it gets better when more people run it, break it, and extend it.
+Thanks for being here. Map Monitoring is an open foundation for live spatial intelligence in the browser, and it gets better when more people run it, break it, and extend it.
 
 ## Getting set up
 

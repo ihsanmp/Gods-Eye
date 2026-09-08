@@ -1,6 +1,6 @@
 # Desktop launcher
 
-Menjalankan God's Eye View sebagai aplikasi Windows: ikon di Desktop dan menu
+Menjalankan Map Monitoring sebagai aplikasi Windows: ikon di Desktop dan menu
 Start, jendela sendiri tanpa tab dan address bar, dan entri di
 **Settings > Apps > Installed apps**.
 

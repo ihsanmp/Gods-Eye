@@ -206,12 +206,12 @@
  * would otherwise beat any plain class in this block and strip the card's own
  * padding and borders back off again.
  */
-#fluid-menu-root .gev-menu-popover,
-#fluid-menu-root .gev-menu-popover * {
+#fluid-menu-root .mm-menu-popover,
+#fluid-menu-root .mm-menu-popover * {
   box-sizing: border-box;
 }
 
-#fluid-menu-root .gev-menu-popover {
+#fluid-menu-root .mm-menu-popover {
   position: absolute;
   /* Clear of the 64px circles that start at left: 24px. */
   left: 76px;
@@ -229,14 +229,14 @@
   font-family: ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif;
 }
 
-#fluid-menu-root .gev-menu-popover-title {
+#fluid-menu-root .mm-menu-popover-title {
   font-size: 14px;
   font-weight: 600;
   color: #f4f4f5;
   letter-spacing: 0;
 }
 
-#fluid-menu-root .gev-menu-popover-desc {
+#fluid-menu-root .mm-menu-popover-desc {
   margin-top: 3px;
   margin-bottom: 14px;
   font-size: 12.5px;
@@ -244,7 +244,7 @@
   color: #9ca3af;
 }
 
-#fluid-menu-root .gev-menu-popover-body {
+#fluid-menu-root .mm-menu-popover-body {
   flex: 1 1 auto;
   overflow-y: auto;
   /* Negative margin so a row's hover fill reaches the card's padding edge. */
@@ -252,20 +252,20 @@
   padding: 0 4px;
 }
 
-#fluid-menu-root .gev-menu-popover-body::-webkit-scrollbar {
+#fluid-menu-root .mm-menu-popover-body::-webkit-scrollbar {
   width: 6px;
 }
 
-#fluid-menu-root .gev-menu-popover-body::-webkit-scrollbar-thumb {
+#fluid-menu-root .mm-menu-popover-body::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.14);
   border-radius: 999px;
 }
 
-#fluid-menu-root .gev-menu-popover-footer {
+#fluid-menu-root .mm-menu-popover-footer {
   margin-top: 14px;
 }
 
-#fluid-menu-root .gev-menu-popover-primary {
+#fluid-menu-root .mm-menu-popover-primary {
   padding: 7px 14px;
   border-radius: 8px;
   border: 0;
@@ -277,14 +277,14 @@
   cursor: pointer;
 }
 
-#fluid-menu-root .gev-menu-popover-primary:hover {
+#fluid-menu-root .mm-menu-popover-primary:hover {
   background: #ffffff;
   color: #111318;
 }
 
 /* ---- mirrored rows ---- */
 
-#fluid-menu-root .gev-mirror-row {
+#fluid-menu-root .mm-mirror-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -302,23 +302,23 @@
   cursor: pointer;
 }
 
-#fluid-menu-root .gev-mirror-row:hover {
+#fluid-menu-root .mm-mirror-row:hover {
   background: rgba(255, 255, 255, 0.06);
   color: #ffffff;
 }
 
-#fluid-menu-root .gev-mirror-row[data-on='true'] {
+#fluid-menu-root .mm-mirror-row[data-on='true'] {
   background: rgba(255, 255, 255, 0.09);
   border-color: rgba(255, 255, 255, 0.14);
   color: #ffffff;
 }
 
-#fluid-menu-root .gev-mirror-row:disabled {
+#fluid-menu-root .mm-mirror-row:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
 
-#fluid-menu-root .gev-mirror-label {
+#fluid-menu-root .mm-mirror-label {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
@@ -326,7 +326,7 @@
   white-space: nowrap;
 }
 
-#fluid-menu-root .gev-mirror-chip {
+#fluid-menu-root .mm-mirror-chip {
   flex: 0 0 auto;
   padding: 2px 7px;
   border-radius: 999px;
@@ -337,17 +337,17 @@
   letter-spacing: 0.08em;
 }
 
-#fluid-menu-root .gev-mirror-chip[data-on='true'] {
+#fluid-menu-root .mm-mirror-chip[data-on='true'] {
   background: #e5e7eb;
   border-color: transparent;
   color: #111318;
 }
 
-#fluid-menu-root .gev-mirror-check {
+#fluid-menu-root .mm-mirror-check {
   cursor: pointer;
 }
 
-#fluid-menu-root .gev-mirror-check input {
+#fluid-menu-root .mm-mirror-check input {
   flex: 0 0 auto;
   accent-color: #e5e7eb;
   cursor: pointer;
@@ -355,12 +355,12 @@
 
 /* ---- fields: selects, text, sliders ---- */
 
-#fluid-menu-root .gev-mirror-field {
+#fluid-menu-root .mm-mirror-field {
   display: block;
   margin: 10px 2px;
 }
 
-#fluid-menu-root .gev-mirror-field .gev-mirror-label {
+#fluid-menu-root .mm-mirror-field .mm-mirror-label {
   display: block;
   margin-bottom: 5px;
   font-size: 11.5px;
@@ -369,8 +369,8 @@
   white-space: normal;
 }
 
-#fluid-menu-root .gev-mirror-field select,
-#fluid-menu-root .gev-mirror-field input[type='text'] {
+#fluid-menu-root .mm-mirror-field select,
+#fluid-menu-root .mm-mirror-field input[type='text'] {
   width: 100%;
   padding: 7px 9px;
   border-radius: 8px;
@@ -381,30 +381,30 @@
   font-size: 12.5px;
 }
 
-#fluid-menu-root .gev-mirror-field select:focus,
-#fluid-menu-root .gev-mirror-field input[type='text']:focus {
+#fluid-menu-root .mm-mirror-field select:focus,
+#fluid-menu-root .mm-mirror-field input[type='text']:focus {
   outline: none;
   border-color: rgba(255, 255, 255, 0.34);
 }
 
-#fluid-menu-root .gev-mirror-field select option {
+#fluid-menu-root .mm-mirror-field select option {
   background: #111318;
   color: #f4f4f5;
 }
 
-#fluid-menu-root .gev-mirror-field input[type='range'] {
+#fluid-menu-root .mm-mirror-field input[type='range'] {
   width: 100%;
   accent-color: #e5e7eb;
 }
 
-#fluid-menu-root .gev-mirror-note {
+#fluid-menu-root .mm-mirror-note {
   margin-top: 10px;
   font-size: 11.5px;
   line-height: 1.45;
   color: #8b8b93;
 }
 
-#fluid-menu-root .gev-mirror-empty {
+#fluid-menu-root .mm-mirror-empty {
   padding: 6px 2px;
   font-size: 12.5px;
   color: #8b8b93;
@@ -414,8 +414,8 @@
    DIRECTIONS INSIDE THE SEARCH BAR
    ============================================================ */
 
-#spotlight-root .gev-chosen,
-#spotlight-root .gev-routebar {
+#spotlight-root .mm-chosen,
+#spotlight-root .mm-routebar {
   width: 100%;
   padding: 10px 18px 14px;
   border-top: 1px solid rgba(0, 0, 0, 0.08);
@@ -425,13 +425,13 @@
   font-size: 13px;
 }
 
-#spotlight-root .gev-chosen {
+#spotlight-root .mm-chosen {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-#spotlight-root .gev-chosen-name {
+#spotlight-root .mm-chosen-name {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
@@ -444,7 +444,7 @@
    only the width it needs — the name keeps the slack, because the name is what
    a long row should ellipsise. The row is absent entirely when there is no
    reading, so this never reserves space for nothing. */
-#spotlight-root .gev-chosen-weather {
+#spotlight-root .mm-chosen-weather {
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
@@ -453,25 +453,25 @@
   white-space: nowrap;
 }
 
-#spotlight-root .gev-chosen-weather-now {
+#spotlight-root .mm-chosen-weather-now {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
-#spotlight-root .gev-chosen-weather-detail {
+#spotlight-root .mm-chosen-weather-detail {
   font-size: 11px;
   color: #5b5f66;
   font-variant-numeric: tabular-nums;
 }
 
-#spotlight-root .gev-routebar-row {
+#spotlight-root .mm-routebar-row {
   display: flex;
   align-items: center;
   gap: 6px;
   margin-bottom: 6px;
 }
 
-#spotlight-root .gev-routebar-tag {
+#spotlight-root .mm-routebar-tag {
   flex: 0 0 34px;
   font-size: 10px;
   font-weight: 600;
@@ -479,7 +479,7 @@
   color: #6b7280;
 }
 
-#spotlight-root .gev-routebar input {
+#spotlight-root .mm-routebar input {
   flex: 1 1 auto;
   min-width: 0;
   padding: 6px 9px;
@@ -490,13 +490,13 @@
   font: inherit;
 }
 
-#spotlight-root .gev-routebar input:focus {
+#spotlight-root .mm-routebar input:focus {
   outline: none;
   border-color: rgba(0, 0, 0, 0.34);
 }
 
-#spotlight-root .gev-chosen button,
-#spotlight-root .gev-routebar button {
+#spotlight-root .mm-chosen button,
+#spotlight-root .mm-routebar button {
   flex: 0 0 auto;
   padding: 5px 10px;
   border: 1px solid rgba(0, 0, 0, 0.14);
@@ -509,27 +509,27 @@
   cursor: pointer;
 }
 
-#spotlight-root .gev-chosen button:hover,
-#spotlight-root .gev-routebar button:hover {
+#spotlight-root .mm-chosen button:hover,
+#spotlight-root .mm-routebar button:hover {
   background: #111318;
   border-color: #111318;
   color: #ffffff;
 }
 
-#spotlight-root .gev-routebar button[data-on='true'] {
+#spotlight-root .mm-routebar button[data-on='true'] {
   background: #111318;
   border-color: #111318;
   color: #ffffff;
 }
 
-#spotlight-root .gev-chosen-go,
-#spotlight-root .gev-routebar-go {
+#spotlight-root .mm-chosen-go,
+#spotlight-root .mm-routebar-go {
   background: #111318;
   border-color: #111318;
   color: #ffffff;
 }
 
-#spotlight-root .gev-routebar-actions {
+#spotlight-root .mm-routebar-actions {
   margin-top: 2px;
   flex-wrap: wrap;
 }
@@ -540,37 +540,37 @@
  * their colours are restated for the surface they are currently sitting on -
  * the geometry is left exactly as the panel set it.
  */
-#spotlight-root .gev-routebar-output {
+#spotlight-root .mm-routebar-output {
   margin-top: 4px;
 }
 
-#spotlight-root .gev-routebar-output #route-status,
-#spotlight-root .gev-routebar-output .route-note {
+#spotlight-root .mm-routebar-output #route-status,
+#spotlight-root .mm-routebar-output .route-note {
   color: #6b7280;
 }
 
-#spotlight-root .gev-routebar-output .route-headline,
-#spotlight-root .gev-routebar-output .route-headline strong,
-#spotlight-root .gev-routebar-output .route-info-strong {
+#spotlight-root .mm-routebar-output .route-headline,
+#spotlight-root .mm-routebar-output .route-headline strong,
+#spotlight-root .mm-routebar-output .route-info-strong {
   color: #111318;
 }
 
-#spotlight-root .gev-routebar-output .route-info-card {
+#spotlight-root .mm-routebar-output .route-info-card {
   background: rgba(0, 0, 0, 0.04);
   border-color: rgba(0, 0, 0, 0.1);
 }
 
-#spotlight-root .gev-routebar-output .route-info-title,
-#spotlight-root .gev-routebar-output .route-info-sub,
-#spotlight-root .gev-routebar-output .route-info-note {
+#spotlight-root .mm-routebar-output .route-info-title,
+#spotlight-root .mm-routebar-output .route-info-sub,
+#spotlight-root .mm-routebar-output .route-info-note {
   color: #6b7280;
 }
 
-#spotlight-root .gev-routebar-output .route-info-body {
+#spotlight-root .mm-routebar-output .route-info-body {
   color: #374151;
 }
 
-#spotlight-root .gev-routebar-output .route-info-action {
+#spotlight-root .mm-routebar-output .route-info-action {
   border: 1px solid rgba(0, 0, 0, 0.14);
   background: #ffffff;
   color: #374151;
@@ -580,7 +580,7 @@
    PHONE / PLATE LOOKUP CARD (in the search bar)
    ============================================================ */
 
-#spotlight-root .gev-lookup {
+#spotlight-root .mm-lookup {
   width: 100%;
   padding: 12px 18px 14px;
   border-top: 1px solid rgba(0, 0, 0, 0.08);
@@ -589,7 +589,7 @@
   font-family: Inter, ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif;
 }
 
-#spotlight-root .gev-lookup-head {
+#spotlight-root .mm-lookup-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -597,18 +597,18 @@
   margin-bottom: 10px;
 }
 
-#spotlight-root .gev-lookup-title {
+#spotlight-root .mm-lookup-title {
   font-size: 15px;
   font-weight: 600;
 }
 
-#spotlight-root .gev-lookup-subtitle {
+#spotlight-root .mm-lookup-subtitle {
   margin-top: 1px;
   font-size: 11.5px;
   color: #6b7280;
 }
 
-#spotlight-root .gev-lookup-head button {
+#spotlight-root .mm-lookup-head button {
   flex: 0 0 auto;
   padding: 5px 10px;
   border: 1px solid rgba(0, 0, 0, 0.14);
@@ -621,20 +621,20 @@
   cursor: pointer;
 }
 
-#spotlight-root .gev-lookup-head button:hover {
+#spotlight-root .mm-lookup-head button:hover {
   background: #111318;
   border-color: #111318;
   color: #ffffff;
 }
 
-#spotlight-root .gev-lookup-rows {
+#spotlight-root .mm-lookup-rows {
   margin: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-#spotlight-root .gev-lookup-row {
+#spotlight-root .mm-lookup-row {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -643,13 +643,13 @@
   border-bottom: 1px solid rgba(0, 0, 0, 0.05);
 }
 
-#spotlight-root .gev-lookup-row dt {
+#spotlight-root .mm-lookup-row dt {
   flex: 0 0 auto;
   font-size: 12px;
   color: #6b7280;
 }
 
-#spotlight-root .gev-lookup-row dd {
+#spotlight-root .mm-lookup-row dd {
   margin: 0;
   text-align: right;
   font-size: 12.5px;
@@ -657,7 +657,7 @@
   color: #111318;
 }
 
-#spotlight-root .gev-lookup-note {
+#spotlight-root .mm-lookup-note {
   margin-top: 10px;
   padding: 7px 9px;
   border-radius: 8px;

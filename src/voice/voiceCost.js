@@ -4,7 +4,7 @@
  *
  * Pure module (no DOM, no network, no imports) so it can be shared by three
  * callers that cannot share anything else:
- *   1. the browser voice UI (`gevRealtime.js`) — live "~$0.42" readout + caps
+ *   1. the browser voice UI (`voiceRealtime.js`) — live "~$0.42" readout + caps
  *   2. the dev-server token endpoint (`vite.config.js` → `/api/realtime/token`)
  *   3. unit tests (`voiceCost.test.mjs`)
  *

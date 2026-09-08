@@ -217,10 +217,10 @@ async function main() {
     console.log('Loading app...');
     await page.goto(withDetectDebug(APP_URL), { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.waitForFunction(
-      () => window.__godsEyeView
-        && window.__godsEyeView.viewer
-        && window.__godsEyeView.dataManager
-        && window.__godsEyeView.styleManager,
+      () => window.__mapMonitoring
+        && window.__mapMonitoring.viewer
+        && window.__mapMonitoring.dataManager
+        && window.__mapMonitoring.styleManager,
       { timeout: 60000 },
     );
     await sleep(1500);
@@ -228,9 +228,9 @@ async function main() {
     // ── (0) Manager-owned periodic refresh → shared work/failure/recovery ──
     console.log('\n(0) Universal periodic refresh feedback...');
     const refreshFeedback = await page.evaluate(async () => {
-      const dm = window.__godsEyeView.dataManager;
+      const dm = window.__mapMonitoring.dataManager;
       const ids = ['flights', 'military', 'satellites'];
-      const styleManager = window.__godsEyeView.styleManager;
+      const styleManager = window.__mapMonitoring.styleManager;
       const outcomes = [];
       const readBanner = () => ({
         hidden: document.getElementById('global-loading-status')?.hidden,
@@ -334,7 +334,7 @@ async function main() {
     // ── (i) AIS invalid key → surfaced error, not a clean empty ──────────────
     console.log('\n(i) AIS invalid-key: enabling ais-live-vessels...');
     const aisStats = await page.evaluate(async () => {
-      const dm = window.__godsEyeView.dataManager;
+      const dm = window.__mapMonitoring.dataManager;
       await dm.setEnabled('ais-live-vessels', true);
       const mod = dm.layers.get('ais-live-vessels').module;
       // DataLayerManager intentionally treats enable() as a synchronous
@@ -380,7 +380,7 @@ async function main() {
     // ── (ii) CelesTrak outage on re-enable → catalog NOT wiped, error set ────
     console.log('\n(ii) Satellites: building a good catalog first...');
     const goodStats = await page.evaluate(async () => {
-      const dm = window.__godsEyeView.dataManager;
+      const dm = window.__mapMonitoring.dataManager;
       await dm.setEnabled('satellites', true);
       await new Promise((r) => setTimeout(r, 800));
       const mod = dm.layers.get('satellites').module;
@@ -398,7 +398,7 @@ async function main() {
       console.log('     Failing one CelesTrak group and verifying the visible degraded state...');
       mode.celestrak = 'partial';
       const partialStats = await page.evaluate(async () => {
-        const dm = window.__godsEyeView.dataManager;
+        const dm = window.__mapMonitoring.dataManager;
         await dm.setEnabled('satellites', false);
         await new Promise((r) => setTimeout(r, 200));
         await dm.setEnabled('satellites', true);
@@ -428,7 +428,7 @@ async function main() {
       console.log('     Flipping ALL CelesTrak groups to 503 and toggling satellites off→on...');
       mode.celestrak = 'down';
       const outageStats = await page.evaluate(async (baseline) => {
-        const dm = window.__godsEyeView.dataManager;
+        const dm = window.__mapMonitoring.dataManager;
         // Toggle off then on — the re-enable's update() re-fetches (now all 503).
         await dm.setEnabled('satellites', false);
         await new Promise((r) => setTimeout(r, 200));
@@ -473,7 +473,7 @@ async function main() {
     // ── (iii) DETECT with no data layers → mode banner drawn (non-blank) ─────
     console.log('\n(iii) DETECT with no data layers: disabling data layers, enabling panoptic...');
     const detect = await page.evaluate(async () => {
-      const gev = window.__godsEyeView;
+      const gev = window.__mapMonitoring;
       const dm = gev.dataManager;
       // Turn OFF every data layer so detection collects zero objects.
       for (const [id, entry] of dm.layers) {

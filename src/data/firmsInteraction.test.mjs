@@ -300,7 +300,7 @@ test('a refresh that drops the selected fire emits an eviction the readout can a
     withDataSource: true,
   });
   const cleared = [];
-  h.windowTarget.addEventListener('gev:entity-selection-cleared', (e) => cleared.push(e.detail));
+  h.windowTarget.addEventListener('mm:entity-selection-cleared', (e) => cleared.push(e.detail));
   const priorFetch = globalThis.fetch;
 
   try {

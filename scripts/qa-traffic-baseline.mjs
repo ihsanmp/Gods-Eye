@@ -96,7 +96,7 @@ function debugUrl(rawUrl) {
 /** Position the camera and explicitly raise the boundaries the layer observes. */
 async function moveCamera(page, view) {
   return page.evaluate((v) => {
-    const gev = window.__godsEyeView;
+    const gev = window.__mapMonitoring;
     const module = gev.dataManager.layers.get('traffic').module;
     const beforeLastUpdate = module.getStats().lastUpdate;
     const boundaryTime = performance.now();
@@ -129,7 +129,7 @@ async function moveCamera(page, view) {
 async function waitForTrafficCapture(page, beforeLastUpdate, boundaryTime) {
   await page.waitForFunction(
     (before, boundary) => {
-      const module = window.__godsEyeView?.dataManager?.layers?.get('traffic')?.module;
+      const module = window.__mapMonitoring?.dataManager?.layers?.get('traffic')?.module;
       if (!module) return false;
       const stats = module.getStats();
       if (stats.lastUpdate === before || stats.count <= 0 || stats.loading) return false;
@@ -272,7 +272,7 @@ function rowsForCapture(capture) {
 /** Read the active WebGL renderer for the real-GPU/SwiftShader warning. */
 function readRenderer(page) {
   return page.evaluate(() => {
-    const gl = window.__godsEyeView?.viewer?.scene?.context?._gl;
+    const gl = window.__mapMonitoring?.viewer?.scene?.context?._gl;
     if (!gl) return 'unknown';
     const extension = gl.getExtension('WEBGL_debug_renderer_info');
     return extension
@@ -343,14 +343,14 @@ async function main() {
 
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 });
     await page.waitForFunction(
-      () => window.__godsEyeView?.viewer && window.__godsEyeView?.dataManager,
+      () => window.__mapMonitoring?.viewer && window.__mapMonitoring?.dataManager,
       { timeout: 60_000 },
     );
 
     // Disable all persisted overlays, park above traffic's activation ceiling,
     // then enable traffic without accidentally starting an unmeasured load.
     await page.evaluate(async (highView) => {
-      const gev = window.__godsEyeView;
+      const gev = window.__mapMonitoring;
       await gev.dataManager.restoreEnabledLayerIds([]);
       const ellipsoid = gev.viewer.scene.globe.ellipsoid;
       const radians = Math.PI / 180;
@@ -387,7 +387,7 @@ async function main() {
     // Clear the last-bounds gate without clearing the module's road cache, then
     // revisit the byte-identical camera pose for a true client-cache hit.
     await page.evaluate((view) => {
-      const gev = window.__godsEyeView;
+      const gev = window.__mapMonitoring;
       const ellipsoid = gev.viewer.scene.globe.ellipsoid;
       const radians = Math.PI / 180;
       gev.viewer.camera.setView({
@@ -456,7 +456,7 @@ async function main() {
     console.log('  - Measurement caveat: timings include instrumentation overhead (observer effect) and browser clock-floor quantization.');
     console.log('  - Per-road clock observations inside road-parse-total/waypoint-materialization slightly overstate production work.');
     const timingDiagnostics = await page.evaluate(() => (
-      window.__godsEyeView.dataManager.layers.get('traffic').module.getStats().trafficTiming
+      window.__mapMonitoring.dataManager.layers.get('traffic').module.getStats().trafficTiming
     ));
     console.log(`  - Correlation drops: ${timingDiagnostics?.uncorrelatedTracesDropped ?? 'unavailable'} scheduling-anchor mismatch(es).`);
     if (!HEADFUL || softwareRenderer) {

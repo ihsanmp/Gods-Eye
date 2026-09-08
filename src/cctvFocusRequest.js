@@ -1,4 +1,4 @@
-export const CCTV_FOCUS_REQUEST_EVENT = 'gev:cctv-request-focus';
+export const CCTV_FOCUS_REQUEST_EVENT = 'mm:cctv-request-focus';
 export const CCTV_WORLD_CLICK_FOCUS_DURATION_SEC = 1.9;
 export const CCTV_ACTIVATION_RESULT = Object.freeze({
   ACTIVATED: 'activated',

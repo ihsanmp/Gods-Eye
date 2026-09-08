@@ -334,7 +334,7 @@ let _activeTileset = null;
 // scene.globe.show) against this so bing→osm switches (same 'terrain-globe'
 // regime) don't trigger a pointless full-catalog rewrite.
 let _lastAppliedRegime = null;
-// Task 5: window listener handle for the 'gev:map-stack-changed' CustomEvent
+// Task 5: window listener handle for the 'mm:map-stack-changed' CustomEvent
 // main.js dispatches from MapStackController's onChange (removed in destroy).
 let _mapStackListener = null;
 // Field-test fix (2026-07-06): camera.moveEnd handle for the horizon-culling
@@ -2560,7 +2560,7 @@ function applyLateGroundPriors(records, priors) {
 }
 
 /**
- * Task 5: surface-regime change handler ('gev:map-stack-changed'
+ * Task 5: surface-regime change handler ('mm:map-stack-changed'
  * CustomEvent, dispatched by main.js from MapStackController.onChange). The
  * surface HEIGHT at a camera differs between regimes (a photogrammetric
  * deck/building-top in google-3d vs bare Re:Earth DEM on globe stacks), so
@@ -4595,7 +4595,7 @@ const cctvLayer = {
     _lastAppliedRegime = currentSurfaceRegime();
     if (!_mapStackListener && typeof window !== 'undefined') {
       _mapStackListener = () => handleMapStackChanged();
-      window.addEventListener('gev:map-stack-changed', _mapStackListener);
+      window.addEventListener('mm:map-stack-changed', _mapStackListener);
     }
 
     // Field-test fix (2026-07-06): horizon-cull on camera settle (pairs with
@@ -4772,7 +4772,7 @@ const cctvLayer = {
   destroy(viewer) {
     unregisterPickOwner('cctv');
     if (_mapStackListener && typeof window !== 'undefined') {
-      window.removeEventListener('gev:map-stack-changed', _mapStackListener);
+      window.removeEventListener('mm:map-stack-changed', _mapStackListener);
       _mapStackListener = null;
     }
     const teardownViewer = viewer || _viewer;

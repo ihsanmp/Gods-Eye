@@ -18,7 +18,7 @@ import localDataLayers from './data/localLayers.js';
 import { LAYER_STATE_REGISTRY } from './data/layerState.js';
 import { registerDataCredits } from './data/dataCredits.js';
 import { SceneDirector } from './scenes/director.js';
-import { initGevVoiceCommands } from './voice/gevRealtime.js';
+import { initVoiceCommands } from './voice/voiceRealtime.js';
 import { MapStackController } from './mapStackController.js';
 import { initAnnotations } from './annotations/index.js';
 import { initLogoGaze } from './logoGaze.js';
@@ -63,14 +63,14 @@ const legacyFallback = (marker) => (error) => {
 
 import('./spotlightMount.tsx')
   .then(({ mountSpotlight }) => mountSpotlight())
-  .catch(legacyFallback('gev-spotlight-unavailable'));
+  .catch(legacyFallback('mm-spotlight-unavailable'));
 
 // One fluid menu in place of the seven scattered panel chips. Mounted after the
 // app so the panels it toggles already exist in the DOM.
 window.addEventListener('load', () => {
   import('./fluidMenuMount.tsx')
     .then(({ mountFluidMenu }) => mountFluidMenu())
-    .catch(legacyFallback('gev-fluid-menu-unavailable'));
+    .catch(legacyFallback('mm-fluid-menu-unavailable'));
 
   // Top-right clock reading the time where the camera is looking. Lazy for the
   // same reason as the menu - it carries a 72 KB timezone dataset that a
@@ -136,7 +136,7 @@ async function init() {
      * first place — rather than issuing it and falling back after it fails,
      * which is what the catch block below is for.
      */
-    const requestedMapStack = String(import.meta.env.GEV_MAP_STACK || 'osm').toLowerCase();
+    const requestedMapStack = String(import.meta.env.MM_MAP_STACK || 'osm').toLowerCase();
     const wantsPhotoreal = requestedMapStack === 'photoreal';
 
     // Google Maps key. Optional: it buys the photoreal globe and the Google
@@ -150,7 +150,7 @@ async function init() {
       window.__GOOGLE_MAPS_API_KEY__ = googleApiKey;
     }
     if (wantsPhotoreal && !googleApiKey) {
-      throw new Error('GEV_MAP_STACK=photoreal needs GOOGLE_MAPS_API_KEY. Set the key, or use GEV_MAP_STACK=osm.');
+      throw new Error('MM_MAP_STACK=photoreal needs GOOGLE_MAPS_API_KEY. Set the key, or use MM_MAP_STACK=osm.');
     }
 
     // Create the Cesium viewer with minimal chrome
@@ -203,7 +203,7 @@ async function init() {
     // which is the single biggest source of softness in the keyless stacks (there
     // are no Google 3D Tiles to carry detail). maximumScreenSpaceError is the tile
     // LOD knob: lower loads finer imagery/terrain at the same camera distance.
-    // Both cost GPU, so GEV_RENDER_QUALITY dials them back without a code edit.
+    // Both cost GPU, so MM_RENDER_QUALITY dials them back without a code edit.
     //
     // `msaa` and `targetFps` were added after measuring the running app: MSAA
     // was 4x and the frame rate was uncapped at 60, and those two were the
@@ -221,7 +221,7 @@ async function init() {
     // Default is BALANCED, not high. The brief was to reduce this machine's
     // load, and balanced is the honest reading of that: half the MSAA, a 45 fps
     // cap, a lighter tile cache and pixel ratio, for a difference most eyes
-    // cannot pick out against the cost it saves. GEV_RENDER_QUALITY=high opts
+    // cannot pick out against the cost it saves. MM_RENDER_QUALITY=high opts
     // back into the maximum for a machine that wants it.
     /*
      * Pinch to zoom, on a trackpad.
@@ -266,7 +266,7 @@ async function init() {
       () => governorRequestRender('trackpad-zoom'),
     );
 
-    const qualityKey = String(import.meta.env.GEV_RENDER_QUALITY || 'balanced').toLowerCase();
+    const qualityKey = String(import.meta.env.MM_RENDER_QUALITY || 'balanced').toLowerCase();
     const quality = RENDER_QUALITY_PRESETS[qualityKey] || RENDER_QUALITY_PRESETS.balanced;
     // Turning this off makes Cesium adopt devicePixelRatio as its pixel ratio;
     // resolutionScale then multiplies ON TOP of that, so the cap has to be
@@ -324,10 +324,10 @@ async function init() {
      * a particular value.
      *
      * Full resolution is kept for a discrete card, which does not need the help.
-     * GEV_GPU_BUDGET overrides either way; the floor is 40 because below that
+     * MM_GPU_BUDGET overrides either way; the floor is 40 because below that
      * the globe is soft enough to look broken rather than economical.
      */
-    const budgetRaw = Number(import.meta.env.GEV_GPU_BUDGET);
+    const budgetRaw = Number(import.meta.env.MM_GPU_BUDGET);
     const gpuBudget = Number.isFinite(budgetRaw)
       ? Math.min(100, Math.max(40, budgetRaw))
       : (gpu.integrated ? 70 : 100);
@@ -378,7 +378,7 @@ async function init() {
 
     /*
      * Tile detail and cache are clamped for the same reason MSAA and frame rate
-     * are, and were the levers the first pass left out. GEV_RENDER_QUALITY=high
+     * are, and were the levers the first pass left out. MM_RENDER_QUALITY=high
      * asks for a screen-space error of 1.5 - a very sharp globe, and a great
      * many more tiles drawn, decoded and uploaded per frame. That is a discrete
      * card's setting. On the shared memory bandwidth of an iGPU it is the
@@ -397,7 +397,7 @@ async function init() {
     if (gpu.integrated) {
       // eslint-disable-next-line no-console
       console.info(
-        `[gev] integrated GPU detected (${gpu.renderer || 'unknown'}); `
+        `[mm] integrated GPU detected (${gpu.renderer || 'unknown'}); `
         + `MSAA ${msaa === 1 ? "off" : msaa}, sharpen off, ${targetFps} fps, ${gpuBudget}% pixel budget `
         + `(resolutionScale ${viewer.resolutionScale.toFixed(3)}), SSE>=${screenSpaceError}, cache<=${tileCache}. `
         // The number that actually decides whether this chip copes. A ratio
@@ -506,7 +506,7 @@ async function init() {
       // 'switching'/'ready'/'error'; listeners derive the surface regime from
       // live scene state, so intermediate emissions are harmless.
       onChange: (state) => {
-        window.dispatchEvent(new CustomEvent('gev:map-stack-changed', { detail: state }));
+        window.dispatchEvent(new CustomEvent('mm:map-stack-changed', { detail: state }));
       },
       onError: (message) => console.warn('[MapStack]', message),
     });
@@ -640,7 +640,7 @@ async function init() {
     // loop burning behind a hidden tab. (perf wave 2 fix)
     syncVisibilitySuspension();
 
-    window.__godsEyeView = {
+    window.__mapMonitoring = {
       viewer,
       styleManager,
       tileset,
@@ -653,7 +653,7 @@ async function init() {
       getRenderGovernorDiagnostics,
       requestRender: governorRequestRender,
     };
-    window.__godsEyeView.voiceCommands = initGevVoiceCommands({ viewer, styleManager, dataManager, sceneDirector, annotations });
+    window.__mapMonitoring.voiceCommands = initVoiceCommands({ viewer, styleManager, dataManager, sceneDirector, annotations });
 
   } catch (error) {
     console.error("God's Eye View initialization failed:", error);

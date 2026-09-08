@@ -5,8 +5,13 @@ dist
 screenshots/
 qa-shots/
 output/
+# Runtime logs and caches. Both spellings: the project rename moved the app to
+# .mm-*, and an install that ran the older build still has .gev-* on disk. The
+# realtime log holds voice conversation text — it must never reach a commit.
 .gev-logs/
 .gev-cache/
+.mm-logs/
+.mm-cache/
 .DS_Store
 .gstack/
 3d-models/

@@ -109,7 +109,7 @@ async function waitForCardCanvasInk(page, { timeoutMs = 12000 } = {}) {
   let consecutive = 0;
   let sample = null;
   while (Date.now() < deadline) {
-    await page.evaluate(() => window.__godsEyeView?.viewer?.scene?.requestRender?.());
+    await page.evaluate(() => window.__mapMonitoring?.viewer?.scene?.requestRender?.());
     await sleep(150);
     sample = await cardCanvasInk(page);
     if (sample.present && sample.entries > 0 && sample.painted > 0 && sample.ink > 500) {
@@ -143,7 +143,7 @@ async function waitForFirmsActionCount(page, expected, { timeoutMs = 12000 } = {
   const deadline = Date.now() + timeoutMs;
   let snapshot = await firmsActionSnapshot(page);
   while (Date.now() < deadline && snapshot.count !== expected) {
-    await page.evaluate(() => window.__godsEyeView?.viewer?.scene?.requestRender?.());
+    await page.evaluate(() => window.__mapMonitoring?.viewer?.scene?.requestRender?.());
     await sleep(175);
     snapshot = await firmsActionSnapshot(page);
   }
@@ -154,12 +154,12 @@ async function waitForFirmsActionCount(page, expected, { timeoutMs = 12000 } = {
 async function bootAndEnable(page, { timeoutS = 45 } = {}) {
   await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
   await page.waitForFunction(
-    () => window.__godsEyeView?.viewer && window.__godsEyeView?.dataManager,
+    () => window.__mapMonitoring?.viewer && window.__mapMonitoring?.dataManager,
     { timeout: 60000 },
   );
   await sleep(1500);
   return page.evaluate(async (tS) => {
-    const dm = window.__godsEyeView.dataManager;
+    const dm = window.__mapMonitoring.dataManager;
     await dm.setEnabled('local-firms', true);
     const mod = dm.layers.get('local-firms').module;
     let s = null;
@@ -175,7 +175,7 @@ async function bootAndEnable(page, { timeoutS = 45 } = {}) {
 /** Teleport the camera (duck-typed cartographic — no Cesium global). */
 async function setView(page, lon, lat, height) {
   await page.evaluate((lo, la, h) => {
-    const gev = window.__godsEyeView;
+    const gev = window.__mapMonitoring;
     const ell = gev.viewer.scene.globe.ellipsoid;
     const d2r = Math.PI / 180;
     // The app's intro flyTo animation clobbers a setView issued mid-flight.
@@ -260,7 +260,7 @@ async function main() {
     console.log('\n(ii) CARDS — tactical card overlay ink at both LODs...');
     {
       const strongest = await page.evaluate(() => {
-        const mod = window.__godsEyeView.dataManager.layers.get('local-firms').module;
+        const mod = window.__mapMonitoring.dataManager.layers.get('local-firms').module;
         return mod.getStrongestFire();
       });
       if (!strongest) {
@@ -357,7 +357,7 @@ async function main() {
       exitCode = 1;
     } else {
       const prepared = await page.evaluate(() => {
-        const gev = window.__godsEyeView;
+        const gev = window.__mapMonitoring;
         const mod = gev.dataManager.layers.get('local-firms').module;
         const target = mod.getDetectableObjects({ maxCount: 1 })[0];
         if (!target?.position) return null;
@@ -409,7 +409,7 @@ async function main() {
 
         for (let i = 0; i < 30; i += 1) {
           const settled = await page.evaluate(() => {
-            window.__godsEyeView?.viewer?.scene?.requestRender?.();
+            window.__mapMonitoring?.viewer?.scene?.requestRender?.();
             return (window.__qaFirmsActionProof?.flightCount || 0) > 0;
           });
           if (settled) break;
@@ -418,7 +418,7 @@ async function main() {
         await sleep(250);
 
         const proof = await page.evaluate(() => {
-          const gev = window.__godsEyeView;
+          const gev = window.__mapMonitoring;
           const state = window.__qaFirmsActionProof;
           const actionButtons = [...document.querySelectorAll(
             '#world-overlay-action-list button[data-overlay-action-key]',
