@@ -2732,7 +2732,7 @@ let _nominatimLastCallAt = 0;
  * @param {string} raw
  * @returns {number[]|null} Null when absent or malformed — bias is optional.
  */
-function parseGeocodeBias(raw) {
+export function parseGeocodeBias(raw) {
   const parts = String(raw || '').split('|');
   if (parts.length !== 2) return null;
   const [south, west] = parts[0].split(',').map(Number);
@@ -2778,6 +2778,88 @@ function inGeocodeBox(hit, box) {
  * Searching the spoken form misses the feature entirely ("rumah sakit sardjito"
  * returns nothing; "RS Sardjito" is an exact hit).
  */
+/**
+ * Local nicknames, and why every one of them is fenced to a region.
+ *
+ * People do not search for "Plaza Ambarrukmo", they search for "Amplaz"; not
+ * "Universitas Islam Indonesia" but "UII". OSM knows some of these as alternate
+ * names and Amplaz resolves on its own — but the ones it does not know fail in
+ * two different ways, and both were reproduced before this table was written:
+ *
+ *   uii  -> Aeropuerto de Utila, HONDURAS — UII is that airport's IATA code
+ *   jec  -> "JEC Soccer Field", a pitch that merely carries the letters
+ *
+ * A viewport bias fixes the first (it stops choosing Honduras) but not the
+ * second: a nearby feature sharing the letters still outranks the place the
+ * letters are FOR. Expanding the nickname before the query goes upstream fixes
+ * both, because "Jogja Expo Center" is unambiguous on its own.
+ *
+ * THE FENCE IS THE POINT. `paris` in Yogyakarta means Jalan Parangtritis, and a
+ * table that rewrote it everywhere would break searching for the capital of
+ * France. `jamal` is Jalan Magelang here and a person's name elsewhere;
+ * `concat` is a road here and a programming term everywhere else. So an entry
+ * only applies when the map is already looking at the region it belongs to, and
+ * a search with no viewport gets none of them.
+ *
+ * Every expansion below was checked against the live geocoder and resolves to
+ * the intended feature. Sources for the vernacular are Indonesian press and
+ * local guides; see the commit message.
+ */
+const GEOCODE_NICKNAME_REGIONS = Object.freeze({
+  // Yogyakarta special region plus its commuter fringe: Sleman and Bantul in
+  // the north and south, Kulon Progo's edge in the west.
+  jogja: Object.freeze([-8.25, 110.00, -7.45, 110.90]),
+});
+
+export const GEOCODE_LOCAL_NICKNAMES = Object.freeze([
+  // Campuses
+  ['uii', 'Universitas Islam Indonesia', 'jogja'],
+  ['ugm', 'Universitas Gadjah Mada', 'jogja'],
+  ['uny', 'Universitas Negeri Yogyakarta', 'jogja'],
+  ['uad', 'Universitas Ahmad Dahlan', 'jogja'],
+  ['umy', 'Universitas Muhammadiyah Yogyakarta', 'jogja'],
+  // Malls and venues
+  ['amplaz', 'Plaza Ambarrukmo', 'jogja'],
+  ['amplas', 'Plaza Ambarrukmo', 'jogja'],
+  ['jec', 'Jogja Expo Center', 'jogja'],
+  ['jcm', 'Jogja City Mall', 'jogja'],
+  // Roads, known almost exclusively by their contraction
+  ['jakal', 'Jalan Kaliurang', 'jogja'],
+  ['jamal', 'Jalan Magelang', 'jogja'],
+  ['japar', 'Jalan Parangtritis', 'jogja'],
+  ['jawon', 'Jalan Wonosari', 'jogja'],
+  ['tamsis', 'Jalan Taman Siswa', 'jogja'],
+  ['concat', 'Condongcatur', 'jogja'],
+  // Landmarks
+  ['monjali', 'Monumen Jogja Kembali', 'jogja'],
+  ['alkid', 'Alun-Alun Kidul Yogyakarta', 'jogja'],
+  ['sarkem', 'Pasar Kembang Yogyakarta', 'jogja'],
+]);
+
+/**
+ * Expand a local nickname, but only where it means what it means.
+ *
+ * @param {string} query - The raw query.
+ * @param {number[]|null} box - Biased viewport [south, west, north, east].
+ * @returns {string|null} The canonical name, or null when nothing applies.
+ */
+export function geocodeNicknameExpansion(query, box) {
+  if (!box) return null;
+  const key = String(query || '').trim().toLowerCase();
+  if (!key) return null;
+  for (const [alias, name, regionId] of GEOCODE_LOCAL_NICKNAMES) {
+    if (alias !== key) continue;
+    const region = GEOCODE_NICKNAME_REGIONS[regionId];
+    if (!region) continue;
+    // The viewport must OVERLAP the region, not sit inside it: a view framed on
+    // the whole of Java still means Jogja's Jakal when someone types it.
+    const [rs, rw, rn, re] = region;
+    const [bs, bw, bn, be] = box;
+    if (bs <= rn && bn >= rs && bw <= re && be >= rw) return name;
+  }
+  return null;
+}
+
 const GEOCODE_PHRASE_ALIASES = [
   [/\brumah sakit\b/gi, 'RS'],
   [/\brumah sakit umum\b/gi, 'RSU'],
@@ -3014,8 +3096,13 @@ async function overpassCategorySearch(selectors, box) {
  * @param {string} query
  * @returns {string[]} Up to three distinct variants.
  */
-function geocodeQueryVariants(query) {
+export function geocodeQueryVariants(query, box = null) {
   const variants = [query];
+  // A local nickname is the STRONGEST reading of the query when the map is in
+  // its region, so the expansion is tried first: "uii" over Jogja should ask
+  // for the university before it asks upstream what "uii" means.
+  const nickname = geocodeNicknameExpansion(query, box);
+  if (nickname) variants.unshift(nickname);
   for (const [pattern, replacement] of GEOCODE_PHRASE_ALIASES) {
     pattern.lastIndex = 0;
     if (pattern.test(query)) {
@@ -3305,7 +3392,9 @@ function nominatimProxy() {
           // is exact. Each variant costs a rate-limited round trip, so later ones run
           // only while no on-screen hit has been found.
           let results = [];
-          for (const variant of geocodeQueryVariants(query)) {
+          const variantsTried = [];
+          for (const variant of geocodeQueryVariants(query, box)) {
+            variantsTried.push(variant);
             const wait = NOMINATIM_MIN_INTERVAL_MS - (Date.now() - _nominatimLastCallAt);
             if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
             _nominatimLastCallAt = Date.now();
@@ -3358,10 +3447,36 @@ function nominatimProxy() {
           // smaller than the gap between a city and a side street, so it
           // reorders comparable candidates without promoting a shop over a town.
           const COVERAGE_BONUS = 0.3;
+          /*
+           * Score against EVERY phrasing that was asked, not just the raw one.
+           *
+           * A variant exists because the raw query was not the best way to ask.
+           * Judging its results by the raw query throws that away: searching
+           * "uny" asks upstream for "Universitas Negeri Yogyakarta", the
+           * university comes back — and then scores ZERO coverage, because the
+           * word "uny" is nowhere in its name. It lost to the Council of the
+           * European Union in Brussels, which merely has a higher importance.
+           *
+           * The same held for the phrase aliases that were here first: "rumah
+           * sakit sardjito" asks for "RS Sardjito", and the hospital that comes
+           * back covers the variant completely while covering the raw query
+           * only in part.
+           *
+           * Taking the best coverage across the variants fixes both, and is not
+           * a local rule: it applies to every query in every country, and a
+           * query with no variants is scored exactly as it was before.
+           */
+          const bestCoverage = (row) => variantsTried.reduce(
+            (max, variant) => Math.max(max, geocodeQueryCoverage(row, variant)),
+            geocodeQueryCoverage(row, query),
+          );
+          const bestPrefix = (row) => variantsTried.some(
+            (variant) => geocodeNamePrefixMatch(row, variant),
+          ) || geocodeNamePrefixMatch(row, query);
           const rankScore = (row) => Number(row.importance || 0)
             + (inGeocodeBox(row, box) ? IN_VIEW_BONUS : 0)
-            + (geocodeNamePrefixMatch(row, query) ? NAME_PREFIX_BONUS : 0)
-            + COVERAGE_BONUS * geocodeQueryCoverage(row, query);
+            + (bestPrefix(row) ? NAME_PREFIX_BONUS : 0)
+            + COVERAGE_BONUS * bestCoverage(row);
           results = dedupeGeocodeHits(results).sort((a, b) => rankScore(b) - rankScore(a));
 
           _nominatimCache.set(cacheKey, { at: Date.now(), results });
