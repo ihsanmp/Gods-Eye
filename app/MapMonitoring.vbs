@@ -1,4 +1,4 @@
-' God's Eye View — silent entry point.
+' Map Monitoring — silent entry point.
 '
 ' Shortcuts point here rather than straight at PowerShell so no console window
 ' ever flashes on screen. WScript.Shell.Run with intWindowStyle 0 starts the
@@ -15,6 +15,6 @@ Set fso = CreateObject("Scripting.FileSystemObject")
 scriptDir = fso.GetParentFolderName(WScript.ScriptFullName)
 
 command = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File """ & _
-          scriptDir & "\gev-launcher.ps1"""
+          scriptDir & "\mm-launcher.ps1"""
 
 shell.Run command, 0, False

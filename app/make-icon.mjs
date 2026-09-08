@@ -1,5 +1,5 @@
 /**
- * Build app/GodsEyeView.ico from public/logo.svg.
+ * Build app/MapMonitoring.ico from public/logo.svg.
  *
  * Windows shortcuts need a real .ico; the project only ships an SVG. Sharp is
  * already a devDependency (it renders the QA screenshots), so this needs no new
@@ -74,6 +74,6 @@ for (const size of SIZES) {
   images.push({ size, data: await renderPng(svg, size) });
 }
 
-const target = path.join(APP_DIR, 'GodsEyeView.ico');
+const target = path.join(APP_DIR, 'MapMonitoring.ico');
 await writeFile(target, buildIco(images));
 console.log(`Wrote ${target} (${SIZES.join(', ')} px)`);

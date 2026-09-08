@@ -1,5 +1,5 @@
 ﻿<#
-  Remove the God's Eye View desktop installation.
+  Remove the Map Monitoring desktop installation.
 
   Deletes the shortcuts and the Settings > Apps registry entry. The source
   checkout, .env, and the browser profile are deliberately left alone - this
@@ -17,13 +17,23 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$AppName = "God's Eye View"
+$AppName = "Map Monitoring"
 $AppDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$RegistryKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\GodsEyeView'
+$RegistryKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\MapMonitoring'
 
+# Both names. An installation made before the rename is still an installation of
+# this app, and someone uninstalling expects the machine clean afterwards — not
+# a leftover icon under a name they no longer recognise.
+$LegacyAppName = "God's Eye View"
+$LegacyRegistryKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\GodsEyeView'
+
+$desktop = [Environment]::GetFolderPath('Desktop')
+$startMenu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'
 $links = @(
-  (Join-Path ([Environment]::GetFolderPath('Desktop')) "$AppName.lnk"),
-  (Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\$AppName.lnk")
+  (Join-Path $desktop "$AppName.lnk"),
+  (Join-Path $startMenu "$AppName.lnk"),
+  (Join-Path $desktop "$LegacyAppName.lnk"),
+  (Join-Path $startMenu "$LegacyAppName.lnk")
 )
 
 Write-Host "Mencopot $AppName..." -ForegroundColor Cyan
@@ -35,9 +45,11 @@ foreach ($link in $links) {
   }
 }
 
-if (Test-Path $RegistryKey) {
-  Remove-Item $RegistryKey -Recurse -Force
-  Write-Host '  dihapus: entri Settings > Apps'
+foreach ($key in @($RegistryKey, $LegacyRegistryKey)) {
+  if (Test-Path $key) {
+    Remove-Item $key -Recurse -Force
+    Write-Host '  dihapus: entri Settings > Apps'
+  }
 }
 
 if ($RemoveProfile) {

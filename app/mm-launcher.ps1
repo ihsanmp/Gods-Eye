@@ -1,5 +1,5 @@
 ﻿<#
-  God's Eye View - desktop launcher.
+  Map Monitoring - desktop launcher.
 
   Starts the app's own server, then opens it in a chromeless browser window so
   it behaves like an installed application rather than a tab.
@@ -15,7 +15,7 @@
   directory: no tab strip, no address bar, its own taskbar entry, and closing it
   never touches the user's own browsing session.
 
-  Run by GodsEyeView.vbs (which hides the console). Safe to run directly for
+  Run by MapMonitoring.vbs (which hides the console). Safe to run directly for
   troubleshooting - pass -Verbose to watch it work.
 #>
 
@@ -35,7 +35,7 @@ $LogFile = Join-Path $AppDir 'launcher.log'
 $ServerOutLog = Join-Path $AppDir 'server.log'
 $ServerErrLog = Join-Path $AppDir 'server.err.log'
 $ProfileDir = Join-Path $AppDir 'browser-profile'
-$IconPath = Join-Path $AppDir 'GodsEyeView.ico'
+$IconPath = Join-Path $AppDir 'MapMonitoring.ico'
 $Url = "http://localhost:$Port/"
 
 function Write-Log {
@@ -56,7 +56,7 @@ function Stop-WithMessage {
   Add-Type -AssemblyName System.Windows.Forms
   [System.Windows.Forms.MessageBox]::Show(
     "$Message`n`nDetail lengkap: $LogFile",
-    "God's Eye View",
+    "Map Monitoring",
     [System.Windows.Forms.MessageBoxButtons]::OK,
     [System.Windows.Forms.MessageBoxIcon]::Error
   ) | Out-Null

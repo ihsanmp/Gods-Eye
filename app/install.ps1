@@ -1,5 +1,5 @@
 ﻿<#
-  Install God's Eye View as a desktop application for the current user.
+  Install Map Monitoring as a desktop application for the current user.
 
   Creates a Desktop shortcut, a Start Menu entry, and a registry record so the
   app appears in Settings > Apps > Installed apps with a working Uninstall
@@ -21,12 +21,42 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$AppName = "God's Eye View"
+$AppName = "Map Monitoring"
 $AppDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Root = Split-Path -Parent $AppDir
-$Target = Join-Path $AppDir 'GodsEyeView.vbs'
-$IconPath = Join-Path $AppDir 'GodsEyeView.ico'
-$RegistryKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\GodsEyeView'
+$Target = Join-Path $AppDir 'MapMonitoring.vbs'
+$IconPath = Join-Path $AppDir 'MapMonitoring.ico'
+$RegistryKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\MapMonitoring'
+
+<#
+  What the previous name left behind.
+
+  An installation made before the rename put "God's Eye View" shortcuts on the
+  Desktop and in the Start Menu, and its own key under Uninstall\GodsEyeView.
+  Installing under the new name does not touch any of that, so without this the
+  machine ends up with two icons that launch the same app and an entry in
+  Settings > Apps whose uninstaller points at a script that no longer exists.
+
+  Removed here rather than left to the old uninstaller, because by the time
+  someone notices the duplicate they have usually already replaced the folder
+  the old uninstaller lived in.
+#>
+$LegacyAppName = "God's Eye View"
+$LegacyRegistryKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\GodsEyeView'
+$legacyLinks = @(
+  (Join-Path ([Environment]::GetFolderPath('Desktop')) "$LegacyAppName.lnk"),
+  (Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\$LegacyAppName.lnk")
+)
+foreach ($legacy in $legacyLinks) {
+  if (Test-Path $legacy) {
+    Remove-Item $legacy -Force -ErrorAction SilentlyContinue
+    Write-Host "  dihapus (nama lama): $legacy"
+  }
+}
+if (Test-Path $LegacyRegistryKey) {
+  Remove-Item $LegacyRegistryKey -Recurse -Force -ErrorAction SilentlyContinue
+  Write-Host '  dihapus (nama lama): entri Settings > Apps'
+}
 
 if (-not (Test-Path $Target)) { throw "Missing launcher: $Target" }
 
@@ -89,5 +119,5 @@ Set-ItemProperty -Path $RegistryKey -Name 'NoRepair'        -Value 1 -Type DWord
 
 Write-Host ''
 Write-Host "$AppName terpasang." -ForegroundColor Green
-Write-Host 'Buka lewat ikon Desktop, menu Start, atau cari "God''s Eye View".'
+Write-Host 'Buka lewat ikon Desktop, menu Start, atau cari "Map Monitoring".'
 Write-Host "Copot pemasangan: app\uninstall.ps1 (atau Settings > Apps)."

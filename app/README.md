@@ -26,7 +26,7 @@ disentuh.
 
 ## Cara kerjanya
 
-`GodsEyeView.vbs` → `gev-launcher.ps1` → server + jendela.
+`MapMonitoring.vbs` → `mm-launcher.ps1` → server + jendela.
 
 Rantai itu ada supaya tidak ada jendela konsol yang berkedip saat ikon diklik.
 Peran launcher:
@@ -97,7 +97,7 @@ keyless. (`fonts.googleapis.com` juga muncul — itu font ikon UI, gratis.)
 ## Catatan
 
 - **Port** default 4173. Untuk mengubahnya, sunting `-Port` di
-  `gev-launcher.ps1`.
+  `mm-launcher.ps1`.
 - **Tidak ada kunci yang wajib.** Preflight launcher tidak lagi memblokir bila
   `.env` atau `GOOGLE_MAPS_API_KEY` kosong — kunci yang hilang berarti aplikasi
   yang lebih terbatas, bukan peluncuran yang gagal, dan tiap layer melaporkan
