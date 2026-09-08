@@ -98,7 +98,7 @@ import {
   getFocusTarget,
   onFocusTargetAppear,
 } from './focusDeemphasis.js';
-import { holdContinuousRender, releaseContinuousRender } from '../renderGovernor.js';
+import { governorRequestRender, holdContinuousRender, releaseContinuousRender } from '../renderGovernor.js';
 
 // ---------------------------------------------------------------------------
 // API endpoints
@@ -300,6 +300,7 @@ let _healthById = new Map();
 let _calibrationById = new Map();
 let _listeners = new Set();
 let _projectionRaf = 0;
+let _projectionHoldsRender = false;
 let _removeFocusAppearListener = null;
 let _lastFocusStyleAt = 0;
 /** Icons whose animated emphasis remains outside the 1.0 deadband. */
@@ -1585,27 +1586,35 @@ function bindProjectionSurface(runtime, surface) {
   runtime.planeMaterial.image = surface;
 }
 
+/**
+ * Swap the projected still image, at most once a second.
+ * @param {Object} record - Camera record.
+ * @returns {boolean} True when the material image actually changed. The caller
+ *   uses this to ask the governor for ONE render, rather than holding the whole
+ *   scene open at frame rate for a picture that moves once a second.
+ */
 function refreshProjectionTextures(record) {
   const runtime = record?.projection;
-  if (!runtime || runtime.mode === 'video') return;
+  if (!runtime || runtime.mode === 'video') return false;
   const now = Date.now();
-  if (now - safeNumber(runtime.lastTextureSwapAt, 0) < PROJECTION_TEXTURE_SWAP_MS) return;
+  if (now - safeNumber(runtime.lastTextureSwapAt, 0) < PROJECTION_TEXTURE_SWAP_MS) return false;
 
   const planeShowing = !!(runtime.planeEntity?.show && runtime.planeMaterial);
-  if (!planeShowing) return;
+  if (!planeShowing) return false;
 
   // Only swap when the canvas content actually changed since the last swap.
   // Frames land every ~10 s but this runs at 1 Hz — swapping an UNCHANGED
   // canvas re-uploads the texture for nothing, and each material image
   // reassignment is a flash opportunity on the live plane (field test
   // 2026-07-04: intermittent white flashes on the monitor plane).
-  if (runtime.canvasStamp === runtime.lastSwappedCanvasStamp) return;
+  if (runtime.canvasStamp === runtime.lastSwappedCanvasStamp) return false;
 
   const buffer = paintNextProjectionBuffer(runtime);
-  if (!buffer) return;
+  if (!buffer) return false;
   runtime.lastTextureSwapAt = now;
   runtime.lastSwappedCanvasStamp = runtime.canvasStamp;
   runtime.planeMaterial.image = buffer;
+  return true;
 }
 
 /**
@@ -2142,22 +2151,60 @@ function projectionLoopIsNeeded() {
   return focusPassIsNeeded(getFocusTarget(), _activeFocusStyleCount);
 }
 
+/**
+ * Whether the projection genuinely needs a scene render EVERY frame.
+ *
+ * Only one thing does: a video-mode projection whose video is actually running,
+ * because Cesium re-reads that element on each render and a skipped frame is a
+ * frozen picture on the map. A still-image projection swaps its texture at 1 Hz
+ * (PROJECTION_TEXTURE_SWAP_MS) and a paused, stalled or ended video changes
+ * nothing at all — neither is worth redrawing the whole globe for.
+ *
+ * @returns {boolean}
+ */
+function projectionNeedsPerFrameRender() {
+  if (!_enabled || !_showProjection) return false;
+  const runtime = getActiveRecord()?.projection;
+  if (!runtime || runtime.mode !== 'video') return false;
+  const video = runtime.video;
+  return !!video && !video.paused && !video.ended && video.readyState >= 2;
+}
+
 function startProjectionLoop() {
   if (_projectionRaf) return;
   if (!projectionLoopIsNeeded()) return;
-  // The armed projection loop uploads video textures / runs focus fades per
-  // frame — the scene must render continuously while it runs. Released when
-  // the tick self-stops. (perf wave 2)
-  holdContinuousRender('cctv-projection');
 
+  /*
+   * The hold follows the WORK, not the loop.
+   *
+   * This used to hold continuous render for as long as the loop was armed,
+   * which is as long as the CCTV layer is on. That pinned the entire scene —
+   * every camera marker and label, the whole basemap — into redrawing at the
+   * target frame rate forever, and it is what sat an integrated GPU's 3D engine
+   * at 96-100% with the Copy engine at 0%: nothing was streaming, everything
+   * was being redrawn. Measured with the layer's own projection video PAUSED at
+   * currentTime 0, so the frames bought nothing whatsoever.
+   *
+   * Now the hold is taken only while a video is genuinely playing, and dropped
+   * the moment it is not. Everything else asks the governor for a single render
+   * when it actually changes something, which is what render-on-demand is for.
+   */
   const tick = () => {
     if (!_viewer || !projectionLoopIsNeeded()) {
       _projectionRaf = 0;
+      _projectionHoldsRender = false;
       releaseContinuousRender('cctv-projection');
       return;
     }
 
-    refreshCctvFocusStyles(performance.now());
+    const wantsContinuous = projectionNeedsPerFrameRender();
+    if (wantsContinuous !== _projectionHoldsRender) {
+      _projectionHoldsRender = wantsContinuous;
+      if (wantsContinuous) holdContinuousRender('cctv-projection');
+      else releaseContinuousRender('cctv-projection');
+    }
+
+    let changed = refreshCctvFocusStyles(performance.now());
 
     const active = getActiveRecord();
     if (_enabled && _showProjection && active) {
@@ -2167,9 +2214,14 @@ function startProjectionLoop() {
       }
       if (active.projection) {
         drawProjectionFrame(active);
-        refreshProjectionTextures(active);
+        if (refreshProjectionTextures(active)) changed = true;
       }
     }
+
+    // While held, the scene is already drawing every frame and a request would
+    // be noise. Otherwise this is the ONLY thing that puts a changed projection
+    // or a focus fade on screen.
+    if (!_projectionHoldsRender && changed) governorRequestRender('cctv-projection');
 
     _projectionRaf = requestAnimationFrame(tick);
   };
@@ -2185,8 +2237,8 @@ function startProjectionLoop() {
 function refreshCctvFocusStyles(nowMs) {
   nowMs = focusNowMs(nowMs);
   const target = getFocusTarget();
-  if (!_enabled || !_viewer || !focusPassIsNeeded(target, _activeFocusStyleCount)) return;
-  if (nowMs - _lastFocusStyleAt < 80) return;
+  if (!_enabled || !_viewer || !focusPassIsNeeded(target, _activeFocusStyleCount)) return false;
+  if (nowMs - _lastFocusStyleAt < 80) return false;
   _lastFocusStyleAt = nowMs;
   const scene = _viewer.scene;
   const camera = _viewer.camera;
@@ -2204,6 +2256,9 @@ function refreshCctvFocusStyles(nowMs) {
     ),
   });
   _activeFocusStyleCount = result.activeCount;
+  // Reported so the caller can request a single render for a fade that actually
+  // wrote something, instead of the scene being held open for one that did not.
+  return result.writes > 0 || result.transitioning === true;
 }
 
 /**
@@ -2263,6 +2318,10 @@ function stopProjectionLoop() {
     cancelAnimationFrame(_projectionRaf);
     _projectionRaf = 0;
   }
+  // Cancelling the frame means the tick cannot run to drop its own hold, so the
+  // flag is cleared here too — otherwise a restarted loop would believe it was
+  // already holding and never take the hold again.
+  _projectionHoldsRender = false;
   releaseContinuousRender('cctv-projection');
 }
 
