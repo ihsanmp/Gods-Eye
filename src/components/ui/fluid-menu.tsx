@@ -54,9 +54,20 @@ interface MenuItemProps {
   isActive?: boolean
   /** Tooltip / accessible name. Added: the items are icon-only. */
   label?: string
+  /**
+   * Push the icon down to the centre of a CLIPPED circle.
+   *
+   * The expanded items are cut with `circle(50% at 50% 55%)`, which puts the
+   * visible circle 5% of the box below the box's own centre; without a matching
+   * nudge their icons sit high in the shape people actually see. The toggle and
+   * the last item are NOT clipped that way, so for them the same nudge is what
+   * pushes the icon off centre — which is what it was doing, on the one button
+   * that is visible when the menu is shut.
+   */
+  nudgeIcon?: boolean
 }
 
-export function MenuItem({ children, onClick, disabled = false, icon, isActive = false, label }: MenuItemProps) {
+export function MenuItem({ children, onClick, disabled = false, icon, isActive = false, label, nudgeIcon = false }: MenuItemProps) {
   return (
     <button
       className={`relative block w-full h-16 text-center group
@@ -69,7 +80,7 @@ export function MenuItem({ children, onClick, disabled = false, icon, isActive =
       title={label}
       aria-label={label}
     >
-      <span className="flex items-center justify-center h-full mt-[5%]">
+      <span className={`flex items-center justify-center h-full ${nudgeIcon ? "mt-[5%]" : ""}`}>
         {icon && (
           <span className="h-6 w-6 transition-all duration-200 group-hover:[&_svg]:stroke-[2.5]">
             {icon}
@@ -101,7 +112,11 @@ export function MenuContainer({ children }: { children: React.ReactNode }) {
           {childrenArray[0]}
         </div>
 
-        {/* Other items */}
+        {/*
+          Other items. Each gets the icon nudge only if its own clip needs one:
+          the last item is cut at 50% like the toggle, so nudging it would push
+          its icon off centre for the same reason the toggle's was.
+        */}
         {childrenArray.slice(1).map((child, index) => (
           <div
             key={index}
@@ -122,7 +137,10 @@ export function MenuContainer({ children }: { children: React.ReactNode }) {
               WebkitFontSmoothing: 'antialiased'
             }}
           >
-            {child}
+            {/* The clip is the geometry; the nudge just follows it. */}
+            {React.isValidElement(child) && index !== childrenArray.length - 2
+              ? React.cloneElement(child as React.ReactElement<{ nudgeIcon?: boolean }>, { nudgeIcon: true })
+              : child}
           </div>
         ))}
       </div>
