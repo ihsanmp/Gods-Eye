@@ -33,6 +33,7 @@ import {
 import { installScopeMask } from './scopeMask.js';
 import { initFirstRunExperience } from './firstRunExperience.js';
 import { probeGpu, setGpuProfile } from './gpuProfile.js';
+import { installTrackpadZoom } from './trackpadZoom.js';
 
 /**
  * Tile screen-space error used until the first tile queue drains. Coarser than
@@ -249,6 +250,21 @@ async function init() {
       ...cameraInput.zoomEventTypes,
       { eventType: Cesium.CameraEventType.WHEEL, modifier: Cesium.KeyboardEventModifier.CTRL },
     ];
+
+    /*
+     * Mapping the gesture was only half of it — it then felt heavy, and for a
+     * measurable reason. Cesium scales a wheel event by 40 when the browser
+     * reports it in LINES, which is a mouse, and uses it RAW when reported in
+     * pixels, which is a trackpad. One mouse notch therefore arrives as about
+     * 120 and a trackpad gesture as about 5, so the same effort moved the
+     * camera roughly twenty times less far. Trackpad-sized events are taken
+     * over here; a mouse is left entirely to Cesium. See trackpadZoom.js.
+     */
+    installTrackpadZoom(
+      viewer,
+      document.getElementById('cesiumContainer'),
+      () => governorRequestRender('trackpad-zoom'),
+    );
 
     const qualityKey = String(import.meta.env.GEV_RENDER_QUALITY || 'balanced').toLowerCase();
     const quality = RENDER_QUALITY_PRESETS[qualityKey] || RENDER_QUALITY_PRESETS.balanced;
