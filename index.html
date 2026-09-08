@@ -633,11 +633,10 @@
         <ul id="route-dest-suggest" class="route-suggest" role="listbox"
             aria-label="Saran tempat untuk tujuan" hidden></ul>
       </div>
-      <div class="route-modes" role="group" aria-label="Moda perjalanan">
-        <button type="button" class="scene-btn active" data-route-mode="car">MOBIL</button>
-        <button type="button" class="scene-btn" data-route-mode="bike">SEPEDA</button>
-        <button type="button" class="scene-btn" data-route-mode="foot">JALAN</button>
-      </div>
+      <!-- The MOBIL / SEPEDA / JALAN group was here. This console routes for
+           cars and only cars, so the choice was three buttons that all but one
+           of them was never the right answer to. The profile is fixed at 'car'
+           in _initRoutePanel; nothing reads a mode from the DOM any more. -->
       <label class="route-avoid" for="route-avoid-alleys">
         <input id="route-avoid-alleys" type="checkbox" checked />
         <span>Utamakan jalan besar</span>

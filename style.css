@@ -8973,18 +8973,6 @@ body.scene-playback-mode #first-run-launcher {
   background: rgba(0, 212, 255, 0.06);
 }
 
-.route-modes {
-  display: flex;
-  gap: 6px;
-}
-
-/* Equal thirds regardless of label length, so the row never reflows when the
-   mode names differ in width. */
-.route-modes .scene-btn {
-  flex: 1 1 0;
-  min-width: 0;
-}
-
 .route-avoid {
   display: flex;
   align-items: center;

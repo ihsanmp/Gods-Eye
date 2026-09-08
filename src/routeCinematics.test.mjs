@@ -9,6 +9,7 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import fs from 'node:fs';
 import * as Cesium from 'cesium';
 
 import {
@@ -999,4 +1000,33 @@ test('the 0.5 s duration floor is the one place the speed word is not the mean',
   // Anything long enough to see keeps the contract exactly.
   const normal = flightFrom(TWO_TURN_ROUTE);
   assert.ok(Math.abs((normal.totalM / normal.durationS) - CRUISE_M_S.normal) < 1e-9);
+});
+
+// ---------------------------------------------------------------------------
+// One profile: this console routes for cars
+// ---------------------------------------------------------------------------
+
+test('the travel-mode selector is gone and the profile is fixed at car', () => {
+  /*
+   * MOBIL / SEPEDA / JALAN existed twice — in the Route panel and again in the
+   * search bar's route row, where it made a five-button row to offer one
+   * answer. Everything this console reports about a route is a driving question
+   * (the traffic conditions, the nearest CCTV to the destination, the road-mix
+   * summary), so two of the three were never right.
+   *
+   * The profile is still SENT, and still 'car'. Removing the buttons must not
+   * quietly turn into sending nothing and letting the routing service pick.
+   */
+  const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const ui = fs.readFileSync(new URL('./ui.js', import.meta.url), 'utf8');
+  const spotlight = fs.readFileSync(new URL('./spotlightMount.tsx', import.meta.url), 'utf8');
+
+  assert.doesNotMatch(html, /data-route-mode/, 'no mode buttons in the panel');
+  assert.doesNotMatch(html, /class="route-modes"/, 'no mode row in the panel');
+  assert.doesNotMatch(ui, /\[data-route-mode\]/, 'nothing reads a mode from the DOM');
+  assert.doesNotMatch(spotlight, /data-route-mode=/, 'the route bar no longer forwards a mode');
+
+  // The constant survives, and the request still carries it.
+  assert.match(ui, /this\._routeMode = 'car';/);
+  assert.match(ui, /mode: this\._routeMode,/);
 });

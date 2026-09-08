@@ -150,7 +150,6 @@ interface RouteBarProps {
 function RouteBar({ destination, onClose }: RouteBarProps) {
   const [origin, setOrigin] = useState('');
   const [dest, setDest] = useState(destination ? destination.label.split(',')[0].trim() : '');
-  const [mode, setMode] = useState('car');
   const originPointRef = useRef<{ lat: number; lon: number } | null>(null);
   const destPointRef = useRef<{ lat: number; lon: number } | null>(
     destination ? { lat: destination.lat, lon: destination.lon } : null
@@ -214,11 +213,7 @@ function RouteBar({ destination, onClose }: RouteBarProps) {
   const run = () => {
     fillPanelField('route-origin', origin, originPointRef.current);
     fillPanelField('route-dest', dest, destPointRef.current);
-    // The mode buttons are the panel's, so pressing one keeps its own state in
-    // step rather than passing a mode the panel does not know it is using.
-    panelEl<HTMLButtonElement>('route-panel')
-      ?.querySelector<HTMLButtonElement>(`[data-route-mode="${mode}"]`)
-      ?.click();
+    // No mode to forward any more: the panel holds 'car' and nothing changes it.
     panelEl<HTMLButtonElement>('route-search-btn')?.click();
   };
 
@@ -259,17 +254,12 @@ function RouteBar({ destination, onClose }: RouteBarProps) {
         />
       </div>
 
+      {/*
+        MOBIL / SEPEDA / JALAN were here. This console routes for cars and only
+        cars, so offering three choices and defaulting to one of them was three
+        buttons of noise in a five-button row.
+      */}
       <div className="gev-routebar-row gev-routebar-actions">
-        {[['car', 'MOBIL'], ['bike', 'SEPEDA'], ['foot', 'JALAN']].map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            data-on={mode === id ? 'true' : undefined}
-            onClick={() => setMode(id)}
-          >
-            {label}
-          </button>
-        ))}
         <button type="button" className="gev-routebar-go" onClick={run}>CARI RUTE</button>
         <button type="button" onClick={onClose}>TUTUP</button>
       </div>

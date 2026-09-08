@@ -6259,10 +6259,20 @@ export class StyleManager {
     const statusEl = document.getElementById('route-status');
     const resultEl = document.getElementById('route-result');
     const avoidInput = document.getElementById('route-avoid-alleys');
-    const modeBtns = Array.from(document.querySelectorAll('[data-route-mode]'));
     if (!destInput || !searchBtn) return;
     this._routePanelReady = true;
 
+    /*
+     * Cars, and nothing else.
+     *
+     * There used to be MOBIL / SEPEDA / JALAN buttons here and in the search
+     * bar's route row. This console is built around driving — the traffic
+     * report, the nearest CCTV to the destination, the road-mix summary are all
+     * questions a driver asks — so two of the three were never the right answer
+     * and the row cost five buttons to offer one. The profile is now a constant
+     * that the request below still reads, so the routing service is called
+     * exactly as it was.
+     */
     this._routeMode = 'car';
     this._routeMarkId = null;
     /**
@@ -6276,19 +6286,6 @@ export class StyleManager {
     this._routeGeneration = 0;
 
     const setStatus = (text) => { if (statusEl) statusEl.textContent = text; };
-
-    const setMode = (mode) => {
-      this._routeMode = mode;
-      for (const btn of modeBtns) {
-        const active = btn.dataset.routeMode === mode;
-        btn.classList.toggle('active', active);
-        btn.setAttribute('aria-pressed', String(active));
-      }
-    };
-    for (const btn of modeBtns) {
-      btn.addEventListener('click', () => setMode(btn.dataset.routeMode));
-    }
-    setMode('car');
 
     /** What the DARI field reads while it is standing in for a GPS fix. */
     const GPS_LABEL = 'Lokasi saya (GPS)';
