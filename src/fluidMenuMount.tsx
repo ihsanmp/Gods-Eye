@@ -7,7 +7,6 @@ import {
   Menu as MenuIcon,
   Palette,
   Radar,
-  Route,
   SlidersHorizontal,
   X
 } from 'lucide-react';
@@ -22,7 +21,7 @@ import {
 import '@/tailwind.css';
 
 /**
- * One fluid menu in place of seven separate panel chips.
+ * One fluid menu in place of the separate panel chips.
  *
  * DATA LAYERS, RUTE, SCENES, DISPLAY, CCTV, CONTEXT and VISUAL PRESETS each had
  * their own collapsed chip scattered around the edges of the screen. They are
@@ -62,21 +61,6 @@ const PANELS: PanelEntry[] = [
     description: 'Nyalakan lapisan data langsung di peta.',
     controls: '.data-toggle-btn',
     icon: <Layers size={24} strokeWidth={1.5} />
-  },
-  {
-    id: 'route-panel',
-    label: 'Rute',
-    description: 'Cari rute tercepat lewat jalan normal.',
-    controls: '#route-origin, #route-dest, #route-gps-btn, .scene-btn, #route-avoid-alleys',
-    labels: {
-      // The inputs carry only placeholders ("Ketik tempat, atau pakai GPS"),
-      // which is a prompt rather than a name for the field.
-      'route-origin': 'Asal',
-      'route-dest': 'Tujuan',
-      'route-avoid-alleys': 'Hindari gang sempit'
-    },
-    note: 'Sugesti tempat saat mengetik hanya muncul di panel penuh.',
-    icon: <Route size={24} strokeWidth={1.5} />
   },
   {
     id: 'cctv-panel',

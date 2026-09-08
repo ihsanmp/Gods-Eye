@@ -49,7 +49,7 @@ initLogoGaze();
 // lazily so React, framer-motion and lucide stay off the startup critical path
 // of a session that never opens it.
 /*
- * legacy-chrome.css hides the old LOCATION tray and the seven panel chips from
+ * legacy-chrome.css hides the old LOCATION tray and the collapsed panel chips from
  * the first style resolution, so the console never opens wearing the old
  * interface. That is only safe while the replacements actually arrive: if a
  * mount fails, marking the body here releases the `body:not(...)` guard on
@@ -65,7 +65,7 @@ import('./spotlightMount.tsx')
   .then(({ mountSpotlight }) => mountSpotlight())
   .catch(legacyFallback('mm-spotlight-unavailable'));
 
-// One fluid menu in place of the seven scattered panel chips. Mounted after the
+// One fluid menu in place of the scattered panel chips. Mounted after the
 // app so the panels it toggles already exist in the DOM.
 window.addEventListener('load', () => {
   import('./fluidMenuMount.tsx')
