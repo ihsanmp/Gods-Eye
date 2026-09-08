@@ -8017,8 +8017,60 @@ const REGIONAL_MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 const _regionalBriefCache = new Map();
 const _regionalBriefInFlight = new Map();
 const _regionalBriefRateLimiter = makeRateLimiter({ windowMs: 60_000, max: 30, globalMax: 90 });
+/*
+ * How often the weather can possibly change, and therefore how often it is
+ * worth asking.
+ *
+ * Open-Meteo advances its `current` block on 15-MINUTE boundaries aligned to
+ * the clock, not to when you ask. Measured 2026-09-08: five points on five
+ * continents — Yogyakarta, Jakarta, London, New York, Tokyo — all reported the
+ * same `observedAt` of 06:00:00Z, and the sample before it was 05:45:00Z.
+ * Asking more often than that returns identical bytes.
+ *
+ * A fixed TTL cannot line up with that. Five minutes meant up to three upstream
+ * calls per 15-minute window, two of them fetching a value that had not moved;
+ * and a flat fifteen would DRIFT — fetch at 06:07 and you would hold until
+ * 06:22, seven minutes after the 06:15 reading appeared.
+ *
+ * So the cache expires against the DATA's own timestamp: one period after the
+ * observation it holds, plus a margin for publication. That is self-correcting
+ * — it follows the upstream's clock rather than ours — and it never asks for
+ * something that cannot have changed.
+ */
+const WEATHER_OBSERVATION_PERIOD_MS = 15 * 60_000;
+/** Grace for the reading to be published: the 06:00 value was up by 06:05:55. */
+const WEATHER_PUBLISH_LAG_MS = 90_000;
+/** Never re-ask faster than this, whatever the timestamps say. */
+const WEATHER_EFFECTS_MIN_CACHE_MS = 2 * 60_000;
+/** Never hold longer than one period, so a stuck timestamp cannot freeze it. */
+const WEATHER_EFFECTS_MAX_CACHE_MS = WEATHER_OBSERVATION_PERIOD_MS;
+/** Used only when the payload carries no usable observation time. */
 const WEATHER_EFFECTS_CACHE_MS = 5 * 60_000;
 const WEATHER_EFFECTS_STALE_MS = 30 * 60_000;
+
+/**
+ * How long a weather payload stays fresh, from its own observation time.
+ *
+ * @param {object|null} payload - The normalized /api/weather-effects payload.
+ * @param {number} fetchedAt - When it was retrieved (ms).
+ * @returns {number} Cache lifetime in ms.
+ */
+export function weatherCacheLifetimeMs(payload, fetchedAt) {
+  const observed = Date.parse(payload?.weather?.observedAt ?? '');
+  const now = Number(fetchedAt);
+  if (!Number.isFinite(observed) || !Number.isFinite(now)) {
+    return WEATHER_EFFECTS_CACHE_MS;
+  }
+  // The next reading is one period after this one, plus time to publish.
+  const nextDue = observed + WEATHER_OBSERVATION_PERIOD_MS + WEATHER_PUBLISH_LAG_MS;
+  // Clamped at BOTH ends. A reading that arrives already old would otherwise
+  // expire in the past and be re-fetched on every single request — a hot loop
+  // against an upstream that is, by definition, already struggling.
+  return Math.min(
+    WEATHER_EFFECTS_MAX_CACHE_MS,
+    Math.max(WEATHER_EFFECTS_MIN_CACHE_MS, nextDue - now),
+  );
+}
 const WEATHER_EFFECTS_MAX_CACHE = 180;
 const WEATHER_EFFECTS_MAX_RESPONSE_BYTES = 512 * 1024;
 const _weatherEffectsCache = new Map();
@@ -8339,7 +8391,7 @@ function weatherEffectsProxy() {
       const key = `${(Math.round(point.latitude * 10) / 10).toFixed(1)},${(Math.round(point.longitude * 10) / 10).toFixed(1)}`;
       const now = Date.now();
       const cached = _weatherEffectsCache.get(key);
-      if (cached && now - cached.cachedAt <= WEATHER_EFFECTS_CACHE_MS) {
+      if (cached && now - cached.cachedAt <= weatherCacheLifetimeMs(cached.payload, cached.cachedAt)) {
         res.writeHead(200, {
           'Content-Type': 'application/json',
           'Cache-Control': 'public, max-age=60',
