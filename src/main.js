@@ -261,7 +261,6 @@ async function init() {
     viewer.useBrowserRecommendedResolution = false;
     const devicePixels = window.devicePixelRatio || 1;
     viewer.resolutionScale = Math.min(devicePixels, quality.pixelRatioCap) / devicePixels;
-    viewer.scene.globe.tileCacheSize = quality.tileCache;
 
     // The two GPU levers the measurement turned up. msaaSamples is read live by
     // the renderer, and targetFrameRate throttles the render loop - harmless in
@@ -280,9 +279,59 @@ async function init() {
     const targetFps = gpu.integrated ? Math.min(quality.targetFps, 30) : quality.targetFps;
     viewer.scene.msaaSamples = msaa;
     viewer.targetFrameRate = targetFps;
+
+    /*
+     * The GPU budget, and what it can honestly promise.
+     *
+     * "Use 70% of the GPU" is not a setting any browser exposes - utilisation is
+     * an outcome, not a dial, and nothing here can cap it directly. What IS
+     * controllable is the work each frame asks for, and on an integrated GPU
+     * running a full-screen globe that work is dominated by fragment shading:
+     * cost tracks the PIXEL COUNT almost linearly. Pixels scale with the square
+     * of resolutionScale, so rendering at sqrt(0.70) of full resolution asks the
+     * GPU for roughly 70% of the shading work it was doing before.
+     *
+     * That is the claim being made: 70% of the rendering work. Whether Task
+     * Manager then reads 70% depends on what else is competing for the chip -
+     * tile decode, the compositor, everything outside this process - so the
+     * number to watch is that the globe stops pegging, not that a gauge lands on
+     * a particular value.
+     *
+     * Full resolution is kept for a discrete card, which does not need the help.
+     * GEV_GPU_BUDGET overrides either way; the floor is 40 because below that
+     * the globe is soft enough to look broken rather than economical.
+     */
+    const budgetRaw = Number(import.meta.env.GEV_GPU_BUDGET);
+    const gpuBudget = Number.isFinite(budgetRaw)
+      ? Math.min(100, Math.max(40, budgetRaw))
+      : (gpu.integrated ? 70 : 100);
+    if (gpuBudget < 100) viewer.resolutionScale *= Math.sqrt(gpuBudget / 100);
+
+    /*
+     * Tile detail and cache are clamped for the same reason MSAA and frame rate
+     * are, and were the levers the first pass left out. GEV_RENDER_QUALITY=high
+     * asks for a screen-space error of 1.5 - a very sharp globe, and a great
+     * many more tiles drawn, decoded and uploaded per frame. That is a discrete
+     * card's setting. On the shared memory bandwidth of an iGPU it is the
+     * heaviest thing on screen during the opening descent, which crosses every
+     * LOD level in four seconds.
+     *
+     * As before the clamp only ever LOWERS: a machine already set to performance
+     * keeps its coarser value, and the preset stays the ceiling.
+     */
+    const screenSpaceError = gpu.integrated
+      ? Math.max(quality.screenSpaceError, 2.5)
+      : quality.screenSpaceError;
+    const tileCache = gpu.integrated ? Math.min(quality.tileCache, 200) : quality.tileCache;
+    viewer.scene.globe.tileCacheSize = tileCache;
+
     if (gpu.integrated) {
       // eslint-disable-next-line no-console
-      console.info(`[gev] integrated GPU detected (${gpu.renderer || 'unknown'}); MSAA<=${msaa}, ${targetFps} fps`);
+      console.info(
+        `[gev] integrated GPU detected (${gpu.renderer || 'unknown'}); `
+        + `MSAA<=${msaa}, ${targetFps} fps, ${gpuBudget}% pixel budget `
+        + `(resolutionScale ${viewer.resolutionScale.toFixed(3)}), SSE>=${screenSpaceError}, cache<=${tileCache}`,
+      );
     }
 
     // Progressive LOD. The quality preset's screen-space error is a STEADY-STATE
@@ -292,11 +341,11 @@ async function init() {
     // the first tile queue drains. Sibling preloading — extra neighbour tiles that
     // make panning smooth — waits for the same moment rather than competing with
     // the tiles actually in view.
-    viewer.scene.globe.maximumScreenSpaceError = Math.max(STARTUP_SCREEN_SPACE_ERROR, quality.screenSpaceError);
+    viewer.scene.globe.maximumScreenSpaceError = Math.max(STARTUP_SCREEN_SPACE_ERROR, screenSpaceError);
     viewer.scene.globe.preloadSiblings = false;
     const applySteadyStateQuality = (queued) => {
       if (queued > 0) return;
-      viewer.scene.globe.maximumScreenSpaceError = quality.screenSpaceError;
+      viewer.scene.globe.maximumScreenSpaceError = screenSpaceError;
       viewer.scene.globe.preloadSiblings = true;
       viewer.scene.globe.tileLoadProgressEvent.removeEventListener(applySteadyStateQuality);
     };
