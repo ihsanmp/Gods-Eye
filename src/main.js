@@ -222,6 +222,34 @@ async function init() {
     // cap, a lighter tile cache and pixel ratio, for a difference most eyes
     // cannot pick out against the cost it saves. GEV_RENDER_QUALITY=high opts
     // back into the maximum for a machine that wants it.
+    /*
+     * Pinch to zoom, on a trackpad.
+     *
+     * A trackpad pinch is not a touch gesture as far as a desktop browser is
+     * concerned: it arrives as a `wheel` event with `ctrlKey` set. Cesium keys
+     * every wheel listener by MODIFIER — getKey(WHEEL, modifier) — so that is a
+     * different event from the plain WHEEL in zoomEventTypes, and it was mapped
+     * to nothing at all.
+     *
+     * The browser's own page zoom is NOT involved, though it looks like it
+     * should be: Cesium's aggregator registers a wheel listener for every
+     * modifier at construction, so ctrl+wheel is always consumed and always
+     * preventDefault'd. The gesture was simply collected and never used —
+     * aggregated under a key that no camera behaviour was listening for, and so
+     * inert. (Checked at runtime before claiming otherwise: ctrl+wheel came
+     * back defaultPrevented both with and without this entry.)
+     *
+     * Plain WHEEL is left in place, so a mouse wheel and a two-finger scroll
+     * both keep zooming exactly as before. Dragging is untouched: the standard
+     * tap-tap-hold-drag produces an ordinary left drag, which is already how the
+     * map is moved.
+     */
+    const cameraInput = viewer.scene.screenSpaceCameraController;
+    cameraInput.zoomEventTypes = [
+      ...cameraInput.zoomEventTypes,
+      { eventType: Cesium.CameraEventType.WHEEL, modifier: Cesium.KeyboardEventModifier.CTRL },
+    ];
+
     const qualityKey = String(import.meta.env.GEV_RENDER_QUALITY || 'balanced').toLowerCase();
     const quality = RENDER_QUALITY_PRESETS[qualityKey] || RENDER_QUALITY_PRESETS.balanced;
     // Turning this off makes Cesium adopt devicePixelRatio as its pixel ratio;
