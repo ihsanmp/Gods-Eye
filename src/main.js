@@ -305,7 +305,50 @@ async function init() {
     const gpuBudget = Number.isFinite(budgetRaw)
       ? Math.min(100, Math.max(40, budgetRaw))
       : (gpu.integrated ? 70 : 100);
-    if (gpuBudget < 100) viewer.resolutionScale *= Math.sqrt(gpuBudget / 100);
+    const budgetScale = gpuBudget < 100 ? Math.sqrt(gpuBudget / 100) : 1;
+    const baseResolutionScale = viewer.resolutionScale * budgetScale;
+
+    /*
+     * A percentage of a big panel is still a big number.
+     *
+     * The budget above is RELATIVE, and that is not enough on its own. These
+     * laptops ship 2.8K and 3K screens: 70% of 2880x1800 is still 3.6 million
+     * pixels per frame, which is why the GPU kept reading 100% after the budget
+     * landed. The relative cut was real and did nothing that mattered, because
+     * the thing it was a fraction OF was the problem.
+     *
+     * So an integrated GPU also gets an ABSOLUTE ceiling, in pixels drawn. Two
+     * megapixels is a little over 1080p, which is what this class of chip can
+     * actually push through a full-screen globe. On a 1080p panel the ceiling
+     * never binds and only the budget applies; on a 3K panel it is what does
+     * the work.
+     *
+     * Recomputed on resize because resolutionScale is a RATIO: Cesium keeps it
+     * across a resize, so a scale chosen for one window is the wrong absolute
+     * pixel count in the next.
+     */
+    const MAX_INTEGRATED_PIXELS = 2_000_000;
+    const applyResolutionCeiling = () => {
+      const canvas = viewer.scene?.canvas;
+      const cssWidth = canvas?.clientWidth || 0;
+      const cssHeight = canvas?.clientHeight || 0;
+      if (!cssWidth || !cssHeight) {
+        viewer.resolutionScale = baseResolutionScale;
+        return;
+      }
+      const dpr = window.devicePixelRatio || 1;
+      let scale = baseResolutionScale;
+      if (gpu.integrated) {
+        const pixels = (cssWidth * dpr * scale) * (cssHeight * dpr * scale);
+        if (pixels > MAX_INTEGRATED_PIXELS) {
+          scale *= Math.sqrt(MAX_INTEGRATED_PIXELS / pixels);
+        }
+      }
+      // Never upscale past what the budget asked for, and never to nothing.
+      viewer.resolutionScale = Math.max(0.1, Math.min(scale, baseResolutionScale));
+    };
+    applyResolutionCeiling();
+    window.addEventListener('resize', applyResolutionCeiling);
 
     /*
      * Tile detail and cache are clamped for the same reason MSAA and frame rate
@@ -330,7 +373,12 @@ async function init() {
       console.info(
         `[gev] integrated GPU detected (${gpu.renderer || 'unknown'}); `
         + `MSAA<=${msaa}, ${targetFps} fps, ${gpuBudget}% pixel budget `
-        + `(resolutionScale ${viewer.resolutionScale.toFixed(3)}), SSE>=${screenSpaceError}, cache<=${tileCache}`,
+        + `(resolutionScale ${viewer.resolutionScale.toFixed(3)}), SSE>=${screenSpaceError}, cache<=${tileCache}. `
+        // The number that actually decides whether this chip copes. A ratio
+        // hides it: 70% of a 3K panel and 70% of a 1080p one are very
+        // different workloads, and only this says which one is being drawn.
+        + `Drawing ${((viewer.scene.canvas.width * viewer.scene.canvas.height) / 1e6).toFixed(2)} MP/frame `
+        + `(panel dpr ${(window.devicePixelRatio || 1).toFixed(2)}).`,
       );
     }
 

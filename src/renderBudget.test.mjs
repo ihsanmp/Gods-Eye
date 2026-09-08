@@ -28,8 +28,31 @@ test('an integrated GPU renders 70% of the pixels, and the maths is the square',
     'the budget must be applied as a square root, not linearly');
   assert.match(main, /gpu\.integrated \? 70 : 100/,
     'integrated defaults to a 70% pixel budget; a discrete card is left alone');
-  assert.match(main, /viewer\.resolutionScale \*= Math\.sqrt/,
+  assert.match(main, /const baseResolutionScale = viewer\.resolutionScale \* budgetScale;/,
     'the budget MULTIPLIES the pixel-ratio cap rather than replacing it');
+});
+
+test('an absolute pixel ceiling backs the relative budget, and follows resizes', () => {
+  /*
+   * The relative budget alone did not fix a pegged GPU, and could not: 70% of a
+   * 2880x1800 panel is still 3.6 megapixels a frame. A percentage of a big
+   * number is a big number. The ceiling is what binds on a high-resolution
+   * screen; on a 1080p one it never does and only the budget applies.
+   */
+  assert.match(main, /const MAX_INTEGRATED_PIXELS = 2_000_000;/);
+  assert.match(main, /Math\.sqrt\(MAX_INTEGRATED_PIXELS \/ pixels\)/,
+    'the ceiling is also applied as a square root — it is a pixel COUNT');
+  assert.match(main, /if \(gpu\.integrated\) \{[\s\S]*?MAX_INTEGRATED_PIXELS/,
+    'the ceiling applies to integrated GPUs only');
+
+  // resolutionScale is a RATIO that Cesium keeps across a resize, so a scale
+  // chosen for one window is the wrong absolute pixel count in the next.
+  assert.match(main, /window\.addEventListener\('resize', applyResolutionCeiling\)/,
+    'the ceiling must be recomputed when the window changes size');
+
+  // It may never magnify past the budget, and never collapse the canvas.
+  assert.match(main, /Math\.max\(0\.1, Math\.min\(scale, baseResolutionScale\)\)/,
+    'the ceiling only ever lowers, and never to nothing');
 });
 
 test('the budget is overridable and floored, never zeroed by a bad value', () => {
