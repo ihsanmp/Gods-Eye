@@ -1,8 +1,10 @@
 <div align="center">
 
-# 🌐 God's Eye View
+# 🌐 Map Monitoring
 
 ### A spy-satellite simulator in your browser — then you realize the sources are public and the data is real.
+
+*A fork of [God's Eye View](https://github.com/bilawalsidhu/gods-eye-view) by [Bilawal Sidhu](https://github.com/bilawalsidhu), MIT-licensed. The name is this fork's; the work it is built on is his.*
 
 Photorealistic 3D globe. Live aircraft, ships, satellites, earthquakes, traffic, and public cameras, with clearly labeled modeled views where a live feed is unavailable. Hands-free voice control powered by a realtime AI agent.
 
