@@ -401,6 +401,48 @@ export function createLocalGeoJsonLayer({
       return { count: _count, lastUpdate: _lastUpdate, error: _error };
     },
 
+    /**
+     * Snapshot for the analyst-query engine and the drawing tools.
+     *
+     * Added because a box drawn over a dozen visible ports counted ZERO: the
+     * drawing tools ask each enabled layer for its records, and every static
+     * dataset — ports, chokepoints, nuclear sites, datacenters, dams — had no
+     * such method, so five layers' worth of dots on screen were invisible to
+     * the thing measuring them. One method on the factory fixes all five.
+     *
+     * Reads from `_stemRecords`, which is the built dataset, so a layer that
+     * failed to load returns [] rather than a stale answer. Empty while
+     * disabled, matching every other layer: the count must describe what the
+     * operator can actually see.
+     *
+     * @param {number} [maxCount=2000] Truncation limit.
+     * @returns {Array<{id:string, name:string, note:string|null, kind:string|null,
+     *   lat:number|null, lon:number|null}>}
+     */
+    getAnalystRecords: (maxCount = 2000) => {
+      if (!_enabled || !_stemRecords.length) return [];
+      const limit = Number.isFinite(maxCount) ? Math.max(1, Math.floor(maxCount)) : 2000;
+      const out = [];
+      for (const record of _stemRecords) {
+        if (out.length >= limit) break;
+        const carto = record.carto;
+        if (!carto) continue;
+        const text = (value) => {
+          const trimmed = String(value ?? '').trim();
+          return trimmed || null;
+        };
+        out.push({
+          id: String(record.id),
+          name: text(record.analystName) || String(record.id),
+          note: text(record.analystNote),
+          kind: text(record.analystKind),
+          lat: Cesium.Math.toDegrees(carto.latitude),
+          lon: Cesium.Math.toDegrees(carto.longitude),
+        });
+      }
+      return out;
+    },
+
     enable: async (viewer) => {
       if (_destroyed) return;
       _enabled = true;
@@ -540,6 +582,12 @@ export function createLocalGeoJsonLayer({
               id: recordId,
               entity: feature,
               carto,
+              // Copied at build time rather than re-read from the entity later:
+              // Cesium properties come back wrapped and need a JulianDate to
+              // unwrap, and an analyst query should not pay that per record.
+              analystName: String(properties?.name || properties?.NAME || '').trim() || recordId,
+              analystNote: String(properties?.note || '').trim(),
+              analystKind: String(properties?.kind || '').trim(),
               base,
               tip,
               nextTip: Cesium.Cartesian3.clone(tip),

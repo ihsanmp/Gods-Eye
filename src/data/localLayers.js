@@ -8,6 +8,7 @@ import damsUrl from './local_data/dams/dams.geojsonl?url';
 import portsUrl from './local_data/maritime/ports.geojsonl?url';
 import chokepointsUrl from './local_data/maritime/chokepoints.geojsonl?url';
 import nuclearUrl from './local_data/nuclear/sites.geojsonl?url';
+import volcanoesUrl from './local_data/volcanoes/gvp-holocene.geojsonl?url';
 
 /**
  * Registry of local GeoJSON datasets.
@@ -115,6 +116,33 @@ const nuclear = createLocalGeoJsonLayer({
   labelGridPx: 130,
 });
 
+/*
+ * Volcanoes, from the Smithsonian Global Volcanism Program: 1,214 Holocene
+ * cones, 101 of them Indonesian.
+ *
+ * NOT from EONET, which this app already polls and which has a volcanoes
+ * category. That category held FOURTEEN open events worldwide and NONE in
+ * Indonesia — the country with more active volcanoes than any other. A row fed
+ * from it would have drawn an empty map over precisely the place this console
+ * exists for. GVP is the authoritative catalogue, positions do not move, so it
+ * is bundled rather than polled.
+ *
+ * The label carries the last known eruption year, which is what separates
+ * Sinabung (2021) from a field that last went up in 8300 BCE.
+ */
+const volcanoes = createLocalGeoJsonLayer({
+  id: 'volcanoes',
+  url: volcanoesUrl,
+  name: 'Volcanoes',
+  color: '#ff8a65',
+  icon: '▲',
+  source: 'Smithsonian GVP',
+  group: 'natural-hazards',
+  labels: true,
+  labelMax: 500,
+  labelGridPx: 128,
+});
+
 export default [
   datacenters,
   dams,
@@ -123,4 +151,5 @@ export default [
   ports,
   chokepoints,
   nuclear,
+  volcanoes,
 ];

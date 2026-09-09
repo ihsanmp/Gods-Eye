@@ -30,12 +30,14 @@ const read = (path) => readFileSync(
 const PORTS = read('maritime/ports.geojsonl');
 const CHOKEPOINTS = read('maritime/chokepoints.geojsonl');
 const NUCLEAR = read('nuclear/sites.geojsonl');
-const ALL = [...PORTS, ...CHOKEPOINTS, ...NUCLEAR];
+const VOLCANOES = read('volcanoes/gvp-holocene.geojsonl');
+const ALL = [...PORTS, ...CHOKEPOINTS, ...NUCLEAR, ...VOLCANOES];
 
 test('every dataset is non-empty GeoJSON point features', () => {
   assert.ok(PORTS.length >= 25, `only ${PORTS.length} ports`);
   assert.ok(CHOKEPOINTS.length >= 15, `only ${CHOKEPOINTS.length} chokepoints`);
   assert.ok(NUCLEAR.length >= 30, `only ${NUCLEAR.length} nuclear sites`);
+  assert.ok(VOLCANOES.length >= 1000, `only ${VOLCANOES.length} volcanoes`);
   for (const feature of ALL) {
     assert.equal(feature.type, 'Feature');
     assert.equal(feature.geometry.type, 'Point');
@@ -83,7 +85,7 @@ test('ids are unique and derived from the name', () => {
   const ids = ALL.map((f) => f.id);
   assert.equal(new Set(ids).size, ids.length, 'duplicate feature id');
   for (const feature of ALL) {
-    assert.match(feature.id, /^(port|chokepoint|nuclear)-[a-z0-9-]+$/, feature.id);
+    assert.match(feature.id, /^(port|chokepoint|nuclear|volcano)-[a-z0-9-]+$/, feature.id);
     assert.equal(feature.id.startsWith(feature.properties.kind), true);
   }
 });
@@ -92,7 +94,7 @@ test('every feature carries a name and a note worth reading aloud', () => {
   for (const feature of ALL) {
     assert.ok(feature.properties.name?.trim(), `${feature.id} has no name`);
     assert.ok(feature.properties.note?.trim(), `${feature.id} has no note`);
-    assert.ok(['port', 'chokepoint', 'nuclear'].includes(feature.properties.kind));
+    assert.ok(['port', 'chokepoint', 'nuclear', 'volcano'].includes(feature.properties.kind));
   }
 });
 
@@ -137,6 +139,35 @@ test('the nuclear sites whose names only OSM-resolve in their own language are p
     'nuclear-olkiluoto', 'nuclear-ringhals', 'nuclear-kori', 'nuclear-atucha',
   ]) {
     assert.ok(ids.has(id), `${id} is missing`);
+  }
+});
+
+test('the volcano set covers Indonesia, which is why it is not from EONET', () => {
+  // EONET's volcano category had 14 open events worldwide and ZERO in
+  // Indonesia — the country with more active volcanoes than any other. That
+  // absence is the whole reason this dataset comes from the Smithsonian
+  // instead, so it is the thing worth asserting.
+  const indonesian = VOLCANOES.filter((f) => f.properties.country === 'Indonesia');
+  assert.ok(indonesian.length >= 90, `only ${indonesian.length} Indonesian volcanoes`);
+  const names = new Set(indonesian.map((f) => f.properties.name));
+  for (const name of ['Sinabung', 'Merapi', 'Krakatau', 'Semeru']) {
+    assert.ok(names.has(name), `${name} is missing`);
+  }
+});
+
+test('a pre-Common-Era eruption year is written BCE, not as a negative number', () => {
+  // GVP stores these as negatives, and "last erupted -8300" on a label reads
+  // as a bug rather than as 8300 BCE.
+  const ancient = VOLCANOES.filter((f) => (f.properties.lastEruption ?? 0) < 0);
+  assert.ok(ancient.length > 0, 'the dataset should contain pre-CE eruptions');
+  for (const feature of ancient) {
+    assert.match(feature.properties.note, /BCE/, feature.id);
+    assert.doesNotMatch(feature.properties.note, /erupted -/, feature.id);
+  }
+  // And a volcano with no dated eruption says so rather than showing nothing.
+  const undated = VOLCANOES.filter((f) => f.properties.lastEruption === null);
+  for (const feature of undated.slice(0, 20)) {
+    assert.match(feature.properties.note, /no dated eruption/, feature.id);
   }
 });
 
