@@ -40,7 +40,23 @@ test('earthquake analyst record: full record maps every contract field', () => {
     lon: -150.41,
     timeMs: 1_753_600_000_000,
     place: '42 km SW of Anchorage, Alaska',
+    url: null,
   });
+});
+
+test('earthquake analyst record: the USGS event page travels with the record', () => {
+  // The feed already carries this as properties.url. Taking it from there
+  // rather than rebuilding it from the id means a change to USGS's URL shape
+  // follows the feed instead of silently producing dead links.
+  const withUrl = mapAnalystRecord({
+    ...FULL_RAW,
+    url: 'https://earthquake.usgs.gov/earthquakes/eventpage/us7000abcd',
+  }, 0);
+  assert.equal(withUrl.url, 'https://earthquake.usgs.gov/earthquakes/eventpage/us7000abcd');
+  // Absent or blank is null — never the string "undefined", which would render
+  // as a link that goes nowhere.
+  assert.equal(mapAnalystRecord({ ...FULL_RAW, url: '  ' }, 0).url, null);
+  assert.equal(mapAnalystRecord({ ...FULL_RAW }, 0).url, null);
 });
 
 test('earthquake analyst record: missing USGS id falls back to index-based id', () => {

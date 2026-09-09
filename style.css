@@ -4210,6 +4210,63 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
   border-radius: 999px;
 }
 
+/* ------------------------------------------------------------------ *
+ * DATA LAYERS section headings.
+ *
+ * The panel outgrew a flat list at seventeen rows. These headings are quiet by
+ * design — dim, letterspaced, no background — because the ROWS are the content
+ * and a loud divider every four rows would fight them. The first heading loses
+ * its top margin so the panel does not open with a gap.
+ * ------------------------------------------------------------------ */
+.data-group-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 12px 0 2px;
+  padding: 0 10px;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.data-group-heading:first-child {
+  margin-top: 2px;
+}
+
+.data-group-title {
+  white-space: nowrap;
+}
+
+/* A rule that fills the rest of the row, so the heading reads as a divider
+   without needing a separate element. */
+.data-group-title::after {
+  content: '';
+}
+
+.data-group-heading::after {
+  content: '';
+  flex: 1 1 auto;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0));
+}
+
+/* How many layers in this section are ON. Ordered after the rule so it sits at
+   the far right, where the per-row counts already are. */
+.data-group-count {
+  order: 3;
+  flex: 0 0 auto;
+  min-width: 13px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: rgba(0, 212, 255, 0.14);
+  color: var(--accent);
+  font-size: 8px;
+  line-height: 13px;
+  text-align: center;
+}
+
 .data-toggle-row {
   padding: 8px 10px 6px;
   border-radius: 8px;

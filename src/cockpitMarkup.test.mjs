@@ -744,7 +744,12 @@ test('Global Context names its mixed contact cycle without changing the stable m
 
 test('Global Context uses its dedicated right rail without a duplicate Data Layers row', () => {
   assert.match(contextLayer, /id:\s*'military-awareness'[\s\S]*?showInTogglePanel:\s*false/);
-  assert.match(manager, /if \(!layer\.showInTogglePanel\) continue;/);
+  // The panel must still drop opted-out layers. This used to pin the exact
+  // line `if (!layer.showInTogglePanel) continue;`, which broke when sections
+  // arrived and the loop became a filter — the BEHAVIOUR was unchanged. The
+  // pattern now allows either shape while still failing if the flag stops
+  // being consulted at all.
+  assert.match(manager, /(!layer\.showInTogglePanel\) continue;|filter\(\(layer\) => layer\.showInTogglePanel\))/);
   assert.match(html, /id="global-context-panel"/);
   assert.match(html, /id="global-context-flights-btn"/);
   assert.match(html, /id="global-context-missions-btn"/);

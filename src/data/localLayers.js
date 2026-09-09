@@ -42,6 +42,7 @@ const fires = createFirmsHeatmapLayer({
   name: 'FIRMS Active Fires',
   icon: '▲',
   source: 'NASA FIRMS · LIVE',
+  group: 'natural-hazards',
 });
 
 export default [

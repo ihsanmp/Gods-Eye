@@ -155,8 +155,12 @@ function encode(state) {
 
 test('production registry is exact, canonical, and rejects incomplete contracts', async () => {
   assert.equal(validateLayerStateRegistry(), true);
-  assert.equal(REGISTERED_LAYER_IDS.length, 16);
-  assert.equal(new Set(REGISTERED_LAYER_IDS).size, 16);
+  assert.equal(REGISTERED_LAYER_IDS.length, 17);
+  assert.equal(new Set(REGISTERED_LAYER_IDS).size, 17);
+  // Every id carries a UNIQUE single-letter URL token; a collision would make
+  // two layers share a share-link slot and silently restore the wrong one.
+  const tokens = LAYER_STATE_REGISTRY.map((entry) => entry.token);
+  assert.equal(new Set(tokens).size, tokens.length, 'layer-state tokens must be unique');
   assert.deepEqual(REGISTERED_LAYER_IDS, [...REGISTERED_LAYER_IDS].sort());
   assert.throws(
     () => validateLayerStateRegistry([...LAYER_STATE_REGISTRY, LAYER_STATE_REGISTRY[0]]),

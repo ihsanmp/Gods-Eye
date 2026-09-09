@@ -1,5 +1,6 @@
 import { governorRequestRender } from '../renderGovernor.js';
 import { markDetectionSourcesChanged } from './detection.js';
+import { groupLayers } from './layerGroups.js';
 function cloneLayerParams(value) {
   if (Array.isArray(value)) return value.map(cloneLayerParams);
   if (value && typeof value === 'object') {
@@ -1967,6 +1968,9 @@ export class DataLayerManager {
       name: entry.module.name,
       icon: entry.module.icon,
       source: entry.module.source,
+      // Which DATA LAYERS section the row belongs in. Undefined is normal and
+      // means "no section" — see data/layerGroups.js.
+      group: entry.module.group,
       showInTogglePanel: entry.module.showInTogglePanel !== false,
       enabled: entry.enabled,
       lifecycleState: entry.lifecycleState,
@@ -2092,8 +2096,73 @@ export class DataLayerManager {
     if (!this._toggleContainer) return;
     this._toggleContainer.innerHTML = '';
 
-    for (const layer of this.getAll()) {
-      if (!layer.showInTogglePanel) continue;
+    // Sections and their order come from src/data/layerGroups.js, so
+    // registering a layer cannot reshuffle a panel people have learned. A
+    // layer with no group still renders, in the trailing section.
+    const visible = this.getAll().filter((layer) => layer.showInTogglePanel);
+    for (const section of groupLayers(visible)) {
+      this._toggleContainer.appendChild(this._buildGroupHeading(section));
+      for (const layer of section.layers) {
+        this._toggleContainer.appendChild(this._buildToggleRow(layer));
+      }
+    }
+  }
+
+  /**
+   * One section heading, with a count of what is ON inside it.
+   *
+   * The panel is usually a short scroll, so a section holding an enabled layer
+   * has to say so without being scrolled to.
+   *
+   * @param {{id: string|null, title: string, layers: Array<object>}} section
+   * @returns {HTMLElement}
+   */
+  _buildGroupHeading(section) {
+    const heading = document.createElement('div');
+    heading.className = 'data-group-heading';
+    if (section.id) heading.dataset.groupId = section.id;
+
+    const title = document.createElement('span');
+    title.className = 'data-group-title';
+    title.textContent = section.title;
+    heading.appendChild(title);
+
+    // The badge is created ALWAYS and hidden when the count is zero, rather
+    // than created only when non-zero. _refreshTogglePanel reconciles nodes in
+    // place and never rebuilds headings, so a badge that came into existence
+    // conditionally would be absent for the rest of the session the moment the
+    // panel was first drawn with everything off — which is every cold start.
+    const badge = document.createElement('span');
+    badge.className = 'data-group-count';
+    heading.appendChild(badge);
+    this._syncGroupCount(heading, section.layers);
+    return heading;
+  }
+
+  /**
+   * Write how many of a section's layers are ON into its heading badge.
+   * @param {HTMLElement} heading The `.data-group-heading` node.
+   * @param {Array<{enabled: boolean}>} layers That section's layers.
+   */
+  _syncGroupCount(heading, layers) {
+    const badge = heading?.querySelector?.('.data-group-count');
+    if (!badge) return;
+    const enabledCount = layers.filter((layer) => layer.enabled).length;
+    badge.textContent = enabledCount ? String(enabledCount) : '';
+    badge.hidden = !enabledCount;
+  }
+
+  /**
+   * One layer's row: name, count, toggle, meta line and optional sub-controls.
+   *
+   * Extracted from `_renderToggles` when sections arrived — the alternative was
+   * a second `for` wrapped around eighty lines of DOM building.
+   *
+   * @param {object} layer Registered layer projection.
+   * @returns {HTMLElement}
+   */
+  _buildToggleRow(layer) {
+    {
       const row = document.createElement('div');
       row.className = 'data-toggle-row';
       row.dataset.layerId = layer.id;
@@ -2162,7 +2231,7 @@ export class DataLayerManager {
         this._syncRowControls(controls, layer);
       }
 
-      this._toggleContainer.appendChild(row);
+      return row;
     }
   }
 
@@ -2254,6 +2323,16 @@ export class DataLayerManager {
       this._panelRefreshPendingOnVisible = true;
       return;
     }
+    // Headings are reconciled, never rebuilt — the rows below them hold
+    // focus and listeners. Only the counts change.
+    const visible = this.getAll().filter((layer) => layer.showInTogglePanel);
+    for (const section of groupLayers(visible)) {
+      const selector = section.id
+        ? `.data-group-heading[data-group-id="${section.id}"]`
+        : '.data-group-heading:not([data-group-id])';
+      this._syncGroupCount(this._toggleContainer.querySelector(selector), section.layers);
+    }
+
     for (const layer of this.getAll()) {
       const row = this._toggleContainer.querySelector(`[data-layer-id="${layer.id}"]`);
       if (!row) continue;

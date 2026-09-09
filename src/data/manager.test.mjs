@@ -3098,3 +3098,43 @@ test('a layer that surrenders its row controls hides the block entirely', async 
     else globalThis.document = originalDocument;
   }
 });
+
+// ── DATA LAYERS section headings ────────────────────────────────────────────
+
+/** A heading stand-in: just enough of an element for _syncGroupCount. */
+function fakeHeading() {
+  const badge = { className: 'data-group-count', textContent: 'stale', hidden: false };
+  return {
+    badge,
+    querySelector: (sel) => (sel === '.data-group-count' ? badge : null),
+  };
+}
+
+test('a section heading counts only the layers that are ON', () => {
+  const manager = new DataLayerManager({});
+  const heading = fakeHeading();
+
+  manager._syncGroupCount(heading, [{ enabled: true }, { enabled: false }, { enabled: true }]);
+  assert.equal(heading.badge.textContent, '2');
+  assert.equal(heading.badge.hidden, false);
+
+  // Zero HIDES the badge rather than printing "0": a section with nothing on
+  // should read as quiet, not as a zero someone has to interpret.
+  manager._syncGroupCount(heading, [{ enabled: false }]);
+  assert.equal(heading.badge.textContent, '');
+  assert.equal(heading.badge.hidden, true);
+
+  // ...and it comes back, which is the whole reason the badge node is built
+  // unconditionally instead of only when the count is non-zero.
+  manager._syncGroupCount(heading, [{ enabled: true }]);
+  assert.equal(heading.badge.textContent, '1');
+  assert.equal(heading.badge.hidden, false);
+});
+
+test('_syncGroupCount survives a heading that has no badge', () => {
+  const manager = new DataLayerManager({});
+  const bare = { querySelector: () => null };
+  assert.doesNotThrow(() => manager._syncGroupCount(bare, [{ enabled: true }]));
+  assert.doesNotThrow(() => manager._syncGroupCount(null, [{ enabled: true }]));
+  assert.doesNotThrow(() => manager._syncGroupCount(undefined, []));
+});

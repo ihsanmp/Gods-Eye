@@ -105,7 +105,11 @@ export function selectEarthquakeOverlayCohort(
  *   {id, mag, place, time, depth, lat, lon}.
  * @param {number} [index=0] - Position in the snapshot (fallback id only).
  * @returns {{id: string, magnitude: number|null, depthKm: number|null,
- *   lat: number|null, lon: number|null, timeMs: number|null, place: string|null}}
+ *   lat: number|null, lon: number|null, timeMs: number|null, place: string|null,
+ *   url: string|null}} `url` is the event's USGS page
+ *   (earthquake.usgs.gov/earthquakes/eventpage/<id>), taken from the feed
+ *   rather than rebuilt from the id, so a change to USGS's URL shape follows
+ *   the feed instead of breaking here.
  */
 export function mapAnalystRecord(raw, index = 0) {
   const num = (v) => (Number.isFinite(v) ? v : null);
@@ -118,6 +122,7 @@ export function mapAnalystRecord(raw, index = 0) {
     lon: num(raw?.lon),
     timeMs: num(raw?.time), // USGS epoch ms
     place: text(raw?.place),
+    url: text(raw?.url),
   };
 }
 
@@ -133,6 +138,7 @@ export function createEarthquakesLayer({ overlayHost = DEFAULT_OVERLAY_HOST } = 
   name: 'Earthquakes (24h)',
   icon: '🌋',
   source: 'USGS',
+  group: 'natural-hazards',
   updateInterval: 60000,
 
   init(viewer) {
@@ -217,6 +223,10 @@ export function createEarthquakesLayer({ overlayHost = DEFAULT_OVERLAY_HOST } = 
           properties: {
             // Analyst seam (additive): the USGS event id (e.g. "us7000abcd").
             usgsId: feature.id ?? null,
+            // The event's own USGS page — shake maps, felt reports, moment
+            // tensor. The feed already carries it as properties.url, so this
+            // costs nothing and saves reconstructing the URL from the id.
+            usgsUrl: feature.properties?.url ?? null,
             mag,
             place,
             time,
@@ -295,6 +305,7 @@ export function createEarthquakesLayer({ overlayHost = DEFAULT_OVERLAY_HOST } = 
         place: p?.place?.getValue(now),
         time: p?.time?.getValue(now),
         depth: p?.depth?.getValue(now),
+        url: p?.usgsUrl?.getValue(now) ?? null,
         lat: carto ? Cesium.Math.toDegrees(carto.latitude) : null,
         lon: carto ? Cesium.Math.toDegrees(carto.longitude) : null,
       }, result.length));

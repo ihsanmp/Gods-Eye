@@ -123,6 +123,9 @@ export function createFirmsHeatmapLayer({
   name,
   icon = '▲',
   source = 'NASA FIRMS',
+  // DATA LAYERS section this row belongs in (see data/layerGroups.js).
+  // Undefined is fine and means the trailing ungrouped section.
+  group,
   overlayHost = {
     setEntries: setOverlayEntries,
     setVisible: setOverlaySourceVisible,
@@ -193,6 +196,7 @@ export function createFirmsHeatmapLayer({
     name,
     icon,
     source,
+    group,
     // Live layer: the manager calls update() every 10 minutes while enabled,
     // which refetches through the /api/firms proxy (the proxy's 30 min TTL —
     // not this interval — is what protects the upstream FIRMS quota).
