@@ -4,6 +4,7 @@ import {
   Cctv,
   Clapperboard,
   Layers,
+  Ruler,
   Menu as MenuIcon,
   Palette,
   Radar,
@@ -79,6 +80,24 @@ const PANELS: PanelEntry[] = [
     },
     note: 'Siaran videonya tampil di panel penuh.',
     icon: <Cctv size={24} strokeWidth={1.5} />
+  },
+  {
+    /*
+     * Without this entry the DRAWING TOOLS panel is unreachable.
+     *
+     * legacy-chrome.css hides every collapsed panel in the left stack with
+     * !important, and this menu is the only thing that un-collapses one. The
+     * panel was added, mounted and wired without a menu row, so the whole
+     * feature existed and could not be opened by anyone.
+     */
+    id: 'drawing-panel',
+    label: 'Drawing Tools',
+    description: 'Ukur luas area dan lihat isinya.',
+    // The four shapes arm the tool; the actions undo and clear. Mirroring them
+    // here means a measurement can be started without opening the full panel.
+    controls: '.draw-shape, .draw-action',
+    note: 'Angka luas dan isinya tampil di panel penuh.',
+    icon: <Ruler size={24} strokeWidth={1.5} />
   },
   {
     id: 'global-context-panel',
