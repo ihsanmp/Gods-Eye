@@ -1153,8 +1153,19 @@ export function camerasWithinRadius(cameras, lat, lon, radiusKm) {
   return within;
 }
 
-/** How long to wait on the hours lookup before giving up on it. */
-const PLACE_HOURS_TIMEOUT_MS = 7000;
+/**
+ * How long to wait on the hours lookup before giving up on it.
+ *
+ * Short, because the endpoint no longer blocks. It answers immediately —
+ * either from cache, or with `pending` while it warms one in the background.
+ *
+ * It did block once, and the history is worth keeping: a cold Overpass lookup
+ * measured 14 seconds on a good run and 28 on a bad one. A 7 s timeout was
+ * tried and the tool never once returned an answer; 25 s was tried and was
+ * still exceeded. No timeout was ever going to fix a spoken interaction that
+ * waits half a minute in silence, which is why the server changed instead.
+ */
+const PLACE_HOURS_TIMEOUT_MS = 8000;
 
 /**
  * The turn's own abort signal, or a plain timeout when there is none.
@@ -1215,6 +1226,17 @@ export async function checkPlaceHours(args = {}, options = {}) {
     return answer({
       status: 'unknown',
       reason: payload?.error || 'the opening-hours lookup is unavailable',
+      latitude,
+      longitude,
+    });
+  }
+  if (payload.pending) {
+    // The lookup has been started, not failed. Distinguishing the two matters:
+    // one is worth asking again about in a moment, the other is not.
+    return answer({
+      status: 'unknown',
+      reason: 'still looking up the opening hours — ask again in a moment',
+      pending: true,
       latitude,
       longitude,
     });

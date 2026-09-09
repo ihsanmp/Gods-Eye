@@ -3145,6 +3145,26 @@ async function overpassCategorySearch(selectors, box) {
   return rows.slice(0, GEOCODE_CATEGORY_LIMIT);
 }
 
+/**
+ * Cache for opening-hours lookups.
+ *
+ * MEASURED: an uncached lookup takes ~14 SECONDS, because that is how long the
+ * public Overpass mirrors take. That number is why the cache exists and why the
+ * client timeout is what it is — a voice turn that gave up at 7 s (as the first
+ * version did) never once saw an answer, even for a mall that is tagged
+ * perfectly.
+ *
+ * Six hours is generous on purpose: a shop's posted hours change on the order
+ * of months, so nothing is lost, and a second question about the same place —
+ * which is the common case, since people ask about where they are going twice —
+ * returns instantly.
+ */
+const PLACE_HOURS_TTL_MS = 6 * 60 * 60 * 1000;
+const PLACE_HOURS_CACHE_MAX = 200;
+const _placeHoursCache = new Map();
+/** Lookups currently running, so N asks about one place make ONE Overpass call. */
+const _placeHoursInFlight = new Map();
+
 /** How far around a destination to look for the place itself. */
 const PLACE_HOURS_RADIUS_M = 400;
 /** And how far a name match may be before it stops being the same place. */
@@ -3814,10 +3834,56 @@ function overpassProxy() {
             return;
           }
           const name = String(url.searchParams.get('name') || '').slice(0, 120);
-          const place = await overpassPlaceHours(lat, lon, name);
-          // A place with no hours in OSM is a normal answer, not a failure —
-          // most of OSM is untagged. `ok: true, place: null` says "we looked".
-          send(200, { ok: true, place });
+
+          // Rounded to ~100 m: two clicks on the same mall are the same
+          // question, and a full-precision key would miss every time.
+          const cacheKey = `${lat.toFixed(3)},${lon.toFixed(3)}|${name.toLowerCase()}`;
+          const cached = _placeHoursCache.get(cacheKey);
+          if (cached && Date.now() - cached.at < PLACE_HOURS_TTL_MS) {
+            res.writeHead(200, {
+              'Content-Type': 'application/json',
+              'Cache-Control': 'no-store',
+              'X-Place-Hours-Cache': 'HIT',
+            });
+            res.end(JSON.stringify({ ok: true, place: cached.place }));
+            return;
+          }
+
+          /*
+           * NEVER BLOCK THE CALLER ON A COLD LOOKUP.
+           *
+           * This used to await Overpass. Measured, that takes 14 seconds on a
+           * good run and 28 on a bad one — and this answer is spoken, so the
+           * caller is a voice turn sitting in silence for all of it. Two client
+           * timeouts were tried, 7 s and 25 s, and BOTH were exceeded; the
+           * second by a mirror that simply took longer that minute.
+           *
+           * So the lookup is started and the request returns AT ONCE saying so.
+           * The work continues, the answer lands in the cache, and the next ask
+           * about the same place is instant. "Still looking, ask again in a
+           * moment" is a sentence someone can act on; thirty seconds of silence
+           * followed by "unavailable" is not.
+           */
+          if (!_placeHoursInFlight.has(cacheKey)) {
+            const work = overpassPlaceHours(lat, lon, name)
+              .then((place) => {
+                _placeHoursCache.set(cacheKey, { place, at: Date.now() });
+                if (_placeHoursCache.size > PLACE_HOURS_CACHE_MAX) {
+                  _placeHoursCache.delete(_placeHoursCache.keys().next().value);
+                }
+              })
+              .catch((error) => {
+                console.error('[Place Hours]', error.message);
+              })
+              .finally(() => _placeHoursInFlight.delete(cacheKey));
+            _placeHoursInFlight.set(cacheKey, work);
+          }
+          res.writeHead(200, {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-store',
+            'X-Place-Hours-Cache': 'PENDING',
+          });
+          res.end(JSON.stringify({ ok: true, pending: true, place: null }));
         } catch (e) {
           console.error('[Place Hours]', e.message);
           send(200, { ok: false, error: 'Opening hours lookup unavailable' });
@@ -6547,7 +6613,7 @@ function openAiRealtimeProxy() {
             // string is the whole rollback.
             'NAMED VIEWS are shorthand for tool calls you already have — there is no "mode" tool for them. Treat ONLY these as the shorthand: "infrastructure mode" / "the infrastructure view" / "show me global infrastructure" means three set_layer_visibility calls (local-datacenters, local-dams, telegeography-submarine-cables) plus zoom_to_globe; "environmental mode" / "earth watch" / "active events", said as the name of a view, means set_layer_visibility for local-firms and earthquakes plus zoom_to_globe. Anything vaguer is NOT this shorthand — an open-ended question about the world or the news is an ordinary question: answer it, or use analyst_query over the layers already on. Never switch a whole view on to answer a question nobody asked to see. When you do run one, make every call before speaking, then give one confirmation naming the resulting state; if the fires layer comes back unavailable because no FIRMS key is configured, say so plainly — the earthquakes still loaded. "Live contacts" and "space missions" are NOT this pattern: they stay set_context_mode{mode:"contacts"} and set_context_mode{mode:"space-missions"}.',
             'CAMERAS AROUND A PLACE — "show me the CCTV in Pakuwon", "lihat CCTV di Malioboro", "what cameras are near the airport" — is ONE call: control_cctv{action:"area", locationQuery:"<place>"}. It turns the CCTV layer on, flies there, and frames the area so the surrounding cameras come up on screen by themselves; do NOT also call set_layer_visibility or fly_to_location for the same request. Speak camerasInArea VERBATIM and name two or three of the cameras it lists. camerasInArea:0 is a real answer — the area genuinely has none — so say so plainly and never claim to have opened anything. feedStatus splits them into ok / degraded / unknown, where UNKNOWN means that camera has not been contacted yet, NOT that it is broken: never report an unknown feed as dead. Use radiusKm only when the user asks for a wider or tighter area. To read the cameras already on screen without changing anything, use action:"status".',
-            'DESTINATION BRIEFING. After building a route, and whenever the user asks about a place they are heading to, brief the DESTINATION rather than the view you are in: call get_place_weather for the conditions there and check_place_hours for whether it is open, passing the destination coordinates whenever you already have them so neither tool has to guess which place you mean. Read distance and travel time from the route result. Then give ONE short spoken summary covering the drive, the weather at the far end, and whether the place is open. check_place_hours status "unknown" means the hours are NOT RECORDED, or written in a grammar this app does not read — say exactly that; never turn it into "it is closed". When matchedBy is "proximity" the hours may belong to a neighbouring building, so hedge. When publicHolidayCaveat is set, add that public holidays may differ. get_place_weather returns an observedAt: the reading can be up to fifteen minutes old, so do not present it as this instant if the user asks how current it is.',
+            'DESTINATION BRIEFING. After building a route, and whenever the user asks about a place they are heading to, brief the DESTINATION rather than the view you are in: call get_place_weather for the conditions there and check_place_hours for whether it is open, passing the destination coordinates whenever you already have them so neither tool has to guess which place you mean. Read distance and travel time from the route result. Then give ONE short spoken summary covering the drive, the weather at the far end, and whether the place is open. check_place_hours status "unknown" means the hours are NOT RECORDED, or written in a grammar this app does not read — say exactly that; never turn it into "it is closed". A result carrying pending:true is DIFFERENT and must not be reported as unknown-forever: the lookup is still running, so say you are checking and call check_place_hours again for that place a few seconds later, which then answers instantly. When matchedBy is "proximity" the hours may belong to a neighbouring building, so hedge. When publicHolidayCaveat is set, add that public holidays may differ. get_place_weather returns an observedAt: the reading can be up to fifteen minutes old, so do not present it as this instant if the user asks how current it is.',
             'For visual filter requests, call set_visual_style with one of the allowed style IDs.',
             'Disambiguation table — basemap vs layer vs style: basemap switching requires an explicit stack name — "Bing aerial" means set_map_stack bing-aerial, "aerial with labels" means bing-labels, "OSM"/"road map" means osm, "Google 3D"/"photorealistic" means photoreal. Any mention of "satellite" or "satellites" ALWAYS means the satellites DATA LAYER via set_layer_visibility, never a basemap. "surveillance"/"night vision"/"thermal" are visual STYLES via set_visual_style.',
             'HUD requests ("hud on/off", "switch to operator/minimal/tactical layout") use set_hud. Detection requests ("detection on", "dense mode", "balanced mode", "sparse mode", "set density to 25", "use weighted allocation") use set_detection. Density snaps to 0/25/50/75/100 and derives Sparse/Balanced/Dense; panoptic is a legacy alias for Dense.',

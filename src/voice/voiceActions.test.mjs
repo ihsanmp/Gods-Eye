@@ -2059,6 +2059,26 @@ test('check_place_hours skips the geocode when it is handed coordinates', async 
   }
 });
 
+test('a lookup still running says so, and is not confused with "no hours recorded"', async () => {
+  // A cold Overpass lookup takes 14-28 seconds, so the endpoint starts it and
+  // answers at once. "Ask again in a moment" is something the agent can act on;
+  // "nobody has recorded any hours" would be a different — and wrong — claim
+  // that would stop it ever asking again.
+  const stub = stubFetch([
+    ['/api/place-hours', { payload: { ok: true, pending: true, place: null } }],
+  ]);
+  try {
+    const result = await checkPlaceHours({ placeQuery: 'Malioboro', latitude: -7.79, longitude: 110.36 });
+    assert.equal(result.ok, true);
+    assert.equal(result.status, 'unknown');
+    assert.equal(result.pending, true);
+    assert.match(result.reason, /ask again in a moment/i);
+    assert.doesNotMatch(result.reason, /no opening hours recorded/i);
+  } finally {
+    stub.restore();
+  }
+});
+
 test('a place with no recorded hours is unknown, never closed', async () => {
   const stub = stubFetch([
     ['/api/place-hours', { payload: { ok: true, place: null } }],
