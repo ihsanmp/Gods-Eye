@@ -2602,6 +2602,7 @@ export function mapAnalystRecord(icao24, info) {
 const militaryFlightsLayer = {
   id: 'military',
   name: 'Military Flights',
+  group: 'flights',
   icon: '🎖️',
   source: 'adsb.lol',
   /** @type {number} Polling interval in ms between API fetches */

@@ -22,6 +22,11 @@
 /** Ordered sections. `id` is what a layer module puts in its `group` field. */
 export const LAYER_GROUPS = Object.freeze([
   Object.freeze({
+    id: 'flights',
+    title: 'FLIGHTS',
+    blurb: 'Civil traffic and military aircraft',
+  }),
+  Object.freeze({
     id: 'natural-hazards',
     title: 'NATURAL HAZARDS',
     blurb: 'Earthquakes, active fires and severe weather',

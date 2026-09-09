@@ -42,6 +42,12 @@ import {
 } from './iconOrientation.js';
 import { stickyText, stickyNumber } from './aircraftMeta.js';
 import { classifyAircraft, CLASS_SCALE_2D, CLASS_SCALE_3D, CLASS_MODEL_URL, CLASS_MODEL_REAL } from './aircraftClass.js';
+import {
+  FLIGHT_CATEGORY_IDS,
+  categoryChips,
+  isClassVisible,
+  normalizeCategories,
+} from './flightCategories.js';
 import { modelAnchorWorld, modelVisualAnchor, trailAnchorForModel, trailHeadStart, visualCenterForModel } from './modelVisualAnchor.js';
 import { aircraftIcon, TRACKED_ICON_PX } from './aircraftIcons.js';
 import {
@@ -93,7 +99,7 @@ import {
   selectTrackedSubjectContext,
 } from './contextStore.js';
 import { CONTACT_MATCH_TIER, contactMatchWins, rankContactMatch } from './contactMatch.js';
-import { holdContinuousRender, releaseContinuousRender } from '../renderGovernor.js';
+import { governorRequestRender, holdContinuousRender, releaseContinuousRender } from '../renderGovernor.js';
 
 const FOCUS_EVIDENCE_DEV = import.meta.env?.DEV === true;
 
@@ -471,6 +477,17 @@ function _cockpitBillboardScaleByDistance() {
  *  black-triangle glyph — its thermal-reactive variant while an IR style owns
  *  the scene. Routing EVERY `aircraftIcon()` call through this is what makes a
  *  conversion survive the poll reconciler and the two-tier raster swap. */
+/**
+ * Which of the four Flights categories are drawn.
+ *
+ * Every category, i.e. no filtering, is the default and the overwhelmingly
+ * common state — `isClassVisible` short-circuits it so the per-tick fleet pass
+ * does no work for the configuration almost everyone runs.
+ */
+let _categories = [...FLIGHT_CATEGORY_IDS];
+/** Manager callback that repaints this layer's row. */
+let _rowControlsListener = null;
+
 const _iconKind = (icao24, klass) => tr3bIconKind(icao24, klass, { hot: _irBoost });
 
 /** Apply the current normal/cockpit visual contract to one owned fleet billboard. */
@@ -2734,7 +2751,17 @@ function _fleetTick() {
     // sub-ellipsoid point near the limb "beyond the horizon" and the fleet
     // pass would hide a plane that is really just low over high-N terrain
     // waiting for its floor to warm (ATL grounded contacts at geoid −31 m).
-    const beyondHorizon = !occluder.isPointVisible(info?.cullPosition || bb.position);
+    // Category filter and horizon culling share ONE decision here, which is
+    // also the only place a fleet billboard's visibility is decided. Adding a
+    // second hide path would fight this one: a plane the filter hid would be
+    // re-shown by the next horizon reveal.
+    //
+    // A FILTERED contact is treated exactly like one over the horizon — its
+    // 3D model is dropped too, by the same branch below. Hiding the sprite
+    // alone would leave the model rendering with nothing to explain it.
+    const filteredOut = !isClassVisible(info?.klass, _categories);
+    const beyondHorizon = filteredOut
+      || !occluder.isPointVisible(info?.cullPosition || bb.position);
     // A billboard flipping INTO view (horizon reveal while the camera idles)
     // gets its rotation refreshed THIS tick even without a pose change —
     // otherwise it reappears wearing its stale (often creation-north) nose for
@@ -3886,6 +3913,7 @@ function _focusEvidenceSnapshot() {
 const flightsLayer = {
   id: 'flights',
   name: 'Live Flights',
+  group: 'flights',
   icon: '✈️',
   source: 'OpenSky Network',
   // Browser-harness seam: isolates synthetic display-floor scenarios without
@@ -4752,6 +4780,18 @@ const flightsLayer = {
         _lastFleetTickMs = 0;
       }
     }
+    if (Object.hasOwn(params, 'categories')) {
+      const next = normalizeCategories(params.categories);
+      if (next.join(',') !== _categories.join(',')) {
+        _categories = next;
+        // The fleet pass owns visibility, so nothing needs re-showing here —
+        // but in idle render mode that pass will not run on its own, and the
+        // chip would appear to do nothing until something else moved.
+        _lastFleetTickMs = 0;
+        governorRequestRender('flights:categories');
+        _rowControlsListener?.();
+      }
+    }
     if (typeof params.irBoost === 'boolean' && params.irBoost !== _irBoost) {
       _irBoost = params.irBoost;
       _reloadModelsForIrBoost();
@@ -4781,8 +4821,26 @@ const flightsLayer = {
       models3d: _models3dEnabled,
       models3dMode: _models3dMode,
       irBoost: _irBoost,
+      categories: [..._categories],
       selectedFlightsTrackingId: _trackedIcao,
     };
+  },
+
+  /**
+   * The COMMERCIAL / PRIVATE / PRIVATE JETS / MILITARY chips on this row.
+   * @returns {{chips: Array<object>}}
+   */
+  getRowControls() {
+    return { chips: categoryChips(_categories) };
+  },
+
+  /**
+   * Install the manager's "row controls changed" callback, so a chip repaints
+   * itself the moment its own click lands rather than at the next poll.
+   * @param {(() => void)|null} listener
+   */
+  setRowControlsListener(listener) {
+    _rowControlsListener = typeof listener === 'function' ? listener : null;
   },
 
   /**
