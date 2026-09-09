@@ -1,6 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
+import { shouldShowShortcuts } from './spotlightShortcuts.js';
 
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -528,8 +529,14 @@ const AppleSpotlight = ({
                   </div>
                 )}
               </motion.div>
-              {hovered &&
-                !searchValue &&
+              {/*
+                * A mounted panel hides these, the same way it hides the results
+                * list. A route in progress leaves the search field EMPTY - the
+                * destination is in the panel's own KE field - so the old
+                * `!searchValue` test kept letting them pop out over the map
+                * whenever the pointer crossed the panel.
+                */}
+              {shouldShowShortcuts({ hovered, searchValue, hasPanel: Boolean(panel) }) &&
                 shortcuts.map((shortcut, index) => (
                   <motion.div
                     key={`shortcut-${index}`}
