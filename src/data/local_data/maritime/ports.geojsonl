@@ -1,0 +1,29 @@
+{"type":"Feature","id":"port-tanjung-priok","geometry":{"type":"Point","coordinates":[106.87822,-6.11142]},"properties":{"name":"Tanjung Priok","note":"Jakarta, Indonesia","kind":"port"}}
+{"type":"Feature","id":"port-tanjung-perak","geometry":{"type":"Point","coordinates":[112.72193,-7.22483]},"properties":{"name":"Tanjung Perak","note":"Surabaya, Indonesia","kind":"port"}}
+{"type":"Feature","id":"port-belawan","geometry":{"type":"Point","coordinates":[98.715,3.78925]},"properties":{"name":"Belawan","note":"Medan, Indonesia","kind":"port"}}
+{"type":"Feature","id":"port-makassar","geometry":{"type":"Point","coordinates":[119.40779,-5.1224]},"properties":{"name":"Makassar","note":"Sulawesi, Indonesia","kind":"port"}}
+{"type":"Feature","id":"port-singapore","geometry":{"type":"Point","coordinates":[103.7752,1.2812]},"properties":{"name":"Singapore","note":"Singapore","kind":"port"}}
+{"type":"Feature","id":"port-tanjung-pelepas","geometry":{"type":"Point","coordinates":[103.55423,1.35524]},"properties":{"name":"Tanjung Pelepas","note":"Johor, Malaysia","kind":"port"}}
+{"type":"Feature","id":"port-port-klang","geometry":{"type":"Point","coordinates":[101.39667,3.00276]},"properties":{"name":"Port Klang","note":"Selangor, Malaysia","kind":"port"}}
+{"type":"Feature","id":"port-laem-chabang","geometry":{"type":"Point","coordinates":[100.89942,13.07341]},"properties":{"name":"Laem Chabang","note":"Chonburi, Thailand","kind":"port"}}
+{"type":"Feature","id":"port-colombo","geometry":{"type":"Point","coordinates":[79.85644,6.96463]},"properties":{"name":"Colombo","note":"Sri Lanka","kind":"port"}}
+{"type":"Feature","id":"port-jawaharlal-nehru","geometry":{"type":"Point","coordinates":[72.94942,18.94503]},"properties":{"name":"Jawaharlal Nehru","note":"Mumbai, India","kind":"port"}}
+{"type":"Feature","id":"port-jebel-ali","geometry":{"type":"Point","coordinates":[55.05989,24.98046]},"properties":{"name":"Jebel Ali","note":"Dubai, UAE","kind":"port"}}
+{"type":"Feature","id":"port-shanghai-yangshan","geometry":{"type":"Point","coordinates":[122.06931,30.62201]},"properties":{"name":"Shanghai Yangshan","note":"Shanghai, China","kind":"port"}}
+{"type":"Feature","id":"port-ningbo-zhoushan","geometry":{"type":"Point","coordinates":[121.86311,29.92863]},"properties":{"name":"Ningbo-Zhoushan","note":"Zhejiang, China","kind":"port"}}
+{"type":"Feature","id":"port-shenzhen","geometry":{"type":"Point","coordinates":[113.92472,22.58869]},"properties":{"name":"Shenzhen","note":"Guangdong, China","kind":"port"}}
+{"type":"Feature","id":"port-qingdao","geometry":{"type":"Point","coordinates":[120.19239,36.00992]},"properties":{"name":"Qingdao","note":"Shandong, China","kind":"port"}}
+{"type":"Feature","id":"port-tianjin","geometry":{"type":"Point","coordinates":[117.75113,38.99784]},"properties":{"name":"Tianjin","note":"China","kind":"port"}}
+{"type":"Feature","id":"port-hong-kong-kwai-tsing","geometry":{"type":"Point","coordinates":[114.12121,22.33687]},"properties":{"name":"Hong Kong Kwai Tsing","note":"Hong Kong","kind":"port"}}
+{"type":"Feature","id":"port-kaohsiung","geometry":{"type":"Point","coordinates":[120.30573,22.57254]},"properties":{"name":"Kaohsiung","note":"Taiwan","kind":"port"}}
+{"type":"Feature","id":"port-busan","geometry":{"type":"Point","coordinates":[129.06413,35.10507]},"properties":{"name":"Busan","note":"South Korea","kind":"port"}}
+{"type":"Feature","id":"port-rotterdam","geometry":{"type":"Point","coordinates":[4.42983,51.90433]},"properties":{"name":"Rotterdam","note":"Netherlands","kind":"port"}}
+{"type":"Feature","id":"port-antwerp","geometry":{"type":"Point","coordinates":[4.40755,51.24105]},"properties":{"name":"Antwerp","note":"Belgium","kind":"port"}}
+{"type":"Feature","id":"port-hamburg","geometry":{"type":"Point","coordinates":[9.96908,53.54673]},"properties":{"name":"Hamburg","note":"Germany","kind":"port"}}
+{"type":"Feature","id":"port-valencia","geometry":{"type":"Point","coordinates":[-0.318,39.44301]},"properties":{"name":"Valencia","note":"Spain","kind":"port"}}
+{"type":"Feature","id":"port-piraeus","geometry":{"type":"Point","coordinates":[23.64298,37.94746]},"properties":{"name":"Piraeus","note":"Greece","kind":"port"}}
+{"type":"Feature","id":"port-los-angeles","geometry":{"type":"Point","coordinates":[-118.26113,33.74206]},"properties":{"name":"Los Angeles","note":"California, USA","kind":"port"}}
+{"type":"Feature","id":"port-long-beach","geometry":{"type":"Point","coordinates":[-118.21656,33.7537]},"properties":{"name":"Long Beach","note":"California, USA","kind":"port"}}
+{"type":"Feature","id":"port-new-york-new-jersey","geometry":{"type":"Point","coordinates":[-74.14993,40.68733]},"properties":{"name":"New York / New Jersey","note":"USA","kind":"port"}}
+{"type":"Feature","id":"port-vancouver","geometry":{"type":"Point","coordinates":[-122.82786,49.21329]},"properties":{"name":"Vancouver","note":"Canada","kind":"port"}}
+{"type":"Feature","id":"port-durban","geometry":{"type":"Point","coordinates":[31.0172,-29.88297]},"properties":{"name":"Durban","note":"South Africa","kind":"port"}}

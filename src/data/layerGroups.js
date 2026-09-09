@@ -27,6 +27,11 @@ export const LAYER_GROUPS = Object.freeze([
     blurb: 'Civil traffic and military aircraft',
   }),
   Object.freeze({
+    id: 'maritime',
+    title: 'MARITIME',
+    blurb: 'Live vessels over the ports and straits that explain them',
+  }),
+  Object.freeze({
     id: 'natural-hazards',
     title: 'NATURAL HAZARDS',
     blurb: 'Earthquakes, active fires and severe weather',

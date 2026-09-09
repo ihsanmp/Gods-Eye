@@ -1,0 +1,19 @@
+{"type":"Feature","id":"chokepoint-strait-of-hormuz","geometry":{"type":"Point","coordinates":[56.20277,26.44941]},"properties":{"name":"Strait of Hormuz","note":"Persian Gulf outlet","kind":"chokepoint"}}
+{"type":"Feature","id":"chokepoint-strait-of-malacca","geometry":{"type":"Point","coordinates":[101.03988,2.83065]},"properties":{"name":"Strait of Malacca","note":"Indian Ocean to South China Sea","kind":"chokepoint"}}
+{"type":"Feature","id":"chokepoint-singapore-strait","geometry":{"type":"Point","coordinates":[103.8125267,1.1719018]},"properties":{"name":"Singapore Strait","note":"Malacca eastern approach","kind":"chokepoint"}}
+{"type":"Feature","id":"chokepoint-sunda-strait","geometry":{"type":"Point","coordinates":[105.63643,-6.25945]},"properties":{"name":"Sunda Strait","note":"Java to Sumatra","kind":"chokepoint"}}
+{"type":"Feature","id":"chokepoint-lombok-strait","geometry":{"type":"Point","coordinates":[115.81176,-8.56445]},"properties":{"name":"Lombok Strait","note":"Deep-draught Indonesian passage","kind":"chokepoint"}}
+{"type":"Feature","id":"chokepoint-makassar-strait","geometry":{"type":"Point","coordinates":[118.28979,-1.29627]},"properties":{"name":"Makassar Strait","note":"Borneo to Sulawesi","kind":"chokepoint"}}
+{"type":"Feature","id":"chokepoint-bab-el-mandeb","geometry":{"type":"Point","coordinates":[43.31282,12.57438]},"properties":{"name":"Bab-el-Mandeb","note":"Red Sea southern gate","kind":"chokepoint"}}
+{"type":"Feature","id":"chokepoint-suez-canal","geometry":{"type":"Point","coordinates":[32.35431,30.4316]},"properties":{"name":"Suez Canal","note":"Mediterranean to Red Sea","kind":"chokepoint"}}
+{"type":"Feature","id":"chokepoint-panama-canal","geometry":{"type":"Point","coordinates":[-79.66431,9.06202]},"properties":{"name":"Panama Canal","note":"Atlantic to Pacific","kind":"chokepoint"}}
+{"type":"Feature","id":"chokepoint-strait-of-gibraltar","geometry":{"type":"Point","coordinates":[-5.63667,35.94966]},"properties":{"name":"Strait of Gibraltar","note":"Mediterranean western gate","kind":"chokepoint"}}
+{"type":"Feature","id":"chokepoint-bosphorus","geometry":{"type":"Point","coordinates":[29.07181,41.11253]},"properties":{"name":"Bosphorus","note":"Black Sea outlet","kind":"chokepoint"}}
+{"type":"Feature","id":"chokepoint-dardanelles","geometry":{"type":"Point","coordinates":[26.44139,40.20917]},"properties":{"name":"Dardanelles","note":"Marmara to Aegean","kind":"chokepoint"}}
+{"type":"Feature","id":"chokepoint-strait-of-dover","geometry":{"type":"Point","coordinates":[1.5271,51.01491]},"properties":{"name":"Strait of Dover","note":"North Sea to Channel","kind":"chokepoint"}}
+{"type":"Feature","id":"chokepoint-oresund","geometry":{"type":"Point","coordinates":[12.68101,55.83441]},"properties":{"name":"Oresund","note":"Danish Straits","kind":"chokepoint"}}
+{"type":"Feature","id":"chokepoint-taiwan-strait","geometry":{"type":"Point","coordinates":[119.6054,24.49174]},"properties":{"name":"Taiwan Strait","note":"East China Sea to South China Sea","kind":"chokepoint"}}
+{"type":"Feature","id":"chokepoint-torres-strait","geometry":{"type":"Point","coordinates":[142.25915,-10.31182]},"properties":{"name":"Torres Strait","note":"Coral Sea to Arafura Sea","kind":"chokepoint"}}
+{"type":"Feature","id":"chokepoint-bass-strait","geometry":{"type":"Point","coordinates":[145.26237,-39.47301]},"properties":{"name":"Bass Strait","note":"Tasmania to Australia","kind":"chokepoint"}}
+{"type":"Feature","id":"chokepoint-bering-strait","geometry":{"type":"Point","coordinates":[-169.37854,65.84557]},"properties":{"name":"Bering Strait","note":"Pacific to Arctic","kind":"chokepoint"}}
+{"type":"Feature","id":"chokepoint-mozambique-channel","geometry":{"type":"Point","coordinates":[41.35879,-17.6353]},"properties":{"name":"Mozambique Channel","note":"Madagascar to Africa","kind":"chokepoint"}}

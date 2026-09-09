@@ -284,6 +284,9 @@ export function createLocalGeoJsonLayer({
   color,
   icon = '📍',
   source = 'Local JSONL',
+  // DATA LAYERS section for this row (see data/layerGroups.js). Undefined is
+  // fine and lands the row in the trailing ungrouped section.
+  group,
   labels = true,
   labelMax = DEFAULT_LABEL_MAX,
   labelGridPx = DEFAULT_LABEL_GRID_PX,
@@ -376,6 +379,7 @@ export function createLocalGeoJsonLayer({
     name,
     icon,
     source,
+    group,
     updateInterval: 0,
     statsRefreshInterval: 1000,
 
