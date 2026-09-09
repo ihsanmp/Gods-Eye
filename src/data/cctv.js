@@ -69,6 +69,11 @@ import { cachedGroundFloor, resolveGroundFloorCells, warmGroundFloor } from './g
 import { sampleMeshFloorCells } from './meshFloorSampler.js';
 import { horizonOccluder } from './iconOrientation.js';
 import { cameraHue, viewshedColors, createFrustumVolumePrimitive } from './cctvViewshed.js';
+import {
+  PROJECTION_CONNECTING,
+  PROJECTION_NO_FEED,
+  projectionStatusText,
+} from './cctvProjectionStatus.js';
 import { createCalibrationGizmo, GIZMO_ID_PREFIX } from './cctvGizmo.js';
 import {
   CCTV_AMBIENT_CARD_MAX,
@@ -1656,8 +1661,9 @@ function mediaUrlFor(camera) {
  * @param {CanvasRenderingContext2D} ctx - 2D context for the projection canvas.
  * @param {Object} camera - Camera object for label info.
  * @param {Object|null} [health=null] - Health state for status message.
+ * @param {string} [fallbackStatus] - What to say when health has nothing to add.
  */
-function paintProjectionPlaceholder(ctx, camera, health = null) {
+function paintProjectionPlaceholder(ctx, camera, health = null, fallbackStatus = PROJECTION_CONNECTING) {
   if (!ctx) return;
   const w = PROJECTION_CANVAS_WIDTH;
   const h = PROJECTION_CANVAS_HEIGHT;
@@ -1670,7 +1676,13 @@ function paintProjectionPlaceholder(ctx, camera, health = null) {
 
   const label = String(camera?.name || 'CCTV');
   const city = String(camera?.city || 'GLOBAL');
-  const status = String(health?.message || health?.status || camera?.feedType || 'NO FEED').toUpperCase();
+  /*
+   * NOT the feed type. This used to fall back to `camera.feedType`, so a camera
+   * with no health entry printed HLS across a screen-filling dark plane - the
+   * transport name standing in for a reason. The caller says what it actually
+   * knows: still connecting, or genuinely dead.
+   */
+  const status = projectionStatusText({ health, fallback: fallbackStatus });
 
   ctx.strokeStyle = 'rgba(0, 220, 255, 0.24)';
   ctx.lineWidth = 2;
@@ -1925,11 +1937,15 @@ function createProjectionRuntime(record) {
     img.onload = () => {
       runtime.imageLoading = false;
       runtime.imageReady = true;
+      runtime.imageFailed = false;
       runtime.imageStamp = Date.now();
     };
     img.onerror = () => {
       runtime.imageLoading = false;
       runtime.imageReady = false;
+      // Recorded so the placeholder can say NO FEED rather than claiming to be
+      // still connecting to something that has already refused.
+      runtime.imageFailed = true;
     };
     runtime.image = img;
   }
@@ -2041,7 +2057,7 @@ function refreshProjectionImage(record, force = false) {
  * @param {Object} runtime - Projection runtime.
  * @param {Object|null} health - Health state for status text.
  */
-function paintPlaceholderThrottled(record, runtime, health) {
+function paintPlaceholderThrottled(record, runtime, health, fallbackStatus = PROJECTION_CONNECTING) {
   const now = Date.now();
   if (now - safeNumber(runtime.lastPlaceholderPaintAt, 0) < PLACEHOLDER_REPAINT_MS) return;
   runtime.lastPlaceholderPaintAt = now;
@@ -2051,7 +2067,7 @@ function paintPlaceholderThrottled(record, runtime, health) {
   // would be skipped as "unchanged" and leave the placeholder on the plane.
   runtime.lastFrameSignature = null;
   runtime.canvasStamp = (runtime.canvasStamp || 0) + 1;
-  paintProjectionPlaceholder(runtime.ctx, record.camera, health);
+  paintProjectionPlaceholder(runtime.ctx, record.camera, health, fallbackStatus);
 }
 
 /**
@@ -2086,12 +2102,14 @@ function drawProjectionFrame(record) {
     // by refreshProjectionTextures, so whatever the canvas holds at bind time is
     // what stays on screen, and a throttled paint would freeze the last decoded
     // frame there instead of the "no signal" card.
+    // The element knows whether this is a slow start or a dead stream.
+    const videoStatus = video.error ? PROJECTION_NO_FEED : PROJECTION_CONNECTING;
     if (runtime.boundSurface === video) {
-      paintProjectionPlaceholder(runtime.ctx, record.camera, health);
+      paintProjectionPlaceholder(runtime.ctx, record.camera, health, videoStatus);
       runtime.canvasStamp = (runtime.canvasStamp || 0) + 1;
       runtime.lastPlaceholderPaintAt = Date.now();
     } else {
-      paintPlaceholderThrottled(record, runtime, health);
+      paintPlaceholderThrottled(record, runtime, health, videoStatus);
     }
     bindProjectionSurface(runtime, runtime.canvas);
     return;
@@ -2128,7 +2146,12 @@ function drawProjectionFrame(record) {
   // the canvas instead of flashing the placeholder. Placeholder only paints
   // when nothing has ever been drawn for this camera.
   if (runtime.drawnImageStamp === -1) {
-    paintPlaceholderThrottled(record, runtime, health);
+    paintPlaceholderThrottled(
+      record,
+      runtime,
+      health,
+      runtime.imageFailed ? PROJECTION_NO_FEED : PROJECTION_CONNECTING,
+    );
   }
 }
 
