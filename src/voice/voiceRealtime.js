@@ -37,6 +37,10 @@ const DEBUG_LOG_URL = '/api/realtime/debug-log';
 // the neighbouring ERROR_STORAGE_KEY predates it).
 const VOICE_TIER_STORAGE_KEY = 'godsEyeView.voiceCost.tier';
 const VOICE_LIMITS_STORAGE_KEY = 'godsEyeView.voiceCost.limits';
+// Speaker mute. Deliberately NOT part of voiceCost: muting silences the local
+// speaker, it does not stop the model generating audio, so it neither saves
+// money nor belongs with the spend controls.
+const VOICE_MUTED_STORAGE_KEY = 'godsEyeView.voice.outputMuted';
 // The input meter is intentionally stricter than the assistant-output meter:
 // microphones carry room tone even after browser noise suppression, whereas the
 // incoming Realtime stream is already clean speech audio.
@@ -75,6 +79,33 @@ export function writeStoredVoiceTier(tier, storage) {
     /* best effort */
   }
   return resolved;
+}
+
+/**
+ * Read the persisted speaker-mute preference.
+ *
+ * Defaults to UNMUTED: this agent answers by voice, so a stored value is the
+ * only thing that may silence it. Anything other than the exact string 'true'
+ * reads as unmuted, which means a corrupt entry restores sound rather than
+ * leaving a user with a mute they never set and cannot see the cause of.
+ */
+export function readStoredVoiceOutputMuted(storage) {
+  try {
+    return voiceStorage(storage)?.getItem(VOICE_MUTED_STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+/** Persist the speaker-mute preference. Never throws. */
+export function writeStoredVoiceOutputMuted(muted, storage) {
+  const next = !!muted;
+  try {
+    voiceStorage(storage)?.setItem(VOICE_MUTED_STORAGE_KEY, next ? 'true' : 'false');
+  } catch {
+    /* best effort */
+  }
+  return next;
 }
 
 /**
@@ -219,6 +250,11 @@ export function initVoiceCommands({ viewer, styleManager, dataManager, sceneDire
     controller.tierHandler = () => controller.toggleVoiceTier();
     ui.tierButton.addEventListener('click', controller.tierHandler);
   }
+  if (ui.muteButton) {
+    controller.muteHandler = () => controller.toggleVoiceOutputMuted();
+    ui.muteButton.addEventListener('click', controller.muteHandler);
+  }
+  controller.syncMuteUi();
   controller.syncCostUi();
   controller.bindPushToTalkShortcut();
   window.__gevVoiceCommands = controller;
@@ -236,6 +272,11 @@ export class GevRealtimeController {
     this.dc = null;
     this.stream = null;
     this.audioEl = null;
+    // Speaker mute survives reloads; it is applied to every audio element this
+    // controller creates, so toggling it mid-session and starting a fresh
+    // session both land on the same state.
+    this.outputMuted = readStoredVoiceOutputMuted();
+    this.muteHandler = null;
     this.visualizerAudioContext = null;
     this.visualizerAnalyser = null;
     this.visualizerSource = null;
@@ -413,11 +454,19 @@ export class GevRealtimeController {
       this.setMicrophoneEnabled(!this.pushToTalkMode || this.pushToTalkKeyHeld);
       this.startVoiceVisualizer(localStream);
 
-      document.querySelectorAll('audio[data-mm-realtime-audio="true"]').forEach((el) => el.remove());
+      // Sweep orphans from a session that never tore down cleanly (a crash or a
+      // reload mid-call). The selector MUST match the attribute the line below
+      // writes: `dataset.voiceRealtimeAudio` becomes `data-voice-realtime-audio`,
+      // and the old sweep looked for `data-mm-realtime-audio`, so it matched
+      // nothing and every orphan stayed in the DOM playing over the new session.
+      document.querySelectorAll('audio[data-voice-realtime-audio="true"]').forEach((el) => el.remove());
       this.audioEl = document.createElement('audio');
       this.audioEl.autoplay = true;
       this.audioEl.dataset.voiceRealtimeAudio = 'true';
       this.audioEl.style.display = 'none';
+      // Applied before the track arrives, so a muted user never hears the first
+      // syllable leak out between element creation and ontrack.
+      this.audioEl.muted = this.outputMuted;
       document.body.appendChild(this.audioEl);
 
       localPc = new RTCPeerConnection();
@@ -855,6 +904,10 @@ export class GevRealtimeController {
     if (removeUi && this.ui?.tierButton && this.tierHandler) {
       this.ui.tierButton.removeEventListener('click', this.tierHandler);
       this.tierHandler = null;
+    }
+    if (removeUi && this.ui?.muteButton && this.muteHandler) {
+      this.ui.muteButton.removeEventListener('click', this.muteHandler);
+      this.muteHandler = null;
     }
     if (removeUi) {
       if (this.shortcutKeyDownHandler) document.removeEventListener('keydown', this.shortcutKeyDownHandler);
@@ -1798,6 +1851,57 @@ export class GevRealtimeController {
   }
 
   /**
+   * Silence (or restore) the agent's spoken replies.
+   *
+   * SCOPE — this is a SPEAKER control, not a session control. The session stays
+   * up, the microphone stays live, tool calls still run and the map still
+   * responds; only the local playback element goes quiet. That is the whole
+   * point: a user in a meeting wants the map to keep obeying them without the
+   * room hearing the answer.
+   *
+   * It therefore does NOT reduce cost — the model still generates the audio
+   * that is being discarded. Anyone wanting to spend less wants the MINI tier
+   * next to this button, and the title text says so rather than letting the
+   * mute imply a saving it does not make.
+   *
+   * Unlike the tier toggle this applies IMMEDIATELY, mid-sentence included,
+   * because a mute that waited for the next session would be useless.
+   *
+   * @returns {boolean} The resulting muted state.
+   */
+  toggleVoiceOutputMuted() {
+    return this.setVoiceOutputMuted(!this.outputMuted);
+  }
+
+  /**
+   * @param {boolean} muted
+   * @returns {boolean} The resulting muted state.
+   */
+  setVoiceOutputMuted(muted) {
+    this.outputMuted = writeStoredVoiceOutputMuted(muted);
+    // A live element is muted right now; a future one picks it up at creation.
+    if (this.audioEl) this.audioEl.muted = this.outputMuted;
+    this.syncMuteUi();
+    return this.outputMuted;
+  }
+
+  /** Paint the mute button from `this.outputMuted`. Safe with no UI attached. */
+  syncMuteUi() {
+    const button = this.ui?.muteButton;
+    if (!button) return;
+    const muted = !!this.outputMuted;
+    // A slashed note vs a plain note — the shape differs, so the state is
+    // legible without relying on colour alone.
+    button.textContent = muted ? '♫̸' : '♫';
+    button.setAttribute('aria-pressed', muted ? 'true' : 'false');
+    button.setAttribute('aria-label', muted ? "Unmute the agent's voice" : "Mute the agent's voice");
+    button.title = muted
+      ? "Agent voice muted — it still listens and controls the map. Click to unmute. (Muting does not reduce cost; use MINI for that.)"
+      : "Mute the agent's spoken replies (it keeps listening and acting)";
+    if (this.ui?.root) this.ui.root.dataset.outputMuted = muted ? 'true' : 'false';
+  }
+
+  /**
    * Flip STANDARD <-> MINI. Takes effect on the NEXT session: the model is
    * fixed when the ephemeral token is minted, so a live session is deliberately
    * left alone rather than reconnected mid-sentence.
@@ -2556,6 +2660,7 @@ function createVoiceControl({ reset = false } = {}) {
         <div id="mm-voice-status">OFF</div>
         <div class="mm-voice-cost">
           <button id="mm-voice-tier" class="mm-voice-tier-btn" type="button" aria-pressed="false" title="Voice model tier — applies next session">STD</button>
+          <button id="mm-voice-mute" class="mm-voice-mute-btn" type="button" aria-pressed="false" aria-label="Mute the agent's voice" title="Mute the agent's spoken replies (it keeps listening and acting)">&#9835;</button>
           <span id="mm-voice-cost-value" class="mm-voice-cost-value" data-level="ok" title="Estimated session cost">~$0.00</span>
         </div>
       </div>
@@ -2607,6 +2712,7 @@ function createVoiceControl({ reset = false } = {}) {
     helpDetail: root.querySelector('.mm-voice-help-detail'),
     errorDetail: root.querySelector('#mm-voice-error-detail'),
     tierButton: root.querySelector('#mm-voice-tier'),
+    muteButton: root.querySelector('#mm-voice-mute'),
     costValue: root.querySelector('#mm-voice-cost-value'),
   };
 }

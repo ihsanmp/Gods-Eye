@@ -24,8 +24,10 @@ import {
   shouldStopVoiceAfterRadioTool,
   readStoredVoiceTier,
   readStoredVoiceLimits,
+  readStoredVoiceOutputMuted,
   writeStoredVoiceTier,
   writeStoredVoiceLimits,
+  writeStoredVoiceOutputMuted,
 } from './voiceRealtime.js';
 import { createVoiceCostTracker } from './voiceCost.js';
 
@@ -2601,6 +2603,135 @@ test('an unset or hand-edited tier reads back as standard', () => {
     readStoredVoiceTier(fakeVoiceStorage({ 'godsEyeView.voiceCost.tier': '__proto__' })),
     'standard'
   );
+});
+
+// ---------------------------------------------------------------------------
+// Speaker mute.
+//
+// The mute is the only thing that can silence an agent whose entire purpose is
+// to answer out loud, so the failure that matters is a user who is muted and
+// does not know why. Every test below pins that direction: absence, corruption,
+// and a hostile store all resolve to SOUND ON.
+// ---------------------------------------------------------------------------
+
+/** A controller with just enough UI to paint the mute button. */
+function muteHarness({ muted = false } = {}) {
+  const muteButton = {
+    textContent: '',
+    title: '',
+    attrs: {},
+    setAttribute(key, value) { this.attrs[key] = value; },
+    getAttribute(key) { return this.attrs[key] ?? null; },
+  };
+  const ui = {
+    root: { dataset: {}, classList: { remove() {}, add() {} }, querySelectorAll: () => [] },
+    status: { textContent: '' },
+    detail: { textContent: '', title: '' },
+    errorDetail: { textContent: '' },
+    button: { dataset: {} },
+    buttonLabel: { textContent: '' },
+    muteButton,
+  };
+  const controller = new GevRealtimeController({ ui, runner: async () => ({ ok: true }) });
+  controller.debugLog = () => {};
+  controller.updateVoiceButtonLabel = () => {};
+  // The constructor reads real localStorage (absent under node:test, so false).
+  // Seed the field directly rather than reaching for a global.
+  controller.outputMuted = muted;
+  return { controller, ui, muteButton };
+}
+
+test('speaker mute round-trips through storage', () => {
+  const storage = fakeVoiceStorage();
+  assert.equal(writeStoredVoiceOutputMuted(true, storage), true);
+  assert.equal(readStoredVoiceOutputMuted(storage), true);
+  assert.equal(writeStoredVoiceOutputMuted(false, storage), false);
+  assert.equal(readStoredVoiceOutputMuted(storage), false);
+});
+
+test('an unset or corrupt mute preference leaves the agent audible', () => {
+  assert.equal(readStoredVoiceOutputMuted(fakeVoiceStorage()), false);
+  // Anything that is not the exact string 'true' must not silence the agent —
+  // a half-written or hand-edited entry should never leave a user wondering
+  // why the assistant stopped talking.
+  for (const value of ['yes', '1', 'TRUE', 'null', '', '{}']) {
+    assert.equal(
+      readStoredVoiceOutputMuted(fakeVoiceStorage({ 'godsEyeView.voice.outputMuted': value })),
+      false,
+      `stored ${JSON.stringify(value)} must read as unmuted`
+    );
+  }
+});
+
+test('a storage that throws never mutes the agent or breaks the toggle', () => {
+  const hostile = {
+    getItem() { throw new Error('SecurityError'); },
+    setItem() { throw new Error('SecurityError'); },
+  };
+  assert.equal(readStoredVoiceOutputMuted(hostile), false);
+  assert.equal(writeStoredVoiceOutputMuted(true, hostile), true);
+});
+
+test('toggling the mute silences a LIVE audio element immediately', () => {
+  const { controller } = muteHarness();
+  // Mid-sentence is exactly when someone reaches for this, so it must not wait
+  // for the next session the way the model-tier toggle does.
+  controller.audioEl = { muted: false };
+  assert.equal(controller.toggleVoiceOutputMuted(), true);
+  assert.equal(controller.audioEl.muted, true);
+  assert.equal(controller.toggleVoiceOutputMuted(), false);
+  assert.equal(controller.audioEl.muted, false);
+});
+
+test('muting leaves the session, the microphone, and tool dispatch untouched', async () => {
+  const calls = [];
+  const { controller } = muteHarness();
+  controller.runner = async (name) => { calls.push(name); return { ok: true }; };
+  controller.stream = { getTracks: () => [{ stop() { throw new Error('must not stop the mic'); } }] };
+  controller.audioEl = { muted: false };
+
+  controller.setVoiceOutputMuted(true);
+
+  // The mic stream is still the same live object — mute must not tear it down.
+  assert.ok(controller.stream, 'mute must not drop the microphone stream');
+  assert.equal(await controller.runner('fly_to_location').then((r) => r.ok), true);
+  assert.deepEqual(calls, ['fly_to_location'], 'tools still run while muted');
+});
+
+test('the mute button reports its state to assistive tech, not just by colour', () => {
+  const { controller, muteButton, ui } = muteHarness();
+
+  controller.setVoiceOutputMuted(true);
+  assert.equal(muteButton.getAttribute('aria-pressed'), 'true');
+  assert.match(muteButton.getAttribute('aria-label'), /unmute/i);
+  assert.match(muteButton.title, /still listens and controls the map/i);
+  assert.equal(ui.root.dataset.outputMuted, 'true');
+
+  controller.setVoiceOutputMuted(false);
+  assert.equal(muteButton.getAttribute('aria-pressed'), 'false');
+  assert.match(muteButton.getAttribute('aria-label'), /mute/i);
+  assert.equal(ui.root.dataset.outputMuted, 'false');
+
+  // The two states must not render the same glyph, or the button is unreadable
+  // to anyone who cannot see the colour change.
+  controller.setVoiceOutputMuted(true);
+  const mutedGlyph = muteButton.textContent;
+  controller.setVoiceOutputMuted(false);
+  assert.notEqual(mutedGlyph, muteButton.textContent);
+});
+
+test('syncMuteUi is safe when no mute button is mounted', () => {
+  const controller = new GevRealtimeController({ ui: {}, runner: async () => ({ ok: true }) });
+  assert.doesNotThrow(() => controller.syncMuteUi());
+});
+
+test('the muted state is honoured by the tooltip rather than implying a saving', () => {
+  const { controller, muteButton } = muteHarness();
+  controller.setVoiceOutputMuted(true);
+  // Muting discards audio the model has already been billed for. The button
+  // must not let a user believe otherwise, so it names MINI as the cost lever.
+  assert.match(muteButton.title, /does not reduce cost/i);
+  assert.match(muteButton.title, /MINI/);
 });
 
 test('writing a bogus tier persists the safe fallback, not the bogus value', () => {
