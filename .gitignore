@@ -19,3 +19,9 @@ output/
 # Desktop launcher runtime artefacts (app/ scripts themselves are tracked)
 app/browser-profile/
 app/GodsEyeView.ico
+
+# Claude Code workspace. launch.json describes how to run THIS project and is
+# tracked; settings.local.json is per-machine (it records the commands approved
+# on one checkout, absolute paths included) and grows every time another is
+# approved, so it would otherwise show up as a permanent pending change.
+.claude/settings.local.json
