@@ -6499,6 +6499,20 @@ function openAiRealtimeProxy() {
       }
     });
 
+    /*
+     * Is the voice agent configured?
+     *
+     * A boolean, deliberately. The client needs to know whether to draw a
+     * microphone at all, and asking /api/realtime/token to find out would mint
+     * a real ephemeral credential just to test whether minting works.
+     *
+     * Nothing about the key is returned — only whether one exists.
+     */
+    middlewares.use('/api/realtime/available', (req, res) => {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify({ available: Boolean(process.env.OPENAI_API_KEY) }));
+    });
+
     middlewares.use('/api/realtime/token', async (req, res) => {
       if (req.method !== 'GET' && req.method !== 'POST') {
         res.statusCode = 405;

@@ -22,6 +22,7 @@ import { LAYER_STATE_REGISTRY } from './data/layerState.js';
 import { registerDataCredits } from './data/dataCredits.js';
 import { SceneDirector } from './scenes/director.js';
 import { initVoiceCommands } from './voice/voiceRealtime.js';
+import { isVoiceConfigured } from './voice/voiceAvailability.js';
 import { MapStackController } from './mapStackController.js';
 import { initAnnotations } from './annotations/index.js';
 import { initDrawingTools } from './measure/drawingTools.js';
@@ -661,7 +662,27 @@ async function init() {
       getRenderGovernorDiagnostics,
       requestRender: governorRequestRender,
     };
-    window.__mapMonitoring.voiceCommands = initVoiceCommands({ viewer, styleManager, dataManager, sceneDirector, annotations });
+    /*
+     * The voice control is mounted only when the server has a key for it.
+     *
+     * It used to mount unconditionally, so a checkout without OPENAI_API_KEY
+     * showed a microphone, a tier button, a mute button and a live cost
+     * readout that could do nothing — and pressing the mic answered with a red
+     * error panel. A control that cannot work should not be on screen.
+     *
+     * Checked in the background rather than awaited: this gates one dock
+     * element, and boot has no business waiting on a round trip for it. Add the
+     * key and reload and the microphone returns with no code change.
+     */
+    void isVoiceConfigured().then((available) => {
+      if (!available) {
+        console.info('[Voice] OPENAI_API_KEY is not set — voice control hidden.');
+        return;
+      }
+      window.__mapMonitoring.voiceCommands = initVoiceCommands({
+        viewer, styleManager, dataManager, sceneDirector, annotations,
+      });
+    });
     window.__mapMonitoring.drawingTools = initDrawingTools({ viewer, dataManager });
 
     /*
