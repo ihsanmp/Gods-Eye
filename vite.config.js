@@ -1,5 +1,5 @@
 /**
- * Vite configuration for God's Eye View — a cinematic geospatial app.
+ * Vite configuration for Map Monitoring — a cinematic geospatial app.
  *
  * Registers the dev-server proxy middlewares that bypass CORS and add
  * caching/auth for upstream APIs:
@@ -3089,6 +3089,108 @@ async function overpassCategorySearch(selectors, box) {
   return rows.slice(0, GEOCODE_CATEGORY_LIMIT);
 }
 
+/** How far around a destination to look for the place itself. */
+const PLACE_HOURS_RADIUS_M = 400;
+/** And how far a name match may be before it stops being the same place. */
+const PLACE_HOURS_MAX_NAME_DISTANCE_M = 3000;
+
+/**
+ * Normalize a place name for comparison: case, punctuation and runs of space.
+ *
+ * "Pakuwon Mall" and "PAKUWON MALL," should match; nothing here tries to be
+ * clever beyond that, because a fuzzy match on the wrong shop would report the
+ * wrong opening hours with full confidence.
+ */
+function normalizePlaceName(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Find the opening_hours tag for a place.
+ *
+ * Asks Overpass for tagged features around a point and picks the best NAME
+ * match, rather than simply the nearest: a mall's car park, its food court and
+ * the shop next door are all within a few metres of each other and all carry
+ * different hours. Where no name is supplied, the nearest feature that actually
+ * has hours wins.
+ *
+ * Returns null (not an error) when nothing matches — "we could not find that
+ * place in OSM" is an ordinary outcome, and the caller says so.
+ *
+ * @param {number} lat
+ * @param {number} lon
+ * @param {string} name Optional place name to match against.
+ * @returns {Promise<object|null>}
+ */
+async function overpassPlaceHours(lat, lon, name = '') {
+  const radius = Math.round(PLACE_HOURS_RADIUS_M);
+  // `nwr` because a mall is a way or a relation while an ATM is a node.
+  const query = `[out:json][timeout:20];(nwr["opening_hours"](around:${radius},${lat.toFixed(6)},${lon.toFixed(6)}););out center tags 60;`;
+  const payload = await fetchOverpassPayload(`data=${encodeURIComponent(query)}`, 1024 * 1024);
+  if (!payload || payload.status !== 200 || payload.rateLimited || payload.runtimeError) {
+    throw new Error(`Overpass unavailable (status ${payload?.status ?? 'none'})`);
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(payload.body);
+  } catch {
+    throw new Error('Overpass returned unparseable JSON');
+  }
+
+  const wanted = normalizePlaceName(name);
+  const candidates = [];
+  for (const element of parsed?.elements || []) {
+    const elementLat = Number(element.lat ?? element.center?.lat);
+    const elementLon = Number(element.lon ?? element.center?.lon);
+    if (!Number.isFinite(elementLat) || !Number.isFinite(elementLon)) continue;
+    const tags = element.tags || {};
+    const hours = String(tags.opening_hours || '').trim();
+    if (!hours) continue;
+    const elementName = String(tags.name || '').trim();
+    const normalized = normalizePlaceName(elementName);
+    const distanceM = Math.round(geocodeDistanceM(lat, lon, elementLat, elementLon));
+
+    // Three tiers, best first: the same name, a name that contains the ask (a
+    // branch: "Pakuwon Mall Surabaya"), and anything else nearby.
+    let rank = 2;
+    if (wanted && normalized === wanted) rank = 0;
+    else if (wanted && normalized && (normalized.includes(wanted) || wanted.includes(normalized))) rank = 1;
+    // An unrelated shop 2 km away is not the destination, however close the
+    // query got. Only a real name match may reach out that far.
+    if (rank === 2 && wanted && distanceM > PLACE_HOURS_RADIUS_M) continue;
+    if (distanceM > PLACE_HOURS_MAX_NAME_DISTANCE_M) continue;
+
+    candidates.push({
+      name: elementName,
+      lat: elementLat,
+      lon: elementLon,
+      openingHours: hours,
+      osmType: tags.amenity || tags.shop || tags.tourism || tags.leisure || '',
+      distanceM,
+      rank,
+    });
+  }
+
+  if (!candidates.length) return null;
+  candidates.sort((a, b) => (a.rank - b.rank) || (a.distanceM - b.distanceM));
+  const best = candidates[0];
+  return {
+    name: best.name,
+    latitude: best.lat,
+    longitude: best.lon,
+    openingHours: best.openingHours,
+    osmType: best.osmType,
+    distanceM: best.distanceM,
+    // How the match was made, so the caller can hedge on a weak one instead of
+    // presenting a neighbouring shop's hours as the destination's.
+    matchedBy: best.rank === 0 ? 'name' : (best.rank === 1 ? 'partial-name' : 'proximity'),
+  };
+}
+
 /**
  * Build the ordered query variants to try for one search term. The raw query
  * always goes first so an exact OSM name is never second-guessed.
@@ -3619,6 +3721,50 @@ function overpassProxy() {
           console.error('[Overpass Proxy]', e.message);
           res.writeHead(502, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Overpass proxy error' }));
+        }
+      });
+
+      /*
+       * Opening hours for a place, straight from OSM.
+       *
+       * GET /api/place-hours?lat=..&lon=..&name=..
+       *
+       * Returns the RAW `opening_hours` tag and does not decide open/closed.
+       * That call needs the current time and the zone AT THE PLACE, both of
+       * which the client already has (see src/lib/mapTimezone.js), and putting
+       * the decision here would mean a cached response could go stale into a
+       * confidently wrong answer as the shop's closing time passed.
+       */
+      server.middlewares.use('/api/place-hours', async (req, res) => {
+        const send = (status, body) => {
+          res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+          res.end(JSON.stringify(body));
+        };
+        try {
+          if (req.method !== 'GET') {
+            send(405, { ok: false, error: 'Method Not Allowed' });
+            return;
+          }
+          if (!_overpassRateLimiter(clientKey(req))) {
+            send(429, { ok: false, error: 'rate limited' });
+            return;
+          }
+          const url = new URL(req.url || '', 'http://localhost');
+          const lat = Number(url.searchParams.get('lat'));
+          const lon = Number(url.searchParams.get('lon'));
+          if (!Number.isFinite(lat) || !Number.isFinite(lon)
+            || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
+            send(400, { ok: false, error: 'Valid lat and lon are required' });
+            return;
+          }
+          const name = String(url.searchParams.get('name') || '').slice(0, 120);
+          const place = await overpassPlaceHours(lat, lon, name);
+          // A place with no hours in OSM is a normal answer, not a failure —
+          // most of OSM is untagged. `ok: true, place: null` says "we looked".
+          send(200, { ok: true, place });
+        } catch (e) {
+          console.error('[Place Hours]', e.message);
+          send(200, { ok: false, error: 'Opening hours lookup unavailable' });
         }
       });
 
@@ -6103,7 +6249,7 @@ function openAiRealtimeProxy() {
           body: JSON.stringify({
             model: process.env.OPENAI_HUD_SUMMARY_MODEL || OPENAI_HUD_SUMMARY_MODEL_DEFAULT,
             instructions: [
-              "Write one concise intelligence-HUD summary for God's Eye View.",
+              "Write one concise intelligence-HUD summary for Map Monitoring.",
               'Use only the supplied place, street, nearby-place, and enabled-layer text labels.',
               'Prefer the clearest named place and include a relevant enabled layer only when useful.',
               'Do not infer from coordinates or invent a place.',
@@ -6227,11 +6373,11 @@ function openAiRealtimeProxy() {
             output: { voice },
           },
           instructions: [
-            "You are GEV Voice Control, a concise voice controller for a Cesium geospatial app called God's Eye View.",
+            "You are Map Monitoring Voice Control, a concise voice controller for a Cesium geospatial app called Map Monitoring.",
             'Have a natural spoken conversation with the user while the mic session is active.',
-            'Do not require a wake phrase. Treat direct commands like "zoom into London" or "open datacenters" as GEV control requests.',
+            'Do not require a wake phrase. Treat direct commands like "zoom into London" or "open datacenters" as Map Monitoring control requests.',
             'Only control the app by calling the provided tools. Never invent tool names or arguments.',
-            'Call tools only for clear GEV control, navigation, visual-style, layer, or app-state requests. For ordinary conversation, answer normally without tools.',
+            'Call tools only for clear Map Monitoring control, navigation, visual-style, layer, or app-state requests. For ordinary conversation, answer normally without tools.',
             'For requests to open, show, reveal, or focus a menu/panel, call set_panel_open or show_data_layers_menu. "Open Context" means only set_panel_open{panelId:"global-context-panel",open:true}; it does not activate a Context sub-mode. "Open Contacts" means set_context_mode{mode:"contacts"}; that action expands the parent Context panel before activating Contacts.',
             'For requests like "show me the datacenter layers", open the data layers menu and focus the matching layer row; do not enable the layer unless the user asks to turn it on.',
             'For questions like "what am I looking at?", "what is in view?", "what is this?", "that selected thing", nearby datacenter, dam, cable, ship, or current view contents, call get_entity_context first, then answer from the returned scene/entity context.',
@@ -6268,6 +6414,8 @@ function openAiRealtimeProxy() {
             // MM_REALTIME_TOOLS is deliberately untouched — deleting this one
             // string is the whole rollback.
             'NAMED VIEWS are shorthand for tool calls you already have — there is no "mode" tool for them. Treat ONLY these as the shorthand: "infrastructure mode" / "the infrastructure view" / "show me global infrastructure" means three set_layer_visibility calls (local-datacenters, local-dams, telegeography-submarine-cables) plus zoom_to_globe; "environmental mode" / "earth watch" / "active events", said as the name of a view, means set_layer_visibility for local-firms and earthquakes plus zoom_to_globe. Anything vaguer is NOT this shorthand — an open-ended question about the world or the news is an ordinary question: answer it, or use analyst_query over the layers already on. Never switch a whole view on to answer a question nobody asked to see. When you do run one, make every call before speaking, then give one confirmation naming the resulting state; if the fires layer comes back unavailable because no FIRMS key is configured, say so plainly — the earthquakes still loaded. "Live contacts" and "space missions" are NOT this pattern: they stay set_context_mode{mode:"contacts"} and set_context_mode{mode:"space-missions"}.',
+            'CAMERAS AROUND A PLACE — "show me the CCTV in Pakuwon", "lihat CCTV di Malioboro", "what cameras are near the airport" — is ONE call: control_cctv{action:"area", locationQuery:"<place>"}. It turns the CCTV layer on, flies there, and frames the area so the surrounding cameras come up on screen by themselves; do NOT also call set_layer_visibility or fly_to_location for the same request. Speak camerasInArea VERBATIM and name two or three of the cameras it lists. camerasInArea:0 is a real answer — the area genuinely has none — so say so plainly and never claim to have opened anything. feedStatus splits them into ok / degraded / unknown, where UNKNOWN means that camera has not been contacted yet, NOT that it is broken: never report an unknown feed as dead. Use radiusKm only when the user asks for a wider or tighter area. To read the cameras already on screen without changing anything, use action:"status".',
+            'DESTINATION BRIEFING. After building a route, and whenever the user asks about a place they are heading to, brief the DESTINATION rather than the view you are in: call get_place_weather for the conditions there and check_place_hours for whether it is open, passing the destination coordinates whenever you already have them so neither tool has to guess which place you mean. Read distance and travel time from the route result. Then give ONE short spoken summary covering the drive, the weather at the far end, and whether the place is open. check_place_hours status "unknown" means the hours are NOT RECORDED, or written in a grammar this app does not read — say exactly that; never turn it into "it is closed". When matchedBy is "proximity" the hours may belong to a neighbouring building, so hedge. When publicHolidayCaveat is set, add that public holidays may differ. get_place_weather returns an observedAt: the reading can be up to fifteen minutes old, so do not present it as this instant if the user asks how current it is.',
             'For visual filter requests, call set_visual_style with one of the allowed style IDs.',
             'Disambiguation table — basemap vs layer vs style: basemap switching requires an explicit stack name — "Bing aerial" means set_map_stack bing-aerial, "aerial with labels" means bing-labels, "OSM"/"road map" means osm, "Google 3D"/"photorealistic" means photoreal. Any mention of "satellite" or "satellites" ALWAYS means the satellites DATA LAYER via set_layer_visibility, never a basemap. "surveillance"/"night vision"/"thermal" are visual STYLES via set_visual_style.',
             'HUD requests ("hud on/off", "switch to operator/minimal/tactical layout") use set_hud. Detection requests ("detection on", "dense mode", "balanced mode", "sparse mode", "set density to 25", "use weighted allocation") use set_detection. Density snaps to 0/25/50/75/100 and derives Sparse/Balanced/Dense; panoptic is a legacy alias for Dense.',
@@ -6279,7 +6427,7 @@ function openAiRealtimeProxy() {
             'Confirmations echo the RESULTING state, never the request: "HUD operator layout", "Density twenty-five percent", "Bing aerial imagery", "Tracking UAL428", "Framed fourteen aircraft". On ok=false, state the failure plainly: "Nothing matched UAL999", "No ships within 120 kilometers". Never claim an action without ok=true in the tool result.',
             'For destination requests such as "take me to Italy", "go to NYC", or "show me the Eiffel Tower", call fly_to_location. Prefer known city IDs when available; otherwise pass the plain place query.',
             'Navigation-only requests ("take me to X", "go to X", "fly to X") are NOT descriptions: call fly_to_location alone and do NOT also call annotate_map, unless the user explicitly asks to mark the place or you go on to explain specific places there. Never drop a point pin on a region-scale natural feature (a mountain range, desert, sea, or forest) — a single point in the middle of the Rockies is meaningless. If the user explicitly asks to mark such a region, prefer type=area.',
-            'For country and city destinations, omit rangeM so GEV frames the whole country or city in view. For landmarks and buildings, omit rangeM so GEV chooses a close landmark view.',
+            'For country and city destinations, omit rangeM so Map Monitoring frames the whole country or city in view. For landmarks and buildings, omit rangeM so Map Monitoring chooses a close landmark view.',
             'Only supply rangeM when the user asks for a particular numeric height, distance, closer view, or wider view.',
             'For relative requests such as "zoom out a little", "pull back", "zoom in more", or "get closer", always call adjust_camera_zoom. But "globe view", "whole earth", "the whole planet", or "zoom all the way out" is an ABSOLUTE framing: call zoom_to_globe once instead — repeated adjust_camera_zoom calls can never reach the globe. Never claim the camera moved without the tool returning ok=true.',
             'Keep spoken confirmations short, e.g. "Opening datacenters" or "Flying to London".',
@@ -6288,7 +6436,7 @@ function openAiRealtimeProxy() {
             'Use a single annotate_map call with several annotations when you are describing multiple related places at once. Set flyTo true only when the user is not already looking at the place; if every mark in a call lands off-screen the app auto-frames them, so when unsure leave flyTo false. Do NOT say out loud that you are drawing, highlighting, or annotating — just speak naturally about the places while the marks appear. ANNOTATIONS ACCUMULATE AND PERSIST — keep adding marks as you explore; you can fly around, change topic, and jump between far-apart places and the marks STAY, so the user can build up the map and show people things. Do NOT clear on your own initiative: never pass clearPrevious, and call clear_annotations ONLY when the user EXPLICITLY asks to clear or reset the map.',
             'If an annotate_map result has partial:true or any failedLabels, do not pretend those places appeared — briefly work into your narration that you could not pinpoint them (e.g. "I couldn\'t place X"). If a route comes back as a direct line (no street route was found), describe it as a straight-line distance, not a walking/driving time. If an annotate_map result has capped:true, the map is full — ASK the user whether to clear before drawing more; do not clear unprompted. outlinePending:true is NOT a failure, but it is also NOT an outline: the anchor mark is placed and the boundary is still being traced in the background. Narrate it in progress — e.g. "tracing the boundary now" — and NEVER state the outline is already drawn or visible; it may yet come back as just a point. A later system item of type map_annotation_outline reports the final outcome per mark (status resolved or failed, with its label): use it to quietly confirm, or to correct yourself if you implied a boundary that stayed a point — an honest miss beats a misleading guess.',
             'PREFER NAMES. Only when you cannot name or geocode a place but you can clearly SEE the exact spot in the most recent viewport screenshot, fall back to screenX/screenY (normalized 0..1 from that image) to point at it; the app converts the pixel to a real world point. Never use screenX/screenY for something you could name.',
-            'PATHS vs DISTANCES: for "walking/driving route from A to B" (or through several stops), use type=route with the ordered points and the matching mode (walking/driving/cycling) — the app draws the real street-following path on the map and reports distance and travel time, which you can read aloud. For "how far is X from Y", "is it nearby", or "X is next to Y", use type=arrow between the two — it draws a floating connector and shows the straight-line distance. Do NOT use route for a simple distance/proximity question.',
+            'PATHS vs DISTANCES: for "route from A to B" (or through several stops), use type=route with the ordered points. Leave mode unset for the ordinary case — this app is built for driving — and set it only when the user explicitly says they are walking or cycling — the app draws the real street-following path on the map and reports distance and travel time, which you can read aloud. For "how far is X from Y", "is it nearby", or "X is next to Y", use type=arrow between the two — it draws a floating connector and shows the straight-line distance. Do NOT use route for a simple distance/proximity question.',
           ].join('\n'),
           tools: MM_REALTIME_TOOLS,
           tool_choice: 'auto',
@@ -6648,7 +6796,7 @@ const MM_REALTIME_TOOLS = [
   {
     type: 'function',
     name: 'fly_to_location',
-    description: "Fly the God's Eye View camera to a known city, geocoded country/region/city/landmark, or explicit WGS84 coordinate. Countries/cities frame the whole place; landmarks/buildings use close framing.",
+    description: "Fly the Map Monitoring camera to a known city, geocoded country/region/city/landmark, or explicit WGS84 coordinate. Countries/cities frame the whole place; landmarks/buildings use close framing.",
     parameters: {
       type: 'object',
       additionalProperties: false,
@@ -6667,7 +6815,7 @@ const MM_REALTIME_TOOLS = [
         viewMode: {
           type: 'string',
           enum: ['close', 'overview'],
-          description: 'Optional framing intent. Usually omit this; GEV infers whole-place framing for countries/cities and close framing for landmarks.',
+          description: 'Optional framing intent. Usually omit this; Map Monitoring infers whole-place framing for countries/cities and close framing for landmarks.',
         },
         rangeM: {
           type: 'number',
@@ -6745,7 +6893,7 @@ const MM_REALTIME_TOOLS = [
   {
     type: 'function',
     name: 'set_layer_visibility',
-    description: "Enable or disable one registered God's Eye View data layer.",
+    description: "Enable or disable one registered Map Monitoring data layer.",
     parameters: {
       type: 'object',
       additionalProperties: false,
@@ -6809,7 +6957,7 @@ const MM_REALTIME_TOOLS = [
   {
     type: 'function',
     name: 'set_panel_open',
-    description: 'Open or close a GEV UI panel/dropdown.',
+    description: 'Open or close a Map Monitoring UI panel/dropdown.',
     parameters: {
       type: 'object',
       additionalProperties: false,
@@ -6869,7 +7017,7 @@ const MM_REALTIME_TOOLS = [
   {
     type: 'function',
     name: 'set_visual_style',
-    description: "Set the active God's Eye View visual filter/style.",
+    description: "Set the active Map Monitoring visual filter/style.",
     parameters: {
       type: 'object',
       additionalProperties: false,
@@ -6885,7 +7033,7 @@ const MM_REALTIME_TOOLS = [
   {
     type: 'function',
     name: 'get_entity_context',
-    description: 'Get current GEV scene context, including basemap/3D-tile target context, selected entity metadata if active, and entities currently visible in the camera view.',
+    description: 'Get current Map Monitoring scene context, including basemap/3D-tile target context, selected entity metadata if active, and entities currently visible in the camera view.',
     parameters: {
       type: 'object',
       additionalProperties: false,
@@ -7012,13 +7160,17 @@ const MM_REALTIME_TOOLS = [
   {
     type: 'function',
     name: 'control_cctv',
-    description: 'CCTV camera operations: enable/disable the layer, select a camera by name, next/prev/nearest/focus, toggle coverage wedges / projection overlay / auto-hop, "viewshed" for color-coded per-camera coverage volumes, and "adjust" for the on-camera calibration gizmo.',
+    description: 'CCTV camera operations. "area" is the one to use for "show me the cameras in <place>": it turns the layer on, flies there, frames the whole area so the surrounding cameras appear, and reports how many are within the radius. "status" reads the current state and nearby cameras WITHOUT changing anything. Also: enable/disable the layer, select a camera by name, next/prev/nearest/focus, toggle coverage wedges / projection overlay / auto-hop, "viewshed" for color-coded per-camera coverage volumes, and "adjust" for the on-camera calibration gizmo.',
     parameters: {
       type: 'object',
       additionalProperties: false,
       properties: {
-        action: { type: 'string', enum: ['enable', 'disable', 'select', 'next', 'prev', 'nearest', 'focus', 'coverage', 'viewshed', 'adjust', 'projection', 'autohop'] },
+        action: { type: 'string', enum: ['area', 'status', 'enable', 'disable', 'select', 'next', 'prev', 'nearest', 'focus', 'coverage', 'viewshed', 'adjust', 'projection', 'autohop'] },
         cameraQuery: { type: 'string', description: 'Camera name or id for select.' },
+        locationQuery: { type: 'string', maxLength: 120, description: 'Place to show the cameras around, for "area" — e.g. "Pakuwon Mall", "Malioboro", "Jakarta Kota". Omit (with no coordinates) to use the area already on screen.' },
+        latitude: { type: 'number', minimum: -90, maximum: 90, description: 'Explicit area centre for "area"/"status" instead of a place name.' },
+        longitude: { type: 'number', minimum: -180, maximum: 180, description: 'Explicit area centre for "area"/"status" instead of a place name.' },
+        radiusKm: { type: 'number', minimum: 0.2, maximum: 50, description: 'How far around the centre to look, for "area"/"status". Defaults to 2 km — a neighbourhood or a mall and its approaches.' },
         enabled: { type: 'boolean', description: 'Explicit on/off for coverage/viewshed/adjust/projection/autohop; omit to toggle.' },
       },
       required: ['action'],
@@ -7138,7 +7290,7 @@ const MM_REALTIME_TOOLS = [
               mode: {
                 type: 'string',
                 enum: ['walking', 'driving', 'cycling'],
-                description: 'For type=route: travel mode for a real street-following route (the app returns distance + time). Pick from the verb the user used ("walk" → walking, "drive" → driving). Defaults to walking.',
+                description: 'For type=route: travel mode for a real street-following route (the app returns distance + time). This app is built around driving and its route panel shows a car, so DRIVING is the default — pick another only when the user explicitly says they are walking or cycling.',
               },
               latitude: { type: 'number', minimum: -90, maximum: 90, description: 'Explicit latitude (use only if no good place name exists).' },
               longitude: { type: 'number', minimum: -180, maximum: 180 },
@@ -7166,6 +7318,36 @@ const MM_REALTIME_TOOLS = [
         persist: { type: 'boolean', description: 'Keep annotations until cleared (true, default) or let them auto-fade after ~20s (false).' },
       },
       required: ['annotations'],
+    },
+  },
+  {
+    type: 'function',
+    name: 'get_place_weather',
+    description: 'Current weather AT A NAMED PLACE — not just wherever the camera is pointing. Use it to brief a route destination, or whenever the user asks what the weather is somewhere. Returns figures plus a condition label; phrase them in the user\'s own language.',
+    parameters: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        placeQuery: { type: 'string', maxLength: 120, description: 'The place to read the weather at, e.g. "Pakuwon Mall" or "Bandung".' },
+        latitude: { type: 'number', minimum: -90, maximum: 90, description: 'Skip the place lookup when the position is already known — for example a route destination.' },
+        longitude: { type: 'number', minimum: -180, maximum: 180, description: 'Longitude to go with latitude.' },
+      },
+      required: ['placeQuery'],
+    },
+  },
+  {
+    type: 'function',
+    name: 'check_place_hours',
+    description: 'Is a place open or closed RIGHT NOW, from its OpenStreetMap opening_hours tag, judged in the local time at that place. Use it when the user asks whether somewhere is open, and as part of a destination briefing after building a route. Returns status open | closed | unknown — "unknown" means the hours are not recorded or use grammar we do not read, and must never be reported as closed.',
+    parameters: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        placeQuery: { type: 'string', maxLength: 120, description: 'The place to check, e.g. "Pakuwon Mall" or "Apotek K24 Malioboro".' },
+        latitude: { type: 'number', minimum: -90, maximum: 90, description: 'Skip the place lookup when its position is already known — for example the destination of a route just built.' },
+        longitude: { type: 'number', minimum: -180, maximum: 180, description: 'Longitude to go with latitude.' },
+      },
+      required: ['placeQuery'],
     },
   },
   {

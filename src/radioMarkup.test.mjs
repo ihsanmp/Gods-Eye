@@ -21,15 +21,20 @@ function realtimeTools() {
   return new Function(`return ${literal};`)();
 }
 
-test('Realtime schema exposes the authoritative 28-tool inventory', () => {
+test('Realtime schema exposes the authoritative 30-tool inventory', () => {
   const tools = realtimeTools();
-  assert.equal(tools.length, 28);
+  assert.equal(tools.length, 30);
   const names = tools.map((tool) => tool.name);
-  assert.equal(new Set(names).size, 28, 'tool names are unique');
+  assert.equal(new Set(names).size, 30, 'tool names are unique');
   assert.ok(names.includes('set_context_mode'));
   assert.ok(names.includes('control_cockpit'));
   assert.ok(names.includes('select_nearest_aircraft'));
   assert.ok(names.includes('control_radio'));
+  // The destination-briefing pair. Both were added because the app could
+  // already answer these questions about the CAMERA's position and had no way
+  // to answer them about the place at the far end of a route.
+  assert.ok(names.includes('get_place_weather'));
+  assert.ok(names.includes('check_place_hours'));
   // Every tool closes its parameter object: an open schema lets the model
   // invent arguments the runner silently drops.
   for (const tool of tools) {
@@ -157,23 +162,28 @@ test('the edited existing tools changed exactly as intended', () => {
 });
 
 test('no unchanged Realtime tool definition drifts silently', () => {
-  // Context/Cockpit parity, the dependent-location wait edit, and the retired
-  // `bing-road` stack leaving `set_map_stack`'s enum are the known schema
-  // changes. Everything else must be byte-identical: an unnoticed edit
-  // to a shipped tool changes
-  // model behavior in production with nothing in review to catch it.
+  // TOUCHED names the tools the CURRENT change edited; everything else must be
+  // byte-identical. An unnoticed edit to a shipped tool changes model behaviour
+  // in production with nothing in review to catch it.
   //
-  // If this fails and the change was deliberate, re-derive the digest and say
-  // in the mic-test brief which tools moved — the session cache busts on any
-  // schema change.
+  // If this fails and the change was deliberate, add the tools you moved,
+  // re-derive the digest, and say in the mic-test brief which ones moved — the
+  // session cache busts on any schema change.
+  //
+  // This round: `control_cctv` gained `area` and `status`; `check_place_hours`
+  // and `get_place_weather` are new; `annotate_map`'s route mode now defaults to
+  // driving rather than walking (the route panel is car-only); and four
+  // descriptions picked up the Map Monitoring rename the original sweep missed.
   const TOUCHED = new Set([
-    'set_context_mode',
-    'control_cockpit',
-    'set_panel_open',
-    'get_current_view_state',
+    'control_cctv',
+    'check_place_hours',
+    'get_place_weather',
+    'annotate_map',
     'fly_to_location',
-    'select_nearest_aircraft',
-    'set_map_stack',
+    'set_layer_visibility',
+    'set_panel_open',
+    'set_visual_style',
+    'get_entity_context',
   ]);
   const unchanged = realtimeTools()
     .filter((tool) => !TOUCHED.has(tool.name))
@@ -183,7 +193,7 @@ test('no unchanged Realtime tool definition drifts silently', () => {
     .update(JSON.stringify(unchanged))
     .digest('hex')
     .slice(0, 16);
-  assert.equal(digest, '802ed694b8887b88', 'an unchanged Realtime tool definition drifted');
+  assert.equal(digest, 'ca660eeb22ae31e5', 'an unchanged Realtime tool definition drifted');
 });
 
 test('Radio volume and mission speed share the Sharpen slider visual language', () => {

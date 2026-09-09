@@ -19,6 +19,9 @@ import { cachedGroundFloor, warmGroundFloor } from '../data/groundFloor.js';
 import { isPickedWorldPosition } from '../data/scenePick.js';
 import { resolveRegionRingForQuery } from '../annotations/annotationResolver.js';
 import { normalizeRadioCountryInput } from '../data/radioCountry.js';
+import { evaluateOpeningHours } from '../openingHours.js';
+import { weatherCodeLabel } from '../data/regionalBrief.js';
+import { timezoneForCoordinate } from '../lib/mapTimezone.js';
 import { TR3B_CLASS } from '../data/tr3bRegistry.js';
 
 const ALLOWED_STYLES = new Set(['normal', 'retro', 'surveillance', 'thermal', 'anime', 'noir', 'snow']);
@@ -891,7 +894,15 @@ export function createVoiceActionRunner({ viewer, styleManager, dataManager, sce
     }
 
     if (name === 'control_cctv') {
-      return controlCctv(dataManager, args, styleManager);
+      // `area` composes fly_to_location, so it needs the viewer (to read where
+      // the flight actually landed) and the runner (to reuse the one navigation
+      // path that already handles deferred/managed flights). Every other action
+      // ignores them, and the two-argument call in the tests still works.
+      return controlCctv(dataManager, args, styleManager, {
+        viewer,
+        runGevAction,
+        runOptions,
+      });
     }
 
     if (name === 'control_radio') {
@@ -916,6 +927,14 @@ export function createVoiceActionRunner({ viewer, styleManager, dataManager, sce
 
     if (name === 'clear_annotations') {
       return clearAnnotations(annotations);
+    }
+
+    if (name === 'check_place_hours') {
+      return checkPlaceHours(args, runOptions);
+    }
+
+    if (name === 'get_place_weather') {
+      return getPlaceWeather(args, runOptions);
     }
 
     throw new Error(`Unknown GEV tool: ${name}`);
@@ -1084,12 +1103,490 @@ function controlScene(sceneDirector, args = {}) {
   throw new Error(`Unknown scene action: ${args.action || 'missing'}`);
 }
 
+/**
+ * Default radius for the `area` action, and the range a caller may ask for.
+ *
+ * 2 km is a neighbourhood, a mall and its approach roads, a campus — the scale
+ * at which "show me the cameras around here" is a sensible question. Much wider
+ * and the answer stops being about one place; much narrower and a mall's own
+ * entrances fall outside it.
+ */
+export const CCTV_AREA_DEFAULT_RADIUS_KM = 2;
+export const CCTV_AREA_MIN_RADIUS_KM = 0.2;
+export const CCTV_AREA_MAX_RADIUS_KM = 50;
+/**
+ * How many cameras `area` names back to the model.
+ *
+ * The map still SHOWS every camera in the radius — this caps only the spoken
+ * inventory, because a list of forty names read aloud is not an answer.
+ */
+export const CCTV_AREA_NAMED_LIMIT = 12;
+
+/**
+ * Cameras within `radiusKm` of a point, nearest first.
+ *
+ * Filters on a real distance rather than a lat/lon box: a degree of longitude
+ * is 111 km at the equator and 78 km in Jogja, so a box would quietly return a
+ * different area depending on latitude.
+ *
+ * @param {Array<Object>} cameras Public camera states (need lat/lon).
+ * @param {number} lat Centre latitude, degrees.
+ * @param {number} lon Centre longitude, degrees.
+ * @param {number} radiusKm Inclusive radius.
+ * @returns {Array<Object>} `{...camera, distanceKm}`, nearest first.
+ */
+export function camerasWithinRadius(cameras, lat, lon, radiusKm) {
+  if (!Array.isArray(cameras)) return [];
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(radiusKm)) return [];
+  const within = [];
+  for (const camera of cameras) {
+    // A camera with no fix cannot be inside any radius. See finiteCoordinate:
+    // a plain Number() here would place an unset camera at 0,0 and return it
+    // for every query near the origin.
+    const camLat = finiteNumber(camera?.lat);
+    const camLon = finiteNumber(camera?.lon);
+    if (camLat === null || camLon === null) continue;
+    const distanceKm = haversineKm(lat, lon, camLat, camLon);
+    if (distanceKm <= radiusKm) within.push({ ...camera, distanceKm });
+  }
+  within.sort((a, b) => a.distanceKm - b.distanceKm);
+  return within;
+}
+
+/** How long to wait on the hours lookup before giving up on it. */
+const PLACE_HOURS_TIMEOUT_MS = 7000;
+
+/**
+ * The turn's own abort signal, or a plain timeout when there is none.
+ *
+ * A voice turn that is superseded must abandon its network work, and a lookup
+ * with no deadline at all can hold a turn open indefinitely on a slow Overpass
+ * mirror. `AbortSignal.any` gives both without the caller choosing.
+ */
+function placeHoursSignal(signal) {
+  const timeout = AbortSignal.timeout(PLACE_HOURS_TIMEOUT_MS);
+  if (!signal) return timeout;
+  return typeof AbortSignal.any === 'function' ? AbortSignal.any([signal, timeout]) : signal;
+}
+
+/**
+ * Is a place open right now?
+ *
+ * Two hops: resolve the place to a point (skipped when the caller already has
+ * one), then read its `opening_hours` tag from OSM and evaluate it against the
+ * local time AT THE PLACE.
+ *
+ * The verdict is computed HERE rather than on the server because it depends on
+ * the current minute: a cached server answer would quietly become wrong the
+ * moment the shop's closing time passed. The server returns the tag; this
+ * decides what it means right now.
+ *
+ * Every failure path returns a usable result rather than throwing. "I could not
+ * find out" is a sentence the agent can say; an exception mid-turn is not.
+ */
+export async function checkPlaceHours(args = {}, options = {}) {
+  const query = String(args.placeQuery || '').trim();
+  const signal = options.signal;
+
+  const point = await resolveBriefingPoint(args, signal);
+  if (!point) {
+    return {
+      ok: false,
+      action: 'check_place_hours',
+      error: query ? `Could not find "${query}"` : 'Needs a place name or coordinates',
+    };
+  }
+  const { latitude, longitude } = point;
+  let label = point.label || query;
+
+  const answer = (fields) => ({ ok: true, action: 'check_place_hours', place: label, ...fields });
+
+  let payload = null;
+  try {
+    const url = `/api/place-hours?lat=${latitude.toFixed(6)}&lon=${longitude.toFixed(6)}`
+      + (query ? `&name=${encodeURIComponent(query)}` : '');
+    const response = await fetch(url, { signal: placeHoursSignal(signal) });
+    if (response.ok) payload = await response.json();
+  } catch {
+    payload = null;
+  }
+
+  if (!payload?.ok) {
+    return answer({
+      status: 'unknown',
+      reason: payload?.error || 'the opening-hours lookup is unavailable',
+      latitude,
+      longitude,
+    });
+  }
+  if (!payload.place) {
+    // Most of OSM is untagged. This is a real answer — "nobody has recorded it"
+    // — and must not be spoken as "the place is closed".
+    return answer({
+      status: 'unknown',
+      reason: 'OpenStreetMap has no opening hours recorded for this place',
+      latitude,
+      longitude,
+    });
+  }
+
+  const place = payload.place;
+  const timeZone = timezoneForCoordinate(place.latitude ?? latitude, place.longitude ?? longitude);
+  const verdict = evaluateOpeningHours(place.openingHours, {
+    at: new Date(),
+    // A null zone would send evaluateOpeningHours to UTC and answer a Surabaya
+    // question on London time. Pass it through and let it report unknown.
+    timeZone,
+  });
+
+  return answer({
+    place: place.name || label,
+    status: verdict.status,
+    reason: verdict.reason,
+    openingHours: verdict.spec,
+    timeZone: timeZone || null,
+    // How confident the MATCH is, separate from the verdict. A proximity match
+    // may be the shop next door, and the agent should hedge accordingly.
+    matchedBy: place.matchedBy,
+    distanceM: place.distanceM,
+    kind: place.osmType || '',
+    latitude: place.latitude,
+    longitude: place.longitude,
+    ...(verdict.publicHolidayCaveat ? { publicHolidayCaveat: true } : {}),
+  });
+}
+
+/**
+ * Resolve a place name to a point, or pass explicit coordinates straight through.
+ *
+ * Shared by the two destination-briefing tools so "is it open?" and "what is
+ * the weather?" cannot disagree about WHERE they are talking about — asking the
+ * geocoder twice can land on two different Pakuwons.
+ *
+ * @returns {Promise<{latitude:number, longitude:number, label:string}|null>}
+ */
+async function resolveBriefingPoint(args = {}, signal) {
+  const query = String(args.placeQuery || '').trim();
+  const latitude = finiteNumber(args.latitude);
+  const longitude = finiteNumber(args.longitude);
+  if (latitude !== null && longitude !== null
+    && Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180) {
+    return { latitude, longitude, label: query };
+  }
+  if (!query) return null;
+  try {
+    const response = await fetch(
+      `/api/geocode?q=${encodeURIComponent(query)}`,
+      { signal: placeHoursSignal(signal) },
+    );
+    if (!response.ok) return null;
+    const hit = (await response.json())?.results?.[0] || null;
+    const hitLat = finiteNumber(hit?.lat);
+    const hitLon = finiteNumber(hit?.lon);
+    if (hitLat === null || hitLon === null) return null;
+    return { latitude: hitLat, longitude: hitLon, label: hit.label || query };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Current weather at a place.
+ *
+ * Exists so the agent can brief a DESTINATION. The app has shown weather on the
+ * map for a while, but only for wherever the camera happened to be — there was
+ * no way for the model to ask about the far end of a route it had just drawn,
+ * which is exactly when someone wants to know.
+ *
+ * Returns figures and a plain English condition label rather than a finished
+ * sentence: the model is already speaking the user's language and phrases it
+ * far better than a template can.
+ */
+export async function getPlaceWeather(args = {}, options = {}) {
+  const signal = options.signal;
+  const point = await resolveBriefingPoint(args, signal);
+  if (!point) {
+    const query = String(args.placeQuery || '').trim();
+    return {
+      ok: false,
+      action: 'get_place_weather',
+      error: query ? `Could not find "${query}"` : 'Needs a place name or coordinates',
+    };
+  }
+
+  let payload = null;
+  try {
+    const url = `/api/weather-effects?latitude=${point.latitude.toFixed(5)}`
+      + `&longitude=${point.longitude.toFixed(5)}`;
+    const response = await fetch(url, { signal: placeHoursSignal(signal) });
+    if (response.ok) payload = await response.json();
+  } catch {
+    payload = null;
+  }
+
+  const weather = payload?.weather || null;
+  // Strictly: a null temperature must not become 0 °C. This module reported an
+  // arctic 0° for a missing reading once already, and a spoken "nol derajat" is
+  // indistinguishable from a real one.
+  const temperatureC = finiteNumber(weather?.temperatureC);
+  if (!weather || temperatureC === null) {
+    return {
+      ok: false,
+      action: 'get_place_weather',
+      place: point.label || null,
+      error: 'Weather is unavailable for that place right now',
+    };
+  }
+
+  return {
+    ok: true,
+    action: 'get_place_weather',
+    place: point.label || null,
+    latitude: point.latitude,
+    longitude: point.longitude,
+    conditions: weatherCodeLabel(weather.weatherCode),
+    temperatureC,
+    apparentTemperatureC: weather.apparentTemperatureC,
+    precipitationMm: weather.precipitationMm,
+    cloudCoverPct: weather.cloudCoverPct,
+    windKph: weather.windKph,
+    visibilityM: weather.visibilityM,
+    // Open-Meteo's `current` block advances on quarter-hour boundaries, so the
+    // reading can be up to ~15 minutes old. Say when it was taken rather than
+    // letting "right now" mean something it does not.
+    observedAt: weather.observedAt || null,
+  };
+}
+
+/** The layer-state snapshot every CCTV action echoes back. */
+function cctvStateSummary(cctv) {
+  const ui = cctv.getUIState?.() || {};
+  return {
+    activeCameraId: ui.activeCameraId || null,
+    activeCamera: ui.activeCamera?.name || ui.activeCamera?.id || null,
+    cameraCount: Array.isArray(ui.cameras) ? ui.cameras.length : (ui.count || 0),
+    showCoverage: !!ui.showCoverage,
+    coverageMode: ui.coverageMode || (ui.showCoverage ? 'on' : 'off'),
+    showProjection: !!ui.showProjection,
+    calibrationMode: !!ui.calibrationMode,
+    autoHop: !!ui.autoHop,
+  };
+}
+
+/**
+ * A real number, or null — rejecting the values `Number()` quietly turns into 0.
+ *
+ * `Number(null)`, `Number('')`, `Number(false)` and `Number([])` are all 0, and
+ * `Number.isFinite(0)` is true, so a `Number.isFinite(Number(x))` guard accepts
+ * every one of them. A camera with no fix would then sit at 0,0 in the Gulf of
+ * Guinea and be swept into any query near the origin; a null latitude from the
+ * model would silently re-centre a search on the equator.
+ *
+ * Only a real number, or a non-blank string that parses to one, is a coordinate.
+ *
+ * @param {unknown} value
+ * @returns {number|null}
+ */
+function finiteNumber(value) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+/**
+ * Feed health of a camera set, bucketed.
+ *
+ * `unknown` is not a failure — it means no request has been made to that camera
+ * yet. Collapsing it into "not live" is the mistake this function exists to
+ * prevent.
+ */
+function countFeedStatus(cameras) {
+  const counts = { ok: 0, degraded: 0, unknown: 0 };
+  for (const camera of cameras) {
+    const status = String(camera?.sourceStatus || 'unknown').toLowerCase();
+    if (status === 'ok') counts.ok += 1;
+    else if (status === 'unknown' || !status) counts.unknown += 1;
+    else counts.degraded += 1;
+  }
+  return counts;
+}
+
+/** One camera as the model should hear it: a name, a place, and how far. */
+function namedAreaCamera(camera) {
+  return {
+    id: camera.id,
+    name: camera.name || camera.id,
+    city: camera.city || '',
+    distanceKm: Number(camera.distanceKm.toFixed(2)),
+    // Whether a feed is actually reachable decides if the user sees a picture,
+    // so it travels with the name — an agent that says "twelve cameras" about
+    // nine dead ones has misled the person looking at the screen.
+    sourceStatus: camera.sourceStatus || 'unknown',
+  };
+}
+
+/**
+ * Centre for a radius query: explicit coordinates, else the point the camera is
+ * actually looking at.
+ *
+ * NOT the camera's own position. At this app's default pitch the camera sits
+ * well back from what fills the screen, and using its position as the centre
+ * put a search result 1.45 km north of where the user was looking once already.
+ *
+ * @returns {{latitude:number, longitude:number}|null}
+ */
+function cctvCentreFromArgs(args = {}, viewer = null) {
+  const latitude = finiteNumber(args.latitude);
+  const longitude = finiteNumber(args.longitude);
+  if (latitude !== null && longitude !== null
+    && Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180) {
+    return { latitude, longitude };
+  }
+  if (!viewer) return null;
+  const target = getViewTargetCartographic(viewer);
+  if (!target) return null;
+  return {
+    latitude: Cesium.Math.toDegrees(target.latitude),
+    longitude: Cesium.Math.toDegrees(target.longitude),
+  };
+}
+
+/**
+ * Standoff distance that frames a whole radius.
+ *
+ * The ambient card wall only raises a card for a camera that is IN VIEW, so the
+ * framing IS the feature: dive onto one rooftop and the user gets one card and
+ * a true-but-useless "twelve cameras nearby". Two radii of standoff puts the
+ * far edge of the circle comfortably on screen at the app's default pitch.
+ */
+function cctvAreaRangeM(radiusKm) {
+  return clampNumber(radiusKm * 2000, 800, 20000, 4000);
+}
+
+/**
+ * `area` — go to a place and show the cameras around it.
+ *
+ * This is the one CCTV action that is allowed to turn the layer ON by itself.
+ * "Show me the cameras in Pakuwon" is not ambiguous about whether cameras
+ * should be visible, and refusing with "enable the layer first" would be a
+ * pedantic answer to a clear request.
+ *
+ * It deliberately does NOT open N video streams. The layer already has an
+ * ambient card tier that raises a thumbnail for every camera in view and paces
+ * its own fetches; forcing feeds open on top of that would fight the pacer and
+ * spend GPU and bandwidth on cameras nobody is looking at. So `area` frames the
+ * place, and the existing card wall fills in.
+ */
+async function cctvArea(dataManager, cctv, args = {}, options = {}) {
+  const { viewer = null, runGevAction = null, runOptions = {} } = options;
+  const fail = (stage, error, extra = {}) => ({
+    ok: false, action: 'control_cctv', mode: 'area', stage, error, ...extra,
+  });
+
+  const radiusKm = clampNumber(
+    args.radiusKm,
+    CCTV_AREA_MIN_RADIUS_KM,
+    CCTV_AREA_MAX_RADIUS_KM,
+    CCTV_AREA_DEFAULT_RADIUS_KM,
+  );
+  const latitude = finiteNumber(args.latitude);
+  const longitude = finiteNumber(args.longitude);
+  const hasCoordinates = latitude !== null && longitude !== null
+    && Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180;
+  const query = String(args.locationQuery || '').trim();
+
+  // 1. Layer on FIRST, so the catalog and the card pacer warm up during the
+  //    flight instead of starting cold the moment the camera stops.
+  if (!dataManager.isEnabled('cctv')) {
+    await dataManager.setEnabled('cctv', true, { origin: 'voice' });
+    if (!dataManager.isEnabled('cctv')) {
+      return fail('layer', 'CCTV layer could not be enabled');
+    }
+  }
+
+  // 2. Fly, unless the user is already looking at the place they asked about.
+  let location = null;
+  if (hasCoordinates || query) {
+    if (typeof runGevAction !== 'function') {
+      return fail('location', 'Navigation is unavailable in this context');
+    }
+    location = await runGevAction('fly_to_location', {
+      waitForArrival: true,
+      rangeM: cctvAreaRangeM(radiusKm),
+      ...(hasCoordinates ? { latitude, longitude } : { query }),
+    }, runOptions);
+    if (location?.ok !== true) {
+      return fail(
+        'location',
+        location?.error || `Could not reach ${query || 'the requested place'}`,
+        { cancelled: Boolean(location?.cancelled), location },
+      );
+    }
+  }
+
+  // 3. Where we actually ended up — read back, never assumed.
+  const center = cctvCentreFromArgs(
+    hasCoordinates ? { latitude, longitude } : {},
+    viewer,
+  );
+  if (!center) {
+    return fail('center', 'Could not work out which area to search', { location });
+  }
+
+  const catalog = cctv.getUIState?.()?.cameras || [];
+  const within = camerasWithinRadius(catalog, center.latitude, center.longitude, radiusKm);
+
+  // 4. Give the monitor plane something to show. Selection only — the camera
+  //    already framed the area, and focusing would immediately undo that by
+  //    diving onto whichever camera happened to be nearest the centre.
+  let selected = null;
+  if (within.length && cctv.selectCamera?.(within[0].id)) {
+    selected = within[0];
+  }
+
+  return {
+    ok: true,
+    action: 'control_cctv',
+    mode: 'area',
+    label: location?.label || args.locationQuery || null,
+    center: {
+      latitude: Number(center.latitude.toFixed(6)),
+      longitude: Number(center.longitude.toFixed(6)),
+    },
+    radiusKm,
+    // The honest headline. `camerasInArea: 0` is a SUCCESSFUL search that found
+    // nothing — the flight happened and the layer is on — so the model must
+    // report the zero rather than claim it opened anything.
+    camerasInArea: within.length,
+    cameras: within.slice(0, CCTV_AREA_NAMED_LIMIT).map(namedAreaCamera),
+    truncated: within.length > CCTV_AREA_NAMED_LIMIT,
+    // Feed health, split three ways rather than reduced to a "live" count.
+    //
+    // A camera's status stays 'unknown' until something actually fetches from
+    // it, which for a place we have only just flown to is MOST of them. A
+    // single liveCount would therefore have reported 0 live cameras at exactly
+    // the moment the user was watching them appear. Three buckets let the model
+    // say "twelve cameras, nine still connecting" instead of a confident lie.
+    feedStatus: countFeedStatus(within),
+    selectedCamera: selected ? (selected.name || selected.id) : null,
+    ...cctvStateSummary(cctv),
+    ...(location ? { flewTo: location.label || null } : { flewTo: null }),
+  };
+}
+
 /** Voice CCTV control over the cctv layer module's public surface. */
-export async function controlCctv(dataManager, args = {}, styleManager = null) {
+export async function controlCctv(dataManager, args = {}, styleManager = null, options = {}) {
   const action = String(args.action || '').toLowerCase();
   const cctv = dataManager.layers.get('cctv')?.module;
   if (!cctv) {
     return { ok: false, action: 'control_cctv', error: 'CCTV layer unavailable' };
+  }
+
+  if (action === 'area') {
+    return cctvArea(dataManager, cctv, args, options);
   }
 
   if (action === 'enable' || action === 'disable') {
@@ -1100,19 +1597,7 @@ export async function controlCctv(dataManager, args = {}, styleManager = null) {
     return { ok: false, action: 'control_cctv', error: 'CCTV layer is off — enable it first' };
   }
 
-  const summarize = () => {
-    const ui = cctv.getUIState?.() || {};
-    return {
-      activeCameraId: ui.activeCameraId || null,
-      activeCamera: ui.activeCamera?.name || ui.activeCamera?.id || null,
-      cameraCount: Array.isArray(ui.cameras) ? ui.cameras.length : (ui.count || 0),
-      showCoverage: !!ui.showCoverage,
-      coverageMode: ui.coverageMode || (ui.showCoverage ? 'on' : 'off'),
-      showProjection: !!ui.showProjection,
-      calibrationMode: !!ui.calibrationMode,
-      autoHop: !!ui.autoHop,
-    };
-  };
+  const summarize = () => cctvStateSummary(cctv);
 
   if (action === 'select') {
     const query = String(args.cameraQuery || '').trim().toLowerCase();
@@ -1186,6 +1671,29 @@ export async function controlCctv(dataManager, args = {}, styleManager = null) {
     const next = typeof args.enabled === 'boolean' ? args.enabled : !current.showCoverage;
     dataManager.setLayerParams('cctv', { coverageMode: next ? 'on' : 'off' }, { origin: 'voice' });
     return { ok: true, action: 'control_cctv', ...summarize() };
+  }
+  if (action === 'status') {
+    // Read-only. Every other action mutates something, so before this the model
+    // had to CHANGE the layer to find out what state it was in — which is how
+    // "which camera is on?" ended up toggling coverage.
+    const centre = cctvCentreFromArgs(args, options.viewer);
+    const cameras = centre
+      ? camerasWithinRadius(
+        cctv.getUIState?.()?.cameras || [],
+        centre.latitude,
+        centre.longitude,
+        clampNumber(args.radiusKm, CCTV_AREA_MIN_RADIUS_KM, CCTV_AREA_MAX_RADIUS_KM, CCTV_AREA_DEFAULT_RADIUS_KM),
+      )
+      : [];
+    return {
+      ok: true,
+      action: 'control_cctv',
+      mode: 'status',
+      ...summarize(),
+      ...(centre ? { center: centre } : {}),
+      nearbyCount: cameras.length,
+      nearby: cameras.slice(0, CCTV_AREA_NAMED_LIMIT).map(namedAreaCamera),
+    };
   }
   if (action === 'projection' || action === 'autohop') {
     const key = action === 'projection' ? 'showProjection' : 'autoHop';

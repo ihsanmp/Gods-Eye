@@ -8,7 +8,12 @@ import { getActiveCameraMotion, interruptCameraMotion, moveCamera } from '../cam
 import { reassertNavigationHandoff, runExplicitNavigation } from '../navigationPolicy.js';
 import { TR3B_CLASS } from '../data/tr3bRegistry.js';
 import {
+  CCTV_AREA_DEFAULT_RADIUS_KM,
+  CCTV_AREA_NAMED_LIMIT,
+  camerasWithinRadius,
+  checkPlaceHours,
   controlCctv,
+  getPlaceWeather,
   controlRadio,
   createVoiceActionRunner,
   cctvVoiceFocusOutcome,
@@ -1702,6 +1707,589 @@ test('voice CCTV select, next, prev, and nearest report tracking-refused flights
     ['nearest', { focus: false }],
     ['focus', 'cam-a', 1.8],
   ]);
+});
+
+// ---------------------------------------------------------------------------
+// control_cctv `area` — "show me the cameras in <place>".
+//
+// The failure that matters here is a CONFIDENT WRONG ANSWER: the agent speaks
+// the result aloud, so a count that quietly includes a camera 300 km away, or
+// claims cameras in a place it never reached, is worse than an error.
+// ---------------------------------------------------------------------------
+
+/** Two cameras in Jogja plus one in Surabaya, ~320 km east. */
+const AREA_CAMERAS = [
+  { id: 'cam-malioboro', name: 'Malioboro', city: 'Yogyakarta', lat: -7.7925, lon: 110.3656, sourceStatus: 'ok' },
+  { id: 'cam-tugu', name: 'Tugu Jogja', city: 'Yogyakarta', lat: -7.7828, lon: 110.3671, sourceStatus: 'unknown' },
+  { id: 'cam-pakuwon', name: 'Pakuwon Mall', city: 'Surabaya', lat: -7.2896, lon: 112.6767, sourceStatus: 'degraded' },
+];
+
+function areaHarness({ cameras = AREA_CAMERAS, enabled = false, flyResult = null } = {}) {
+  const calls = [];
+  let layerEnabled = enabled;
+  let activeCameraId = null;
+  const cctv = {
+    getUIState: () => ({
+      activeCameraId,
+      activeCamera: cameras.find((camera) => camera.id === activeCameraId) || null,
+      cameras,
+      coverageMode: 'off',
+      showCoverage: false,
+    }),
+    selectCamera(id) {
+      calls.push(['select', id]);
+      activeCameraId = id;
+      return true;
+    },
+    focusCamera(id) {
+      calls.push(['focus', id]);
+      return CCTV_FOCUS_RESULT.FOCUSED;
+    },
+  };
+  const dataManager = {
+    layers: new Map([['cctv', { module: cctv }]]),
+    isEnabled: () => layerEnabled,
+    async setEnabled(layerId, next, options) {
+      calls.push(['setEnabled', layerId, next, options]);
+      layerEnabled = next;
+    },
+  };
+  const runGevAction = async (name, args) => {
+    calls.push([name, args]);
+    if (flyResult) return flyResult;
+    return { ok: true, action: 'fly_to_location', label: args.query || 'there' };
+  };
+  return { calls, cctv, dataManager, runGevAction };
+}
+
+/**
+ * A viewer whose SCREEN CENTRE is the given point.
+ *
+ * Deliberately puts the camera somewhere else (higher, and offset) so a test
+ * cannot pass by reading the camera's own position. At this app's default pitch
+ * those two points are far apart — mistaking one for the other once put a
+ * search result 1.45 km north of where the user was looking.
+ */
+function viewerLookingAt(latitude, longitude) {
+  const target = Cesium.Cartesian3.fromDegrees(longitude, latitude, 0);
+  return {
+    camera: {
+      // ~2 km north of the target and 3 km up: an oblique view, like the app's.
+      positionWC: Cesium.Cartesian3.fromDegrees(longitude, latitude + 0.018, 3000),
+      positionCartographic: Cesium.Cartographic.fromDegrees(longitude, latitude + 0.018, 3000),
+      heading: 0,
+      pitch: -0.6,
+      pickEllipsoid: () => target,
+    },
+    scene: {
+      pickPositionSupported: false,
+      globe: { ellipsoid: Cesium.Ellipsoid.WGS84 },
+      canvas: { clientWidth: 1200, clientHeight: 800 },
+    },
+  };
+}
+
+test('camerasWithinRadius measures real distance, not a lat/lon box', () => {
+  const within = camerasWithinRadius(AREA_CAMERAS, -7.7925, 110.3656, 2);
+  assert.deepEqual(within.map((camera) => camera.id), ['cam-malioboro', 'cam-tugu']);
+  assert.equal(within[0].distanceKm, 0);
+  assert.ok(within[1].distanceKm > 1 && within[1].distanceKm < 1.2, `got ${within[1].distanceKm}`);
+  // Surabaya is 320 km away and must never surface in a 2 km question.
+  assert.ok(!within.some((camera) => camera.id === 'cam-pakuwon'));
+});
+
+test('camerasWithinRadius drops cameras with no coordinates instead of placing them at 0,0', () => {
+  // Number(null) is 0, so an unset coordinate would otherwise land in the Gulf
+  // of Guinea and be swept into every query near the origin.
+  const broken = [
+    { id: 'no-fix', name: 'Unlocated', lat: null, lon: null },
+    { id: 'nan-fix', name: 'Corrupt', lat: 'abc', lon: 'def' },
+    { id: 'real', name: 'Real', lat: 0.001, lon: 0.001 },
+  ];
+  assert.deepEqual(camerasWithinRadius(broken, 0, 0, 5).map((c) => c.id), ['real']);
+});
+
+test('camerasWithinRadius is total for junk input', () => {
+  assert.deepEqual(camerasWithinRadius(null, 0, 0, 1), []);
+  assert.deepEqual(camerasWithinRadius(AREA_CAMERAS, NaN, 0, 1), []);
+  assert.deepEqual(camerasWithinRadius(AREA_CAMERAS, 0, 0, NaN), []);
+});
+
+test('control_cctv area turns the layer on, flies there, and counts what is actually near', async () => {
+  const { calls, dataManager, runGevAction } = areaHarness({ enabled: false });
+  const viewer = viewerLookingAt(-7.7925, 110.3656);
+
+  const result = await controlCctv(dataManager, {
+    action: 'area',
+    locationQuery: 'Malioboro',
+  }, null, { viewer, runGevAction });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.mode, 'area');
+  assert.equal(result.radiusKm, CCTV_AREA_DEFAULT_RADIUS_KM);
+  assert.equal(result.camerasInArea, 2, 'only the two Jogja cameras are within 2 km');
+  assert.deepEqual(result.cameras.map((camera) => camera.name), ['Malioboro', 'Tugu Jogja']);
+
+  // The layer goes on BEFORE the flight, so the catalog and the ambient card
+  // pacer warm up during it rather than starting cold on arrival.
+  const enableIndex = calls.findIndex(([name]) => name === 'setEnabled');
+  const flyIndex = calls.findIndex(([name]) => name === 'fly_to_location');
+  assert.ok(
+    enableIndex >= 0 && flyIndex > enableIndex,
+    `enable must precede the flight: ${JSON.stringify(calls)}`,
+  );
+});
+
+test('control_cctv area frames the whole radius rather than diving onto one camera', async () => {
+  const { calls, dataManager, runGevAction } = areaHarness();
+  const viewer = viewerLookingAt(-7.7925, 110.3656);
+
+  await controlCctv(dataManager, {
+    action: 'area', locationQuery: 'Malioboro', radiusKm: 3,
+  }, null, { viewer, runGevAction });
+
+  const [, flyArgs] = calls.find(([name]) => name === 'fly_to_location');
+  // The ambient card wall only raises a card for a camera that is IN VIEW, so
+  // the standoff IS the feature. Two radii keeps the far edge on screen.
+  assert.equal(flyArgs.rangeM, 6000);
+  assert.equal(flyArgs.waitForArrival, true);
+
+  // It selects a camera so the monitor plane has a feed, but must NOT focus:
+  // flying to one camera would immediately undo the framing just established.
+  assert.ok(calls.some(([name]) => name === 'select'));
+  assert.ok(!calls.some(([name]) => name === 'focus'), 'area must not fly to a single camera');
+});
+
+test('control_cctv area reports an empty area honestly instead of claiming cameras', async () => {
+  const { dataManager, runGevAction } = areaHarness();
+  const viewer = viewerLookingAt(-20, 80); // middle of the Indian Ocean
+
+  const result = await controlCctv(dataManager, {
+    action: 'area', locationQuery: 'nowhere',
+  }, null, { viewer, runGevAction });
+
+  // The SEARCH succeeded — the layer is on and the camera flew — so ok stays
+  // true and the zero IS the answer. An agent must be able to tell "I looked
+  // and there are none" apart from "I could not look".
+  assert.equal(result.ok, true);
+  assert.equal(result.camerasInArea, 0);
+  assert.deepEqual(result.cameras, []);
+  assert.equal(result.selectedCamera, null);
+});
+
+test('control_cctv area surfaces a failed flight as a failure, not an empty area', async () => {
+  const { dataManager, runGevAction } = areaHarness({
+    flyResult: { ok: false, error: 'No match for "Atlantis"' },
+  });
+  const viewer = viewerLookingAt(-7.79, 110.36);
+
+  const result = await controlCctv(dataManager, {
+    action: 'area', locationQuery: 'Atlantis',
+  }, null, { viewer, runGevAction });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.stage, 'location');
+  assert.match(result.error, /Atlantis/);
+  // Crucially NOT camerasInArea: 0 — that would let the agent say "there are no
+  // cameras in Atlantis" about a place it never reached.
+  assert.equal(result.camerasInArea, undefined);
+});
+
+test('control_cctv area splits feed health three ways rather than guessing at "live"', async () => {
+  const { dataManager, runGevAction } = areaHarness();
+  const viewer = viewerLookingAt(-7.7925, 110.3656);
+
+  const result = await controlCctv(dataManager, {
+    action: 'area', locationQuery: 'Malioboro',
+  }, null, { viewer, runGevAction });
+
+  // A camera nothing has fetched from yet is 'unknown', NOT dead. Right after
+  // arriving that is most of them, so a single "live" count would have reported
+  // zero working cameras while the user watched them appear on screen.
+  assert.deepEqual(result.feedStatus, { ok: 1, degraded: 0, unknown: 1 });
+});
+
+test('control_cctv area accepts explicit coordinates without a viewer', async () => {
+  const { dataManager, runGevAction } = areaHarness();
+  const result = await controlCctv(dataManager, {
+    action: 'area', latitude: -7.7925, longitude: 110.3656, radiusKm: 2,
+  }, null, { runGevAction });
+  assert.equal(result.ok, true);
+  assert.equal(result.camerasInArea, 2);
+});
+
+test('control_cctv area does not let a null coordinate re-centre the search on the equator', async () => {
+  const { calls, dataManager, runGevAction } = areaHarness();
+  const viewer = viewerLookingAt(-7.7925, 110.3656);
+
+  // A model that emits `latitude: null` alongside a place name must not have
+  // that null read as 0. Number(null) is 0 and Number.isFinite(0) is true, so a
+  // naive guard accepts it and silently searches the Gulf of Guinea instead.
+  const result = await controlCctv(dataManager, {
+    action: 'area', locationQuery: 'Malioboro', latitude: null, longitude: null,
+  }, null, { viewer, runGevAction });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.camerasInArea, 2, 'the null pair must fall through to the place name');
+  assert.ok(Math.abs(result.center.latitude - -7.7925) < 0.01, `centred at ${result.center.latitude}`);
+  // And it must still have flown to the NAMED place, not to 0,0.
+  const [, flyArgs] = calls.find(([name]) => name === 'fly_to_location');
+  assert.equal(flyArgs.query, 'Malioboro');
+  assert.equal(flyArgs.latitude, undefined);
+});
+
+test('control_cctv area clamps a hostile radius instead of scanning the planet', async () => {
+  const { dataManager, runGevAction } = areaHarness();
+  const viewer = viewerLookingAt(-7.7925, 110.3656);
+  for (const [requested, expected] of [[9999, 50], [-5, 0.2], ['abc', CCTV_AREA_DEFAULT_RADIUS_KM]]) {
+    const result = await controlCctv(dataManager, {
+      action: 'area', locationQuery: 'Malioboro', radiusKm: requested,
+    }, null, { viewer, runGevAction });
+    assert.equal(result.radiusKm, expected, `radiusKm ${requested} must clamp to ${expected}`);
+  }
+});
+
+test('control_cctv area caps the spoken inventory but not the count', async () => {
+  const many = Array.from({ length: CCTV_AREA_NAMED_LIMIT + 8 }, (_, index) => ({
+    id: `cam-${index}`,
+    name: `Camera ${index}`,
+    lat: -7.7925 + index * 0.0005,
+    lon: 110.3656,
+    sourceStatus: 'ok',
+  }));
+  const { dataManager, runGevAction } = areaHarness({ cameras: many });
+  const viewer = viewerLookingAt(-7.7925, 110.3656);
+
+  const result = await controlCctv(dataManager, {
+    action: 'area', locationQuery: 'Malioboro',
+  }, null, { viewer, runGevAction });
+
+  // Every camera is still shown and still counted; only the list read ALOUD is
+  // capped, because twenty names spoken in a row is not an answer.
+  assert.equal(result.camerasInArea, many.length);
+  assert.equal(result.cameras.length, CCTV_AREA_NAMED_LIMIT);
+  assert.equal(result.truncated, true);
+});
+
+test('control_cctv status reads the layer without changing it', async () => {
+  const { calls, dataManager } = areaHarness({ enabled: true });
+  const viewer = viewerLookingAt(-7.7925, 110.3656);
+
+  const result = await controlCctv(dataManager, { action: 'status' }, null, { viewer });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.mode, 'status');
+  assert.equal(result.nearbyCount, 2);
+  assert.deepEqual(result.nearby.map((camera) => camera.name), ['Malioboro', 'Tugu Jogja']);
+  // Read-only is the whole point: before this action existed the model had to
+  // MUTATE the layer to discover what state it was in.
+  assert.deepEqual(calls, [], 'status must not enable, select, focus, or set params');
+});
+
+// ---------------------------------------------------------------------------
+// check_place_hours — "is the place I am driving to actually open?"
+//
+// The asymmetry from src/openingHours.js carries all the way out to the tool:
+// an unrecorded tag, a dead lookup and an unreadable grammar must all reach the
+// agent as `unknown`, because the one thing worse than no answer is sending
+// somebody across a city to a shut door.
+// ---------------------------------------------------------------------------
+
+/** Swap global fetch for a router keyed on URL substring; returns a restore fn. */
+function stubFetch(routes) {
+  const original = globalThis.fetch;
+  const seen = [];
+  globalThis.fetch = async (url) => {
+    const href = String(url);
+    seen.push(href);
+    for (const [needle, respond] of routes) {
+      if (href.includes(needle)) {
+        const body = typeof respond === 'function' ? respond(href) : respond;
+        if (body instanceof Error) throw body;
+        return { ok: body.ok !== false, json: async () => body.payload };
+      }
+    }
+    throw new Error(`unstubbed fetch: ${href}`);
+  };
+  return { seen, restore: () => { globalThis.fetch = original; } };
+}
+
+/** Hours that are open every day 10:00-22:00 — true in Jakarta at midday. */
+const MALL_HOURS = 'Mo-Su 10:00-22:00';
+
+test('check_place_hours geocodes a name, reads the tag, and judges it locally', async () => {
+  const stub = stubFetch([
+    ['/api/geocode', { payload: { results: [{ lat: -7.2896, lon: 112.6767, label: 'Pakuwon Mall, Surabaya' }] } }],
+    ['/api/place-hours', { payload: { ok: true, place: {
+      name: 'Pakuwon Mall', latitude: -7.2896, longitude: 112.6767,
+      openingHours: MALL_HOURS, osmType: 'mall', distanceM: 20, matchedBy: 'name',
+    } } }],
+  ]);
+  try {
+    const result = await checkPlaceHours({ placeQuery: 'Pakuwon Mall' });
+    assert.equal(result.ok, true);
+    assert.equal(result.place, 'Pakuwon Mall');
+    assert.ok(['open', 'closed'].includes(result.status), `got ${result.status}`);
+    assert.equal(result.openingHours, MALL_HOURS);
+    // The zone is resolved from the PLACE, not the machine running the console.
+    assert.equal(result.timeZone, 'Asia/Jakarta');
+    assert.equal(result.matchedBy, 'name');
+  } finally {
+    stub.restore();
+  }
+});
+
+test('check_place_hours skips the geocode when it is handed coordinates', async () => {
+  const stub = stubFetch([
+    ['/api/place-hours', { payload: { ok: true, place: {
+      name: 'Pakuwon Mall', latitude: -7.2896, longitude: 112.6767,
+      openingHours: MALL_HOURS, matchedBy: 'name', distanceM: 5,
+    } } }],
+  ]);
+  try {
+    const result = await checkPlaceHours({
+      placeQuery: 'Pakuwon Mall', latitude: -7.2896, longitude: 112.6767,
+    });
+    assert.equal(result.ok, true);
+    // A route has already resolved its destination; re-geocoding it would be a
+    // second round trip and a second chance to land on a different place.
+    assert.ok(!stub.seen.some((url) => url.includes('/api/geocode')), stub.seen.join(', '));
+  } finally {
+    stub.restore();
+  }
+});
+
+test('a place with no recorded hours is unknown, never closed', async () => {
+  const stub = stubFetch([
+    ['/api/place-hours', { payload: { ok: true, place: null } }],
+  ]);
+  try {
+    const result = await checkPlaceHours({ placeQuery: 'Warung Bu Ani', latitude: -7.79, longitude: 110.36 });
+    assert.equal(result.ok, true);
+    assert.equal(result.status, 'unknown');
+    assert.match(result.reason, /no opening hours recorded/i);
+  } finally {
+    stub.restore();
+  }
+});
+
+test('a dead lookup is unknown, and still a usable answer rather than a throw', async () => {
+  for (const routes of [
+    [['/api/place-hours', { payload: { ok: false, error: 'Opening hours lookup unavailable' } }]],
+    [['/api/place-hours', new Error('network down')]],
+    [['/api/place-hours', { ok: false, payload: null }]],
+  ]) {
+    const stub = stubFetch(routes);
+    try {
+      const result = await checkPlaceHours({ placeQuery: 'X', latitude: 1, longitude: 1 });
+      assert.equal(result.ok, true, 'the TOOL succeeded — it is the ANSWER that is unknown');
+      assert.equal(result.status, 'unknown');
+      assert.ok(result.reason, 'and it says why');
+    } finally {
+      stub.restore();
+    }
+  }
+});
+
+test('hours in grammar the parser does not read reach the agent as unknown', async () => {
+  const stub = stubFetch([
+    ['/api/place-hours', { payload: { ok: true, place: {
+      name: 'Seasonal Cafe', latitude: -7.29, longitude: 112.67,
+      openingHours: 'Apr 01-Oct 31 09:00-18:00', matchedBy: 'name', distanceM: 10,
+    } } }],
+  ]);
+  try {
+    const result = await checkPlaceHours({ placeQuery: 'Seasonal Cafe', latitude: -7.29, longitude: 112.67 });
+    assert.equal(result.status, 'unknown');
+    assert.match(result.reason, /month or date/i);
+    // The raw tag travels out so the agent can read it aloud instead of shrugging.
+    assert.equal(result.openingHours, 'Apr 01-Oct 31 09:00-18:00');
+  } finally {
+    stub.restore();
+  }
+});
+
+test('a place that cannot be found is a failure, not an unknown verdict', async () => {
+  const stub = stubFetch([
+    ['/api/geocode', { payload: { results: [] } }],
+  ]);
+  try {
+    const result = await checkPlaceHours({ placeQuery: 'Atlantis Mall' });
+    // Distinct from `unknown`: there is no place, so there are no hours to be
+    // unsure about. The agent should say it could not find it.
+    assert.equal(result.ok, false);
+    assert.match(result.error, /Atlantis Mall/);
+  } finally {
+    stub.restore();
+  }
+});
+
+test('check_place_hours needs something to look for', async () => {
+  const result = await checkPlaceHours({});
+  assert.equal(result.ok, false);
+  assert.match(result.error, /place name or coordinates/i);
+});
+
+test('a proximity match is reported as such, so the agent can hedge', async () => {
+  const stub = stubFetch([
+    ['/api/place-hours', { payload: { ok: true, place: {
+      name: 'Apotek Sebelah', latitude: -7.29, longitude: 112.67,
+      openingHours: MALL_HOURS, matchedBy: 'proximity', distanceM: 180,
+    } } }],
+  ]);
+  try {
+    const result = await checkPlaceHours({ placeQuery: 'Pakuwon Mall', latitude: -7.29, longitude: 112.67 });
+    // The hours are real, but they may belong to the shop next door — that
+    // distinction must survive to the agent rather than being flattened.
+    assert.equal(result.matchedBy, 'proximity');
+    assert.equal(result.distanceM, 180);
+    assert.equal(result.place, 'Apotek Sebelah');
+  } finally {
+    stub.restore();
+  }
+});
+
+test('a public-holiday rule reaches the agent as a caveat', async () => {
+  const stub = stubFetch([
+    ['/api/place-hours', { payload: { ok: true, place: {
+      name: 'Kantor Pos', latitude: -7.29, longitude: 112.67,
+      openingHours: 'Mo-Fr 08:00-16:00; PH off', matchedBy: 'name', distanceM: 3,
+    } } }],
+  ]);
+  try {
+    const result = await checkPlaceHours({ placeQuery: 'Kantor Pos', latitude: -7.29, longitude: 112.67 });
+    assert.equal(result.publicHolidayCaveat, true);
+  } finally {
+    stub.restore();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// get_place_weather — the weather at the FAR END of a route.
+//
+// The app has drawn weather on the map for a while, but only ever for wherever
+// the camera was. These tests pin the thing that was actually missing: asking
+// about a place the camera is not looking at.
+// ---------------------------------------------------------------------------
+
+const JAKARTA_WEATHER = {
+  observedAt: '2026-09-08T05:00:00.000Z',
+  temperatureC: 31.4,
+  apparentTemperatureC: 36.2,
+  precipitationMm: 0,
+  cloudCoverPct: 40,
+  windKph: 9.2,
+  visibilityM: 24000,
+  weatherCode: 2,
+};
+
+test('get_place_weather geocodes a name and reports the reading with its condition', async () => {
+  const stub = stubFetch([
+    ['/api/geocode', { payload: { results: [{ lat: -6.2, lon: 106.8, label: 'Jakarta' }] } }],
+    ['/api/weather-effects', { payload: { status: 'ready', weather: JAKARTA_WEATHER } }],
+  ]);
+  try {
+    const result = await getPlaceWeather({ placeQuery: 'Jakarta' });
+    assert.equal(result.ok, true);
+    assert.equal(result.place, 'Jakarta');
+    assert.equal(result.temperatureC, 31.4);
+    assert.equal(result.conditions, 'PARTLY CLOUDY');
+    assert.equal(result.windKph, 9.2);
+    // Open-Meteo's current block moves on quarter-hour boundaries, so the
+    // reading can be minutes old — the agent needs to be able to say when.
+    assert.equal(result.observedAt, '2026-09-08T05:00:00.000Z');
+  } finally {
+    stub.restore();
+  }
+});
+
+test('get_place_weather asks about the DESTINATION, not the camera position', async () => {
+  const stub = stubFetch([
+    ['/api/weather-effects', (href) => ({ payload: { weather: { ...JAKARTA_WEATHER, requestedFrom: href } } })],
+  ]);
+  try {
+    await getPlaceWeather({ placeQuery: 'Pakuwon Mall', latitude: -7.2896, longitude: 112.6767 });
+    const asked = stub.seen.find((url) => url.includes('/api/weather-effects'));
+    assert.match(asked, /latitude=-7\.28960/);
+    assert.match(asked, /longitude=112\.67670/);
+    // And it did not re-geocode a destination whose position it was handed.
+    assert.ok(!stub.seen.some((url) => url.includes('/api/geocode')));
+  } finally {
+    stub.restore();
+  }
+});
+
+test('get_place_weather fails honestly rather than inventing a temperature', async () => {
+  for (const routes of [
+    [['/api/weather-effects', { payload: { status: 'ready', weather: null } }]],
+    [['/api/weather-effects', { payload: { weather: { temperatureC: null } } }]],
+    [['/api/weather-effects', new Error('upstream down')]],
+    [['/api/weather-effects', { ok: false, payload: null }]],
+  ]) {
+    const stub = stubFetch(routes);
+    try {
+      const result = await getPlaceWeather({ placeQuery: 'X', latitude: 1, longitude: 1 });
+      assert.equal(result.ok, false, 'no reading means no answer');
+      assert.match(result.error, /unavailable/i);
+      assert.equal(result.temperatureC, undefined);
+    } finally {
+      stub.restore();
+    }
+  }
+});
+
+test('get_place_weather reports an unfindable place instead of the equator', async () => {
+  const stub = stubFetch([['/api/geocode', { payload: { results: [] } }]]);
+  try {
+    const result = await getPlaceWeather({ placeQuery: 'Atlantis' });
+    assert.equal(result.ok, false);
+    assert.match(result.error, /Atlantis/);
+    // Nothing was asked of the weather API — there was no point to ask about.
+    assert.ok(!stub.seen.some((url) => url.includes('/api/weather-effects')));
+  } finally {
+    stub.restore();
+  }
+});
+
+test('a null coordinate pair falls through to the place name, not to 0,0', async () => {
+  const stub = stubFetch([
+    ['/api/geocode', { payload: { results: [{ lat: -6.2, lon: 106.8, label: 'Jakarta' }] } }],
+    ['/api/weather-effects', { payload: { weather: JAKARTA_WEATHER } }],
+  ]);
+  try {
+    const result = await getPlaceWeather({ placeQuery: 'Jakarta', latitude: null, longitude: null });
+    assert.equal(result.ok, true);
+    // Number(null) is 0 and Number.isFinite(0) is true, so a naive guard would
+    // accept the pair and report the weather in the Gulf of Guinea.
+    assert.ok(stub.seen.some((url) => url.includes('/api/geocode')), 'must geocode the name');
+    assert.equal(result.latitude, -6.2);
+  } finally {
+    stub.restore();
+  }
+});
+
+test('both briefing tools resolve a place the same way', async () => {
+  // Asking the geocoder twice can land on two different Pakuwons, and then the
+  // agent describes one place's weather and another's opening hours in the same
+  // breath. They must share the resolver.
+  const stub = stubFetch([
+    ['/api/geocode', { payload: { results: [{ lat: -7.2896, lon: 112.6767, label: 'Pakuwon Mall, Surabaya' }] } }],
+    ['/api/weather-effects', { payload: { weather: JAKARTA_WEATHER } }],
+    ['/api/place-hours', { payload: { ok: true, place: {
+      name: 'Pakuwon Mall', latitude: -7.2896, longitude: 112.6767,
+      openingHours: 'Mo-Su 10:00-22:00', matchedBy: 'name', distanceM: 8,
+    } } }],
+  ]);
+  try {
+    const weather = await getPlaceWeather({ placeQuery: 'Pakuwon Mall' });
+    const hours = await checkPlaceHours({ placeQuery: 'Pakuwon Mall' });
+    assert.equal(weather.latitude, -7.2896);
+    assert.equal(hours.latitude, -7.2896);
+    assert.equal(weather.ok, true);
+    assert.equal(hours.ok, true);
+  } finally {
+    stub.restore();
+  }
 });
 
 test('voice CCTV coverage writes the canonical durable coverage mode', async () => {

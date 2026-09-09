@@ -657,6 +657,22 @@ test('the voice TOOL SCHEMA is byte-identical to main — the mission mapping is
    * test whose entire subject is whether the SCHEMA drifted. It had not. The
    * slice now begins at the opening bracket, so a rename cannot fire this while
    * any edit to a tool, a parameter or a description still does.
+   *
+   * WHY THE BASELINE MOVED (once, deliberately).
+   *
+   * This test's subject is the FIRST-RUN MISSIONS: they must ride tools that
+   * already exist, so enabling them costs no schema edit and busts no prompt
+   * cache. That claim is unchanged and still enforced below.
+   *
+   * The baseline itself was re-frozen for the destination-briefing work, which
+   * genuinely changed the schema three ways: `control_cctv` gained its `area`
+   * and `status` actions (with a place, a radius and a coordinate pair to go
+   * with them); `get_place_weather` and `check_place_hours` were added; and the
+   * tool DESCRIPTIONS finally picked up the Map Monitoring rename the original
+   * sweep missed — the agent had still been introducing itself under the old
+   * name. Re-freezing is the correct response to an INTENDED schema change; the
+   * guard earns its keep by forcing exactly this note to be written instead of
+   * letting the edit pass unremarked.
    */
   const src = fs.readFileSync(new URL('../vite.config.js', import.meta.url), 'utf8');
   const declaration = src.indexOf('const MM_REALTIME_TOOLS = [');
@@ -665,12 +681,18 @@ test('the voice TOOL SCHEMA is byte-identical to main — the mission mapping is
   const end = src.indexOf('\n];\n', start);
   const block = src.slice(start, end + 4);
 
-  assert.equal(block.length, 31077, 'tool schema byte length drifted from the frozen baseline');
+  assert.equal(block.length, 34186, 'tool schema byte length drifted from the frozen baseline');
   assert.equal(
     crypto.createHash('sha256').update(block).digest('hex'),
-    '2cba24101f20caeb8cc8938210b86acdc03cb29b8631521bdf05cf4de58ee91b',
+    '8747498895c30e53aa06a25659325b5dfccd3954cfe635d924362f78aafc1d4d',
     'the first-run missions must ride EXISTING tools: no schema edit, no cache bust',
   );
+
+  // The missions' own tools are named explicitly, so a future schema edit that
+  // dropped one would fail here rather than merely moving the hash.
+  for (const toolName of ['set_layer_visibility', 'zoom_to_globe', 'set_context_mode']) {
+    assert.ok(block.includes(`name: '${toolName}'`), `missions still need ${toolName}`);
+  }
 
   // ...and the mapping that makes them reachable by voice is one instruction
   // string, whose rollback is deleting that string. Anchored to a LIVE array
