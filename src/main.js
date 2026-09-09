@@ -25,6 +25,7 @@ import { initVoiceCommands } from './voice/voiceRealtime.js';
 import { MapStackController } from './mapStackController.js';
 import { initAnnotations } from './annotations/index.js';
 import { initDrawingTools } from './measure/drawingTools.js';
+import { perfSnapshot } from './perfSnapshot.js';
 import { initLogoGaze } from './logoGaze.js';
 import { initCockpitCloudEffects } from './cockpitCloudEffects.js';
 import {
@@ -662,6 +663,22 @@ async function init() {
     };
     window.__mapMonitoring.voiceCommands = initVoiceCommands({ viewer, styleManager, dataManager, sceneDirector, annotations });
     window.__mapMonitoring.drawingTools = initDrawingTools({ viewer, dataManager });
+
+    /*
+     * One command for "why is this heavy", run ON the machine that is heavy:
+     *
+     *   window.__mapMonitoring.perfSnapshot().then(console.log)
+     *
+     * The costs that matter here are GPU costs, and none of them can be
+     * measured from a hidden or headless browser — the canvas never composites
+     * and rAF never ticks, so every timing comes back small and means nothing.
+     * This samples REAL frames and reports the state needed to read them.
+     */
+    window.__mapMonitoring.perfSnapshot = () => perfSnapshot({
+      viewer,
+      dataManager,
+      governorDiagnostics: getRenderGovernorDiagnostics,
+    });
 
   } catch (error) {
     console.error('Map Monitoring initialization failed:', error);
