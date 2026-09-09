@@ -495,7 +495,10 @@ const AppleSpotlight = ({
                 style={{
                   borderRadius: '30px'
                 }}
-                className="h-full w-full flex flex-col items-center justify-start z-10 relative shadow-lg overflow-hidden border"
+                /* mm-spotlight-pill: a stable hook for code that has to measure
+                   this bar from outside React - the route report is placed in
+                   the strip of map beside it. */
+                className="mm-spotlight-pill h-full w-full flex flex-col items-center justify-start z-10 relative shadow-lg overflow-hidden border"
               >
                 <SpotlightInput
                   placeholder={

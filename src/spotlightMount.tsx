@@ -18,6 +18,7 @@ import {
 import { AppleSpotlight } from '@/components/ui/apple-spotlight';
 import { lookupIdentifier, type LookupResult } from '@/lib/idLookup';
 import { summarizeWeather } from '@/weatherWords.js';
+import { placeRouteSummary } from '@/routeSummaryPlacement.js';
 import '@/tailwind.css';
 
 /**
@@ -178,6 +179,32 @@ function PlaceWeather({ lat, lon }: { lat: number; lon: number }) {
   );
 }
 
+/**
+ * What a container is actually COVERING, not what it has reserved.
+ *
+ * The right context rail keeps a 330 px column whether or not anything in it is
+ * open. Measuring the container would therefore charge the route report for a
+ * CCTV panel that is a collapsed chip against the right edge. So the bounds are
+ * taken from the children that are actually drawn: collapsed chips give a
+ * narrow box hugging the edge, an open panel gives a wide one.
+ *
+ * Returns null for an empty or absent container - nothing there to avoid.
+ */
+function occupiedBounds(container: HTMLElement | null) {
+  if (!container) return null;
+  let left = Infinity;
+  let right = -Infinity;
+  let top = Infinity;
+  for (const child of Array.from(container.children)) {
+    const box = child.getBoundingClientRect();
+    if (box.width <= 0 || box.height <= 0) continue;
+    left = Math.min(left, box.left);
+    right = Math.max(right, box.right);
+    top = Math.min(top, box.top);
+  }
+  return Number.isFinite(left) ? { left, right, top } : null;
+}
+
 interface RouteBarProps {
   destination: GeocodeRow | null;
   onClose: () => void;
@@ -220,12 +247,101 @@ function RouteBar({ destination, onClose }: RouteBarProps) {
     }
 
     const moved: Array<{ node: HTMLElement; parent: Node; next: Node | null }> = [];
-    for (const id of ['route-status', 'route-result']) {
+    const borrow = (id: string, into: HTMLElement) => {
       const node = panelEl<HTMLElement>(id);
-      if (!node?.parentNode) continue;
+      if (!node?.parentNode) return null;
       moved.push({ node, parent: node.parentNode, next: node.nextSibling });
-      host.appendChild(node);
-    }
+      into.appendChild(node);
+      return node;
+    };
+
+    /*
+     * The status line stays with the form that produced it. It is one short
+     * grey sentence - "Rute digambar di peta.", or the hint to fill in a
+     * destination - and a hint about a field belongs beside the field.
+     */
+    borrow('route-status', host);
+
+    /*
+     * The REPORT goes onto the map.
+     *
+     * Distance, traffic, the nearest camera and the destination weather made
+     * the pill tall enough to cover the left half of the window, so reading the
+     * answer meant covering the route it described. It now sits in the strip of
+     * map between the bar and the clock - when the window has one. On a window
+     * too narrow for that strip it stays in the bar, because a card squeezed
+     * into 90 px is not a smaller report, it is an unreadable one.
+     */
+    const card = document.createElement('div');
+    card.className = 'mm-route-summary';
+    card.hidden = true;
+    document.body.appendChild(card);
+    const result = borrow('route-result', card);
+
+    const pill = host.closest('.mm-spotlight-pill');
+    const place = () => {
+      // An empty report is not a report. Before a route is found the node is
+      // blank, and a blank card floating over the map is just a smudge.
+      if (!result || !result.textContent?.trim()) {
+        card.hidden = true;
+        return;
+      }
+      const box = placeRouteSummary({
+        bar: pill?.getBoundingClientRect(),
+        // Everything else that lives in the top band. The rail is the one that
+        // usually binds: an open CCTV panel reaches further left than the clock.
+        obstacles: [
+          document.getElementById('map-clock-root')?.getBoundingClientRect(),
+          occupiedBounds(document.getElementById('right-context-rail')),
+        ],
+        viewport: { width: window.innerWidth },
+      });
+      if (!box) {
+        // No strip: the report goes back under the form, where it used to live.
+        card.hidden = true;
+        if (result.parentNode !== host) host.appendChild(result);
+        return;
+      }
+      if (result.parentNode !== card) card.appendChild(result);
+      card.hidden = false;
+      card.style.left = `${box.left}px`;
+      card.style.top = `${box.top}px`;
+      card.style.width = `${box.width}px`;
+    };
+
+    // The report is written by the routing code, not by this component, so the
+    // only way to know it has arrived is to watch the node.
+    const resultWatch = result
+      ? new MutationObserver(place)
+      : null;
+    resultWatch?.observe(result as Node, { childList: true, subtree: true, characterData: true });
+
+    /*
+     * The rail moves under the card. "BUKA KAMERA" in the report itself opens
+     * the CCTV panel, which widens the rail from a chip to a full panel - so
+     * the one button on this card is the very thing most likely to reach the
+     * space the card is standing in.
+     */
+    const rail = document.getElementById('right-context-rail');
+    const railWatch = rail ? new MutationObserver(place) : null;
+    railWatch?.observe(rail as Node, { attributes: true, attributeFilter: ['class', 'style'], subtree: true });
+
+    /*
+     * The BAR moves under the card too, and this one bites without a resize.
+     *
+     * Taking the report out makes the pill short; putting it back makes it
+     * tall; a lookup card or a chosen place changes it again. Placing only on
+     * window resize left the card pinned to wherever the bar happened to be
+     * when the route arrived - measured 120 px too low, and nothing would have
+     * corrected it until the window itself was dragged.
+     */
+    const barWatch = pill && typeof ResizeObserver === 'function'
+      ? new ResizeObserver(() => place())
+      : null;
+    if (pill) barWatch?.observe(pill);
+
+    window.addEventListener('resize', place);
+    place();
 
     /*
      * The status and result nodes are ONE set, shared with the full Route
@@ -248,7 +364,14 @@ function RouteBar({ destination, onClose }: RouteBarProps) {
 
     return () => {
       observer?.disconnect();
+      resultWatch?.disconnect();
+      railWatch?.disconnect();
+      barWatch?.disconnect();
+      window.removeEventListener('resize', place);
+      // The nodes go home first, then the card is removed - taking the card out
+      // while it still held the report would delete the panel's own node.
       for (const { node, parent, next } of moved) parent.insertBefore(node, next);
+      card.remove();
     };
   }, [onClose]);
 

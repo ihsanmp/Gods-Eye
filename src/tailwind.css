@@ -544,36 +544,93 @@
   margin-top: 4px;
 }
 
-#spotlight-root .mm-routebar-output #route-status,
-#spotlight-root .mm-routebar-output .route-note {
+/*
+ * These colours are shared with the card on the map.
+ *
+ * The report node is the SAME node in both places - it is moved, not copied -
+ * so the two surfaces must restate its colours identically or a journey would
+ * change colour halfway through, when a window resize moves the report from one
+ * host to the other.
+ */
+:is(#spotlight-root .mm-routebar-output, .mm-route-summary) #route-status,
+:is(#spotlight-root .mm-routebar-output, .mm-route-summary) .route-note {
   color: #6b7280;
 }
 
-#spotlight-root .mm-routebar-output .route-headline,
-#spotlight-root .mm-routebar-output .route-headline strong,
-#spotlight-root .mm-routebar-output .route-info-strong {
+:is(#spotlight-root .mm-routebar-output, .mm-route-summary) .route-headline,
+:is(#spotlight-root .mm-routebar-output, .mm-route-summary) .route-headline strong,
+:is(#spotlight-root .mm-routebar-output, .mm-route-summary) .route-info-strong {
   color: #111318;
 }
 
-#spotlight-root .mm-routebar-output .route-info-card {
+:is(#spotlight-root .mm-routebar-output, .mm-route-summary) .route-info-card {
   background: rgba(0, 0, 0, 0.04);
   border-color: rgba(0, 0, 0, 0.1);
 }
 
-#spotlight-root .mm-routebar-output .route-info-title,
-#spotlight-root .mm-routebar-output .route-info-sub,
-#spotlight-root .mm-routebar-output .route-info-note {
+:is(#spotlight-root .mm-routebar-output, .mm-route-summary) .route-info-title,
+:is(#spotlight-root .mm-routebar-output, .mm-route-summary) .route-info-sub,
+:is(#spotlight-root .mm-routebar-output, .mm-route-summary) .route-info-note {
   color: #6b7280;
 }
 
-#spotlight-root .mm-routebar-output .route-info-body {
+:is(#spotlight-root .mm-routebar-output, .mm-route-summary) .route-info-body {
   color: #374151;
 }
 
-#spotlight-root .mm-routebar-output .route-info-action {
+:is(#spotlight-root .mm-routebar-output, .mm-route-summary) .route-info-action {
   border: 1px solid rgba(0, 0, 0, 0.14);
   background: #ffffff;
   color: #374151;
+}
+
+/* ============================================================
+   THE ROUTE REPORT, ON THE MAP
+   ============================================================ */
+
+/*
+ * Distance, traffic, the nearest camera and the destination weather, in the
+ * strip of map between the search bar and the clock.
+ *
+ * They used to hang under the route form inside the search pill, which made the
+ * pill tall enough to cover the left half of the window - so reading the answer
+ * covered the route the answer was about. src/routeSummaryPlacement.js decides
+ * whether a window has room for this and sets left/top/width; when it does not,
+ * the report goes back under the form and this element stays hidden.
+ *
+ * Same light surface as the pill, because it holds the pill's own content and
+ * the two are read together.
+ */
+.mm-route-summary {
+  position: fixed;
+  z-index: 149; /* under the search bar (150), over the HUD panels (100-145) */
+  max-height: calc(100vh - 44px);
+  overflow-y: auto;
+  padding: 12px 14px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 16px;
+  background: #f5f5f5;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  color: #111318;
+  font-family: Inter, ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+}
+
+/* The report's own top rule was drawn for a dark panel and separates it from a
+   status line that is no longer above it. */
+.mm-route-summary .route-result {
+  border-top: none;
+  padding-top: 0;
+}
+
+.mm-route-summary .route-info-action {
+  cursor: pointer;
+}
+
+.mm-route-summary .route-info-action:hover {
+  background: #111318;
+  border-color: #111318;
+  color: #ffffff;
 }
 
 /* ============================================================
