@@ -7,6 +7,7 @@ import datacentersUrl from './local_data/datacenters/datacenters.geojsonl?url';
 import damsUrl from './local_data/dams/dams.geojsonl?url';
 import portsUrl from './local_data/maritime/ports.geojsonl?url';
 import chokepointsUrl from './local_data/maritime/chokepoints.geojsonl?url';
+import nuclearUrl from './local_data/nuclear/sites.geojsonl?url';
 
 /**
  * Registry of local GeoJSON datasets.
@@ -88,6 +89,32 @@ const chokepoints = createLocalGeoJsonLayer({
   labelGridPx: 130,
 });
 
+/*
+ * Nuclear sites: 33 power stations, from operating fleets to Chornobyl and
+ * Fukushima Daiichi. Fixed infrastructure, like the dams and datacenters above.
+ *
+ * Every coordinate resolved through Nominatim to within 1.5 km of an
+ * independent prior. Six needed their LOCAL-LANGUAGE name before OSM would
+ * find them at all — 福島第一原子力発電所, Olkiluodon ydinvoimalaitos,
+ * 고리원자력발전소, Central Nuclear Atucha — which is the sort of gap that a
+ * confident English-only pass would have shipped as "site missing".
+ *
+ * The note carries the operating status, because "Chornobyl" and "Barakah" are
+ * not the same kind of thing on a map and a bare dot would say they were.
+ */
+const nuclear = createLocalGeoJsonLayer({
+  id: 'nuclear-sites',
+  url: nuclearUrl,
+  name: 'Nuclear Sites',
+  color: '#ffd54f',
+  icon: '☢',
+  source: 'OSM-verified',
+  group: 'threats-intel',
+  labels: true,
+  labelMax: 400,
+  labelGridPx: 130,
+});
+
 export default [
   datacenters,
   dams,
@@ -95,4 +122,5 @@ export default [
   fires,
   ports,
   chokepoints,
+  nuclear,
 ];

@@ -507,6 +507,62 @@ function makeRateLimiter({ windowMs, max, globalMax }) {
   };
 }
 const _overpassRateLimiter = makeRateLimiter({ windowMs: 60_000, max: 90, globalMax: 300 });
+
+/*
+ * GDELT geocoded news events.
+ *
+ * v1, deliberately: the v2 GEO API (/api/v2/geo/geo) 404s, while v1
+ * `gkg_geojson` still answers with real GeoJSON.
+ *
+ * GDELT asks for one request every five seconds, so the spacing below is a
+ * SERVER-wide floor rather than a per-client one, and answers are cached for
+ * long enough that a page refresh costs nothing upstream. The GKG window is
+ * the last 24 hours and turns over slowly, so a ten-minute cache loses nothing
+ * anyone could see.
+ */
+const GDELT_URL = 'https://api.gdeltproject.org/api/v1/gkg_geojson';
+/**
+ * Read GDELT over node:https rather than fetch().
+ *
+ * MEASURED, not preferred. GDELT's TCP connect is fast (270 ms) but its TLS
+ * handshake takes about 10.5 SECONDS. Node's fetch is undici, whose
+ * `connect.timeout` covers TCP+TLS and defaults to 10 s — so every call failed
+ * at a suspiciously consistent 10.6 s with UND_ERR_CONNECT_TIMEOUT while curl
+ * against the same address returned 200. Raising that timeout means supplying
+ * an undici Agent, and undici is not importable here (MODULE_NOT_FOUND).
+ *
+ * node:https has no such hidden floor, so the timeout below is the only one.
+ *
+ * @param {string} url
+ * @param {number} timeoutMs
+ * @returns {Promise<{status: number, body: string}>}
+ */
+function fetchGdelt(url, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const request = https.request(url, { headers: { Accept: "application/json" } }, (response) => {
+      let body = '';
+      response.setEncoding('utf8');
+      response.on('data', (chunk) => {
+        body += chunk;
+        // A runaway response must not become a runaway allocation.
+        if (body.length > GDELT_MAX_BYTES) {
+          request.destroy(new Error('GDELT response too large'));
+        }
+      });
+      response.on('end', () => resolve({ status: response.statusCode || 0, body }));
+    });
+    request.setTimeout(timeoutMs, () => request.destroy(new Error('GDELT timed out')));
+    request.on('error', reject);
+    request.end();
+  });
+}
+const GDELT_TIMEOUT_MS = 30000;
+const GDELT_MAX_BYTES = 6 * 1024 * 1024;
+const GDELT_MIN_SPACING_MS = 6000;
+const GDELT_TTL_MS = 10 * 60_000;
+const GDELT_CACHE_MAX = 24;
+const _gdeltCache = new Map();
+let _gdeltLastFetchAt = 0;
 const _militaryInstallationsRateLimiter = makeRateLimiter({ windowMs: 60_000, max: 90, globalMax: 300 });
 const _routeRateLimiter = makeRateLimiter({ windowMs: 60_000, max: 60, globalMax: 200 });
 
@@ -3765,6 +3821,82 @@ function overpassProxy() {
         } catch (e) {
           console.error('[Place Hours]', e.message);
           send(200, { ok: false, error: 'Opening hours lookup unavailable' });
+        }
+      });
+
+      /*
+       * GDELT geocoded news events.
+       *
+       * GET /api/gdelt?query=<terms>
+       *
+       * Proxied rather than fetched from the browser for two reasons that both
+       * had to be measured rather than assumed. GDELT sends NO
+       * Access-Control-Allow-Origin, so a direct fetch is blocked outright.
+       * And it answers `Please limit requests to one every 5 seconds` with a
+       * 429 — a limit that belongs to the SERVER, shared across every open tab,
+       * not to each client.
+       *
+       * Note the v1 path. GDELT's v2 GEO API (/api/v2/geo/geo) returns 404 as
+       * of this writing; v1 `gkg_geojson` is what actually answers, and it
+       * answers with proper GeoJSON.
+       */
+      server.middlewares.use('/api/gdelt', async (req, res) => {
+        const send = (status, body) => {
+          res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+          res.end(JSON.stringify(body));
+        };
+        try {
+          if (req.method !== 'GET') { send(405, { ok: false, error: 'Method Not Allowed' }); return; }
+          const url = new URL(req.url || '', 'http://localhost');
+          const query = String(url.searchParams.get('query') || '').trim().slice(0, 120);
+          if (!query) { send(400, { ok: false, error: 'query is required' }); return; }
+
+          // One shared upstream call per query per window. Without this, five
+          // tabs on the same query would spend the whole allowance between them
+          // and all five would get a 429.
+          const now = Date.now();
+          const cached = _gdeltCache.get(query);
+          if (cached && now - cached.at < GDELT_TTL_MS) {
+            res.writeHead(200, { 'Content-Type': 'application/json', 'X-Gdelt-Cache': 'HIT' });
+            res.end(cached.body);
+            return;
+          }
+          if (now - _gdeltLastFetchAt < GDELT_MIN_SPACING_MS) {
+            // Serve stale rather than burn the allowance; an empty answer would
+            // read on screen as "nothing is happening in the world".
+            if (cached) {
+              res.writeHead(200, { 'Content-Type': 'application/json', 'X-Gdelt-Cache': 'STALE' });
+              res.end(cached.body);
+              return;
+            }
+            send(429, { ok: false, error: 'GDELT is rate limited; try again shortly' });
+            return;
+          }
+          _gdeltLastFetchAt = now;
+
+          const upstream = await fetchGdelt(
+            `${GDELT_URL}?QUERY=${encodeURIComponent(query)}`,
+            GDELT_TIMEOUT_MS,
+          );
+          if (upstream.status !== 200) {
+            if (cached) {
+              res.writeHead(200, { 'Content-Type': 'application/json', 'X-Gdelt-Cache': 'STALE' });
+              res.end(cached.body);
+              return;
+            }
+            send(502, { ok: false, error: `GDELT returned ${upstream.status}` });
+            return;
+          }
+          const body = upstream.body;
+          _gdeltCache.set(query, { body, at: now });
+          if (_gdeltCache.size > GDELT_CACHE_MAX) {
+            _gdeltCache.delete(_gdeltCache.keys().next().value);
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json', 'X-Gdelt-Cache': 'MISS' });
+          res.end(body);
+        } catch (e) {
+          console.error('[GDELT Proxy]', e.message);
+          send(502, { ok: false, error: 'GDELT proxy error' });
         }
       });
 

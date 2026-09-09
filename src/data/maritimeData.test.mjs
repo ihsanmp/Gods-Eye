@@ -1,16 +1,18 @@
-// Guards on the two bundled maritime datasets.
+// Guards on the three hand-built point datasets: ports, chokepoints, and
+// nuclear sites.
 //
-// These files are hand-built, which means the failure mode is a plausible-
-// looking dot in the wrong ocean. Every coordinate was resolved through
-// Nominatim before it was written down — that check caught a fast-food shop in
-// Guernsey returned for "Port of Hong Kong" — but a later hand edit gets no
-// such check, so the shape and the sanity of the data are pinned here.
+// Hand-built means the failure mode is a plausible-looking dot in the wrong
+// country. Every coordinate was resolved through Nominatim before it was
+// written down — that check caught a fast-food shop in Guernsey returned for
+// "Port of Hong Kong", and found that six nuclear sites only resolve under
+// their local-language names — but a later hand edit gets no such check, so
+// the shape and the sanity of the data are pinned here.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const read = (name) => readFileSync(
-  new URL(`./local_data/maritime/${name}`, import.meta.url),
+const read = (path) => readFileSync(
+  new URL(`./local_data/${path}`, import.meta.url),
   'utf8',
 )
   .split('\n')
@@ -19,17 +21,21 @@ const read = (name) => readFileSync(
     try {
       return JSON.parse(line);
     } catch (error) {
-      throw new Error(`${name} line ${index + 1} is not JSON: ${error.message}`);
+      // `path`, not `name`: this said ${name}, which is not in scope here and
+      // would have thrown a ReferenceError while reporting a parse error.
+      throw new Error(`${path} line ${index + 1} is not JSON: ${error.message}`);
     }
   });
 
-const PORTS = read('ports.geojsonl');
-const CHOKEPOINTS = read('chokepoints.geojsonl');
-const ALL = [...PORTS, ...CHOKEPOINTS];
+const PORTS = read('maritime/ports.geojsonl');
+const CHOKEPOINTS = read('maritime/chokepoints.geojsonl');
+const NUCLEAR = read('nuclear/sites.geojsonl');
+const ALL = [...PORTS, ...CHOKEPOINTS, ...NUCLEAR];
 
-test('both datasets are non-empty GeoJSON point features', () => {
+test('every dataset is non-empty GeoJSON point features', () => {
   assert.ok(PORTS.length >= 25, `only ${PORTS.length} ports`);
   assert.ok(CHOKEPOINTS.length >= 15, `only ${CHOKEPOINTS.length} chokepoints`);
+  assert.ok(NUCLEAR.length >= 30, `only ${NUCLEAR.length} nuclear sites`);
   for (const feature of ALL) {
     assert.equal(feature.type, 'Feature');
     assert.equal(feature.geometry.type, 'Point');
@@ -77,7 +83,7 @@ test('ids are unique and derived from the name', () => {
   const ids = ALL.map((f) => f.id);
   assert.equal(new Set(ids).size, ids.length, 'duplicate feature id');
   for (const feature of ALL) {
-    assert.match(feature.id, /^(port|chokepoint)-[a-z0-9-]+$/, feature.id);
+    assert.match(feature.id, /^(port|chokepoint|nuclear)-[a-z0-9-]+$/, feature.id);
     assert.equal(feature.id.startsWith(feature.properties.kind), true);
   }
 });
@@ -86,7 +92,7 @@ test('every feature carries a name and a note worth reading aloud', () => {
   for (const feature of ALL) {
     assert.ok(feature.properties.name?.trim(), `${feature.id} has no name`);
     assert.ok(feature.properties.note?.trim(), `${feature.id} has no note`);
-    assert.ok(['port', 'chokepoint'].includes(feature.properties.kind));
+    assert.ok(['port', 'chokepoint', 'nuclear'].includes(feature.properties.kind));
   }
 });
 
@@ -101,6 +107,34 @@ test('the Indonesian passages and ports this console exists for are present', ()
     'chokepoint-makassar-strait',
     'port-tanjung-priok',
     'port-tanjung-perak',
+  ]) {
+    assert.ok(ids.has(id), `${id} is missing`);
+  }
+});
+
+test('nuclear sites carry an operating status, since a dot cannot say one', () => {
+  // Chornobyl and Barakah are not the same kind of thing on a map, and an
+  // unlabelled marker would claim they were.
+  const statuses = new Set(NUCLEAR.map((f) => f.properties.status));
+  assert.ok(statuses.has('operational'));
+  assert.ok(statuses.has('decommissioned') || statuses.has('decommissioning'));
+  for (const feature of NUCLEAR) {
+    assert.ok(feature.properties.status?.trim(), `${feature.id} has no status`);
+    assert.ok(feature.properties.country?.trim(), `${feature.id} has no country`);
+    // The note is what the label shows, so it must name both.
+    assert.ok(feature.properties.note.includes(feature.properties.country));
+    assert.ok(feature.properties.note.includes(feature.properties.status));
+  }
+});
+
+test('the nuclear sites whose names only OSM-resolve in their own language are present', () => {
+  // Six of these needed 福島第一原子力発電所, Olkiluodon ydinvoimalaitos,
+  // 고리원자력발전소 and Central Nuclear Atucha before OSM would find them. An
+  // English-only pass would have shipped the dataset with these simply missing.
+  const ids = new Set(NUCLEAR.map((f) => f.id));
+  for (const id of [
+    'nuclear-fukushima-daiichi', 'nuclear-kashiwazaki-kariwa',
+    'nuclear-olkiluoto', 'nuclear-ringhals', 'nuclear-kori', 'nuclear-atucha',
   ]) {
     assert.ok(ids.has(id), `${id} is missing`);
   }
