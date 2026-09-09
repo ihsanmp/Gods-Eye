@@ -598,6 +598,21 @@
     </div>
   </div>
 
+  <!-- Drawing / measurement tools. The body is built by
+       src/measure/drawingTools.js so the four shapes come from one registry
+       rather than being duplicated here and in the code. -->
+  <div id="drawing-panel" class="panel-collapsible collapsed" data-panel-id="drawing-panel">
+    <div class="panel-glow"></div>
+    <div class="drawing-panel-inner">
+      <div class="panel-header">
+        <span class="panel-title">DRAWING TOOLS</span>
+        <span class="panel-divider"></span>
+        <button class="panel-collapse-btn" data-collapse-target="drawing-panel" title="Collapse panel">+</button>
+      </div>
+      <div id="drawing-tools"></div>
+    </div>
+  </div>
+
   <!-- Route Planner Panel -->
   <div id="route-panel" class="panel-collapsible collapsed" data-panel-id="route-panel">
     <div class="panel-glow"></div>

@@ -23,6 +23,7 @@ import { SceneDirector } from './scenes/director.js';
 import { initVoiceCommands } from './voice/voiceRealtime.js';
 import { MapStackController } from './mapStackController.js';
 import { initAnnotations } from './annotations/index.js';
+import { initDrawingTools } from './measure/drawingTools.js';
 import { initLogoGaze } from './logoGaze.js';
 import { initCockpitCloudEffects } from './cockpitCloudEffects.js';
 import {
@@ -658,6 +659,7 @@ async function init() {
       requestRender: governorRequestRender,
     };
     window.__mapMonitoring.voiceCommands = initVoiceCommands({ viewer, styleManager, dataManager, sceneDirector, annotations });
+    window.__mapMonitoring.drawingTools = initDrawingTools({ viewer, dataManager });
 
   } catch (error) {
     console.error('Map Monitoring initialization failed:', error);

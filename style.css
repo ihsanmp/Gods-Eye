@@ -4211,6 +4211,140 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
 }
 
 /* ------------------------------------------------------------------ *
+ * Drawing tools.
+ *
+ * The shape buttons are a 2x2 grid of the same four the registry defines, and
+ * they read as CARDS rather than chips because each carries a second line
+ * explaining the gesture it wants — "two clicks, opposite corners" is the part
+ * that stops someone guessing.
+ * ------------------------------------------------------------------ */
+.draw-readouts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.draw-readout {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border: 1px solid rgba(0, 212, 255, 0.18);
+  border-radius: 6px;
+  background: rgba(0, 212, 255, 0.05);
+}
+
+.draw-readout-label {
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.1em;
+}
+
+.draw-readout-value {
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.draw-step {
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.12em;
+  margin-bottom: 6px;
+}
+
+.draw-shapes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.draw-shape {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px;
+  text-align: left;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.draw-shape:hover {
+  border-color: rgba(0, 212, 255, 0.45);
+  background: rgba(0, 212, 255, 0.06);
+}
+
+/* The armed tool. Every click on the map goes to it, so it has to be obvious
+   which one is listening. */
+.draw-shape[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: rgba(0, 212, 255, 0.14);
+}
+
+.draw-shape-label {
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.draw-shape-hint {
+  color: var(--text-dim);
+  font-size: 9px;
+  line-height: 1.3;
+}
+
+.draw-prompt {
+  margin-top: 10px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  line-height: 1.4;
+  min-height: 2.2em;
+}
+
+.draw-inside {
+  margin-top: 6px;
+  padding: 6px 8px;
+  border-left: 2px solid var(--accent);
+  background: rgba(0, 212, 255, 0.06);
+  color: var(--text-primary);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.draw-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.draw-action {
+  flex: 1;
+  padding: 5px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.draw-action:hover {
+  color: var(--text-primary);
+  border-color: rgba(0, 212, 255, 0.5);
+}
+
+/* ------------------------------------------------------------------ *
  * DATA LAYERS section headings.
  *
  * The panel outgrew a flat list at seventeen rows. These headings are quiet by
@@ -6142,6 +6276,7 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
    from this list renders normally and is completely unclickable. */
 #left-panel-stack > #data-panel,
 #left-panel-stack > #route-panel,
+#left-panel-stack > #drawing-panel,
 #left-panel-stack > #cctv-panel,
 #left-panel-stack > #global-context-panel,
 #left-panel-stack > #scene-panel {
@@ -6169,7 +6304,11 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
   order: 3;
 }
 
-#left-panel-stack > #scene-panel { order: 4; }
+/* Drawing sits below the route planner: both are things you DO to the map,
+   and they are reached less often than the layer and camera panels above. */
+#left-panel-stack > #drawing-panel { order: 4; }
+
+#left-panel-stack > #scene-panel { order: 5; }
 
 /*
  * Runtime focus mode: the layout engine applies this only when the expanded
