@@ -1198,8 +1198,10 @@ async function main() {
       `coverageMode=${modeAfterSet}`);
 
     const volumesOn = await countVolumes();
+    // The projected camera is EXCLUDED: its cone's far cap is its monitor
+    // plane, so filling it washes the video (see shouldDrawViewshedVolume).
     record('viewshed volumes exist for the visible set (1..15)', volumesOn >= 1 && volumesOn <= 15,
-      `${volumesOn} volume primitives (visible-set cap is 14 + active)`);
+      `${volumesOn} volume primitives (visible-set cap is 14, minus the projected camera)`);
 
     // Boolean back-compat shim: showCoverage=false → 'off' (0 volumes),
     // showCoverage=true → 'on' (wireframes, still 0 volumes).

@@ -56,6 +56,36 @@ export function viewshedColors(hueDeg) {
 }
 
 /**
+ * Should this camera's translucent cone be drawn at all?
+ *
+ * THE ONE THAT IS NOT OBVIOUS: `planeShowing`. The cone's far cap is exactly
+ * the monitor plane - same four corners, welded by construction - so the
+ * projected camera's own fill lands ON its own picture. Measured on a night
+ * feed in Yogyakarta, the active camera's volume shifted the picture by
+ * -8 red / +44 green / +48 blue: a cyan wash over the video, bright enough to
+ * read as a fault in the camera. Every other visible cone in the scene together
+ * contributed +6 / +5 / +5.
+ *
+ * So a camera showing its picture does not also paint over it. The cone is
+ * still there as the bright wireframe the plane-showing branch already forces
+ * on, which says where the camera looks without standing in front of it.
+ *
+ * @param {object} state
+ * @param {boolean} state.enabled Layer is on.
+ * @param {boolean} state.viewshedOn Coverage mode is VIEWSHED (volumes exist in no other mode).
+ * @param {boolean} state.inVisibleSet This camera is in the drawn neighbour set.
+ * @param {boolean} state.hasGeometry Frustum positions have been computed.
+ * @param {boolean} state.planeShowing This camera's monitor plane is on screen.
+ * @returns {boolean}
+ */
+export function shouldDrawViewshedVolume({
+  enabled, viewshedOn, inVisibleSet, hasGeometry, planeShowing,
+} = {}) {
+  if (planeShowing) return false;
+  return Boolean(enabled && viewshedOn && inVisibleSet && hasGeometry);
+}
+
+/**
  * Flattens frustumCartesians positions into the raw vertex/index buffers of
  * the frustum volume: vertex order [mount, tl, tr, br, bl]; 4 side faces from
  * the apex + the far cap split into 2 triangles. Pure — this is the ONLY

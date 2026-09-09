@@ -17,6 +17,7 @@ import {
   cameraHue,
   viewshedColors,
   frustumVolumeGeometryData,
+  shouldDrawViewshedVolume,
 } from './cctvViewshed.js';
 
 const GOLDEN_ANGLE = 137.50776405003785;
@@ -125,4 +126,42 @@ test('frustumVolumeGeometryData: no NaN for a tight (probe-clamped) pyramid', ()
   };
   const { positions: flat } = frustumVolumeGeometryData(near);
   for (const v of flat) assert.ok(Number.isFinite(v));
+});
+
+// ---------------------------------------------------------------------------
+// Volume visibility
+//
+// The cone's far cap and the monitor plane are the same four corners, so a
+// projected camera's own translucent fill lands on its own video. Measured on a
+// night feed: -8 red / +44 green / +48 blue over the picture, which reads as a
+// broken camera rather than as coverage.
+// ---------------------------------------------------------------------------
+
+const DRAWN = { enabled: true, viewshedOn: true, inVisibleSet: true, hasGeometry: true, planeShowing: false };
+
+test('a visible idle cone in viewshed mode is drawn', () => {
+  assert.equal(shouldDrawViewshedVolume(DRAWN), true);
+});
+
+test('the camera showing its picture does not paint over it', () => {
+  assert.equal(shouldDrawViewshedVolume({ ...DRAWN, planeShowing: true }), false);
+});
+
+test('every other precondition still has to hold', () => {
+  for (const off of ['enabled', 'viewshedOn', 'inVisibleSet', 'hasGeometry']) {
+    assert.equal(shouldDrawViewshedVolume({ ...DRAWN, [off]: false }), false, off);
+  }
+});
+
+test('a plane on screen outranks every reason to draw one', () => {
+  // Whatever else is true, the picture is not a surface to paint on.
+  assert.equal(
+    shouldDrawViewshedVolume({ enabled: true, viewshedOn: true, inVisibleSet: true, hasGeometry: true, planeShowing: true }),
+    false,
+  );
+});
+
+test('called with nothing, it draws nothing', () => {
+  assert.equal(shouldDrawViewshedVolume(), false);
+  assert.equal(shouldDrawViewshedVolume({}), false);
 });

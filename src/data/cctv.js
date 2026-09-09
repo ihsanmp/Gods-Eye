@@ -68,7 +68,12 @@ import { resolveEllipsoidalGround } from './terrainHeights.js';
 import { cachedGroundFloor, resolveGroundFloorCells, warmGroundFloor } from './groundFloor.js';
 import { sampleMeshFloorCells } from './meshFloorSampler.js';
 import { horizonOccluder } from './iconOrientation.js';
-import { cameraHue, viewshedColors, createFrustumVolumePrimitive } from './cctvViewshed.js';
+import {
+  cameraHue,
+  viewshedColors,
+  createFrustumVolumePrimitive,
+  shouldDrawViewshedVolume,
+} from './cctvViewshed.js';
 import {
   PROJECTION_CONNECTING,
   PROJECTION_NO_FEED,
@@ -3574,7 +3579,14 @@ export function refreshCoverageStyles() {
     // Viewshed volume lifecycle: exists iff enabled + viewshed mode + in the
     // visible set. Rebuild on active-tint flips (rare); otherwise leave the
     // primitive alone so idle refreshes never churn geometry.
-    const wantVolume = !!(_enabled && viewshedOn && inVisibleSet && record.frustumPositions);
+    const wantVolume = shouldDrawViewshedVolume({
+      enabled: _enabled,
+      viewshedOn,
+      inVisibleSet,
+      hasGeometry: !!record.frustumPositions,
+      // The cone's far cap IS this plane. Filling it would tint the picture.
+      planeShowing,
+    });
     if (wantVolume) {
       if (!record.viewshedPrimitive || record.viewshedActiveTint !== isActive) {
         rebuildViewshedVolume(record, isActive);
